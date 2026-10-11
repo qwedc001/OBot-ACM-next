@@ -1,0 +1,49 @@
+[project]
+name = "obot-acm-nonebot"
+version = "0.3.2"
+description = "NoneBot2 bot for Competitive Programming and more"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "apscheduler>=3.11,<4",
+    "httpx>=0.28.1",
+    "nonebot-adapter-qq>=1.7.3",
+    "nonebot-plugin-apscheduler>=0.5,<0.6",
+    "nonebot-plugin-localstore>=0.7,<0.8",
+    "nonebot-plugin-orm[aiosqlite]>=0.8.3,<0.9",
+    "nonebot2[fastapi,httpx,websockets]>=2.5.0",
+    "sqlalchemy>=2.0,<3",
+]
+
+[project.optional-dependencies]
+render = [
+    "easy-pixie>=0.0.10",
+    "pixie-python>=4.3.0",
+]
+
+[tool.nonebot]
+adapters = [{ name = "QQ", module_name = "nonebot.adapters.qq" }]
+plugin_dirs = ["plugins"]
+
+[tool.nonebot.plugins]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=1.0",
+    "ruff>=0.14",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 110
+exclude = ["docs/research"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]
