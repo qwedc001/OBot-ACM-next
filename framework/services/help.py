@@ -11,15 +11,6 @@ from ..messages import Image, Message, Text
 from .base import Service
 
 logger = logging.getLogger(__name__)
-RENDER_TOKENS = frozenset({"render", "draw", "r", "d"})
-TEXT_TOKENS = frozenset({"text", "t", "文字"})
-
-
-def parse_help_request(args: str) -> tuple[bool, str]:
-    parts = args.strip().split(maxsplit=1)
-    if parts and parts[0].casefold() in RENDER_TOKENS | TEXT_TOKENS:
-        return parts[0].casefold() in RENDER_TOKENS, parts[1].strip() if len(parts) > 1 else ""
-    return True, args.strip()
 
 
 class HelpService(Service):
@@ -34,11 +25,10 @@ class HelpService(Service):
         renderer.register("help", HelpPixieBackend())
 
     async def reply(
-        self, context: RequestContext, args: str, *, image_available: bool = True
+        self, context: RequestContext, query: str = "", *, draw: bool = True, image_available: bool = True
     ) -> str | tuple[Message, ...]:
         if context.command_allowed is None:
             raise ValueError("Help requires the same permission checker as command execution")
-        draw, query = parse_help_request(args)
         model = await self.catalog.help_model(context.command_allowed, query)
         text = self.catalog.help_model_text(model)
         if not draw or not image_available or not model["found"] or not model["count"]:

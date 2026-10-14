@@ -12,7 +12,6 @@ from framework.contracts import AccessDenied, Actor, RequestContext, Role, Scene
 from framework.models import ImageArtifact
 from framework.responses import text_chunks
 from framework.runtime import Services
-from framework.services.help import parse_help_request
 from framework.views.help import (
     COLUMN_GAP,
     CONTENT_WIDTH,
@@ -64,25 +63,6 @@ def help_catalog():
 
 def command_ids(model):
     return {command["id"] for group in model["groups"] for command in group["commands"]}
-
-
-@pytest.mark.parametrize(
-    "args,expected",
-    [
-        ("", (True, "")),
-        ("maintenance", (True, "maintenance")),
-        ("render", (True, "")),
-        (" R ping ", (True, "ping")),
-        ("draw tools.nested", (True, "tools.nested")),
-        ("d status", (True, "status")),
-        ("renderer", (True, "renderer")),
-        ("text", (False, "")),
-        ("text maintenance", (False, "maintenance")),
-        (" TEXT ping ", (False, "ping")),
-    ],
-)
-def test_render_mode_is_a_complete_token(args, expected):
-    assert parse_help_request(args) == expected
 
 
 async def test_full_help_filters_roles_and_scenes():
@@ -339,7 +319,7 @@ async def test_explicit_text_help_never_invokes_renderer(tmp_path, database):
         with patch.object(
             services.clients.renderer, "render_pages", side_effect=AssertionError("text should not render")
         ):
-            result = await services.help.reply(context, "text")
+            result = await services.help.reply(context, draw=False)
         assert isinstance(result, str) and "/help" in result and "/maintenance.status" not in result
     finally:
         await services.close()

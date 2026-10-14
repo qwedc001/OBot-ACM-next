@@ -3,7 +3,7 @@ from nonebot.plugin import PluginMetadata
 from framework.catalog import CommandDirectory, CommandSpec, catalog
 from framework.contracts import Role
 from framework.integration.command_context import BotServices, CommandContext, Reply
-from framework.integration.commands import command
+from framework.integration.commands import template_command as command
 
 __plugin_meta__ = PluginMetadata(
     name="维护与诊断",
@@ -24,6 +24,7 @@ ping = command(
         aliases=("ping",),
         example_alias="ping",
         summary="检查机器人是否能够回复",
+        menu_label="连通检查",
         permission=Role.SUPERUSER,
         examples=("/ping",),
     ),
@@ -32,7 +33,7 @@ ping = command(
 )
 
 
-@ping.handle()
+@ping.assign("$main")
 async def ping_handler(services: BotServices, reply: Reply) -> None:
     await reply.finish(await services.maintenance.ping())
 
@@ -45,6 +46,7 @@ identity = command(
         aliases=("whoami", "我的身份"),
         example_alias="whoami",
         summary="查看自己的机器人身份与当前对话场景",
+        menu_label="我的身份",
         permission=Role.SUPERUSER,
         examples=("/whoami",),
     ),
@@ -53,7 +55,7 @@ identity = command(
 )
 
 
-@identity.handle()
+@identity.assign("$main")
 async def identity_handler(context: CommandContext, services: BotServices, reply: Reply) -> None:
     await reply.finish(await services.maintenance.whoami(context))
 
@@ -66,6 +68,7 @@ status = command(
         aliases=("status",),
         example_alias="status",
         summary="查看机器人运行状态",
+        menu_label="运行状态",
         permission=Role.SUPERUSER,
         examples=("/status",),
     ),
@@ -74,6 +77,6 @@ status = command(
 )
 
 
-@status.handle()
+@status.assign("$main")
 async def status_handler(services: BotServices, reply: Reply) -> None:
     await reply.finish(await services.maintenance.status())
