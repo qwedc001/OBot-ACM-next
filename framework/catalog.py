@@ -29,6 +29,7 @@ class CommandSpec:
     hidden: bool = False
     directory: tuple[str, ...] | None = None
     example_alias: str | None = None
+    menu_label: str | None = None
 
     def __post_init__(self) -> None:
         if not re.fullmatch(r"[a-z][a-z0-9_.-]*", self.id):
@@ -47,6 +48,8 @@ class CommandSpec:
             raise ValueError("Duplicate command alias")
         if self.example_alias is not None and self.example_alias not in self.aliases:
             raise ValueError("Example alias must be a registered command alias")
+        if self.menu_label is not None and not self.menu_label.strip():
+            raise ValueError("Menu label cannot be empty")
 
     @property
     def path(self) -> tuple[str, ...]:
@@ -95,6 +98,7 @@ class CommandSpec:
             "permission": self.permission.value,
             "aliases": list(self.aliases),
             "example_alias": self.example_alias,
+            "menu_label": self.menu_label,
             "usage": self.display_usage(separator),
             "examples": [self.expand_example(example, separator) for example in self.examples],
             "scopes": sorted(self.scopes),

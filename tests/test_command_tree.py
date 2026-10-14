@@ -208,3 +208,17 @@ def test_usage_without_arguments_remains_canonical_with_example_alias():
     assert spec.display_usage() == "/maintenance.ping"
     assert spec.expand_example("/maintenance.ping") == "/ping"
     assert ping_spec(aliases=("ping",)).to_dict()["example_alias"] is None
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_command_alias_cannot_shadow_a_directory(reverse):
+    catalog = CommandCatalog()
+    specs = [
+        CommandSpec("leaf", "fun", "word", "一句话"),
+        CommandSpec("shadow", "other", "cmd", "冲突", aliases=("fun",)),
+    ]
+    if reverse:
+        specs.reverse()
+    catalog.register(specs[0])
+    with pytest.raises(ValueError, match="directory"):
+        catalog.register(specs[1])
