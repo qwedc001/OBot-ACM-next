@@ -1,4 +1,4 @@
-# OBot 共享框架（0.3.2）
+# OBot 共享框架
 
 ## Plugin、Service 与 Client
 
@@ -92,45 +92,7 @@ uv run --no-sync python -m framework.admin superuser remove USER_ID
 
 ## 指令与帮助
 
-`command(CommandSpec(...), **kwargs)` 统一登记路径、权限、别名、用法、示例和场景，并返回 NoneBot 原生 Matcher；用 `.handle()` 注册处理函数。它调用原生 `on_command`，别名、COMMAND_START、COMMAND_SEP、priority、block、rule、permission 和会话控制使用 NoneBot 实现，不另写匹配或调度逻辑。MatchMode.PREFIX 使用原生 force_whitespace=False，KEYWORD 使用原生 on_fullmatch；命令遵循原生大小写敏感规则。
-
-`CommandSpec(permission=Role.EVERYONE/GROUP_ADMIN/SUPERUSER)` 声明共享权限，执行和帮助使用同一个检查。额外传给原生 Matcher 的 rule/permission 属于事件条件，不会自动变成帮助声明，功能访问权限应在 CommandSpec 中表达。应用接入钩子只准备身份、检查权限和记录耗时，不调用业务 handler、不把返回值自动发送。原生 pause/reject/got 续接时重新解析身份和检查权限，避免权限撤销后沿用旧上下文。
-
-```python
-from typing import Annotated
-
-from nonebot.adapters import Message
-from nonebot.params import CommandArg
-
-from framework.catalog import CommandSpec
-from framework.contracts import Role
-from framework.integration.command_context import BotServices, Reply
-from framework.integration.commands import command
-
-lookup = command(
-    CommandSpec(
-        id="contest.lookup",
-        plugin_id="contest",
-        name="lookup",
-        summary="查询比赛",
-        permission=Role.EVERYONE,
-    ),
-    priority=10,
-    block=True,
-)
-
-
-@lookup.handle()
-async def handle_lookup(
-    services: BotServices,
-    reply: Reply,
-    args: Annotated[Message, CommandArg()],
-) -> None:
-    await reply.send("正在查询")
-    # 假设业务模块已实现 ContestService.lookup。
-    result = await services.contest.lookup(args.extract_plain_text().strip())
-    await reply.finish(str(result))
-```
+所有业务 Plugin 使用 Alconna 的声明式模板与独立 handler，统一调用 `template_command`。语法解析留在 Plugin，Service 接收明确业务参数；具体约定、示例和各模块拆分见 [命令架构指引](commands.md)。优先级、依赖注入、权限、状态和会话结束由 NoneBot Matcher 管理。
 
 `BotServices`、`Reply`、`CommandContext` 是原生 Depends 的类型别名。Plugin 可在多个 await 之间顺序发送消息；Service 返回业务数据，handler 决定收发顺序。等待慢 Client 时其他事件继续处理。
 
@@ -214,14 +176,59 @@ HelpService 返回字符串或 tuple[Message, ...]，读取图片前校验访问
 
 ## QQ 与 Dashboard
 
+### 私聊底部菜单
+
+腾讯官方新接口 [GET /v2/menu](https://bot.q.qq.com/wiki/develop/api-v2/autogen/api/v2_menu.get.html) 与 [PUT /v2/menu](https://bot.q.qq.com/wiki/develop/api-v2/autogen/api/v2_menu.put.html) 支持两级自定义菜单，仅 C2C 私聊生效，所有用户共享。QQ Adapter 1.7.3 尚未封装这两个 API；平台接入层使用其原有 `_request`，保留 SDK 鉴权、token 刷新和请求驱动，不增加另一套鉴权。
+
+`CommandSpec.menu_label` 声明菜单短说明；QQMenuClient 调用 API，MenuService 从同一 Catalog 生成模块和命令按钮。一级最多十项、名称最多十个字符，二级最多五项、名称最多十四个字符，中文按两个字符计。每模块预留“指令说明”打开 `/help text 模块`；菜单本身没有 desc 字段，完整说明和例子由权限过滤后的帮助展示。大模块拆为多个同级菜单，不静默遗漏命令；总数超过 API 容量时拒绝发布。
+
+可信服务器操作者可以运行以下 CLI。默认仅展示 everyone、当前私聊场景可用且非 hidden 的功能；`--include-admin` 会公开带权限标记的管理员入口，不是按账号隐藏。菜单点击会直接发送消息，因此只设置命令本身（优先已声明的短别名），不填入运行范例或示例参数；帮助中的范例仍按声明展示。发送后仍执行正常鉴权。
+
+```sh
+uv run python -m framework.menu
+uv run python -m framework.menu --apply
+```
+
+同步前备份完整菜单，未变化时不写；修改后 GET 读回比对，仅忽略 QQ 自动补充的 icon 字段。不在每次启动或重连时覆盖配置，不改指令面板或群聊菜单。默认备份在 LocalStore 的 menu-backups 目录；`--backup` 可指定路径，已有备份拒绝覆盖。修改频率上限五次/分钟，CLI 正常发布一次需 GET/PUT/GET。
+
+### 按需调用的指令面板 API
+
+[指令面板 API](https://bot.q.qq.com/wiki/develop/api-v2/autogen/api/v2_panels.post.html) 支持私聊和群聊注册可发现的命令。目前不按 Catalog 自动注册一级命令或生成面板，不在启动、重连时发布。模块帮助继续使用 `/help fun`，`/fun`、`/maintenance` 这类目录入口没有 Matcher。已有业务命令和别名仍由 Plugin 显式声明。
+
+`services.clients.qq_menu` 保留异步 `panels(bot, scope)`、`create_panel(bot, scope, panel)`、`get_panel(bot, panel_id)`、`update_panel(bot, panel_id, panel)`、`delete_panel(bot, panel_id)`，供以后确定内容后显式调用。创建接口面向指定 scope 的全局 all 面板，panel 的 remark/items 由调用者提供，不猜测注册内容；查询处理分页。复用 QQ Adapter 的鉴权、token 刷新和原有请求入口，不单独维护另一套 HTTP 或鉴权。
+
+```python
+# 由可信操作者明确选择内容后调用；这段代码不会在启动时执行。
+client = services.clients.qq_menu
+panel_id = await client.create_panel(
+    bot,
+    "c2c",
+    {"remark": "chosen-commands", "items": [{"type": "command", "name": "/hitokoto", "desc": "随机一言"}]},
+)
+panel = await client.get_panel(bot, panel_id)
+await client.delete_panel(bot, panel_id)
+```
+
+面板负责平台展示，不会创建 NoneBot 的指令处理函数，也不替代执行权限检查。原先本项目发布的两个一级目录面板已撤下；私聊底部菜单是独立接口，仍通过前述显式 CLI 管理。面板原始创建、修改、删除接口的约束由 [腾讯官方文档](https://bot.q.qq.com/wiki/develop/api-v2/autogen/api/v2_panels_panel_id.delete.html) 定义。
+
 OBOT_QQ_TRANSPORT 的 configured 模式使用 QQ_BOTS 原设置，websocket/webhook 显式覆盖接收方式。当前服务器使用 WebSocket 接收，HTTP API 发消息不变；WS 模式 webhook POST 返回409。需要检查 Bot connected，而不是只检查 service active。
 
 独立 EP 项目仍作为 dashboard 参考，尚未部署或接线。内部 /internal/v1/health 与 /internal/v1/commands 默认404；开启后需要实际回环连接与 Bearer 令牌，不信任 X-Forwarded-For。机器令牌不冒充 QQ 群管理者，commands 只返回 everyone 可用且非 hidden 的指令。返回正式 path、directory、别名、权限、separator、用法和格式化示例，可用于同一棵帮助树。
 
 health 提供版本、就绪、指令数、队列、连接状态、最近收发及最近100条处理结果与耗时，不保留消息正文。计时从 matcher 首个上下文 handler 开始，包含身份、处理和平台发送等待，不包含平台分发或客户端实际送达时间。并行发送等待按时间区间并集统计，不重复累计。发送成功只表示平台接受请求。重复事件缓存是有界进程内去重，不是业务 exactly-once 保证。
 
-Caddy 公网仅代理 /qq/*，域名其余路径保留未来 dashboard；内部令牌不能交给前端。web 用户映射、业务 API 与提交审核在具体功能迁移时实现。后续先迁比赛平台 Client、业务 Service、图片视图和 QQ Plugin，再接 EP。持续把已完成和待办写入根 AGENT.md。
+Caddy 公网代理 /qq/* 与 /board/*，域名其余路径保留未来 dashboard；内部令牌不能交给前端。web 用户映射、业务 API 与提交审核在具体功能迁移时实现。后续迁移比赛平台 Client、业务 Service、图片视图和 QQ Plugin，再接 EP。根 AGENT.md 只保留千字以内基础指引；详细记录放在不提交的 .codex/reference-docs/。
+
+## 趣味工具：一言
+
+`plugins/fun.py` 提供 everyone 可用的 `/fun.hitokoto`，短别名 `/hitokoto`、`/一言`、`/来句`、`/来一句`、`/来句话`、`/来一句话`。`/help fun`、`/help hitokoto` 与全局帮助自动展示同一份命令声明。
+
+HitokotoClient 通过共享 HttpClient 异步访问 [一言语句接口](https://developer.hitokoto.cn/sentence/)，校验正文/作者/出处。成功结果缓存两秒，合并同时请求，限制公益接口请求突发；等待和网络总耗时最多八秒，不缓存失败。HitokotoService 保留原有 `[Hitokoto]` 与作者/出处格式；缺少作者时不显示 None，缺少出处显示“未知出处”，请求失败提示稍后重试。Plugin 使用 ReplyClient 显式回复，各平台复用这条业务链，无数据库或新依赖。
 
 ## 验证
 
+Hydro 训练榜单、一次性网页绑定和固定提交的生成器 submodule 见 [榜单说明](boards.md)。`/board` 是本次明确注册的业务别名；仍不自动注册目录或 QQ 指令面板。
+
 `uv run --extra render pytest -q` 使用临时空环境文件和数据库，测试 Service/Client 自动发现、跨类依赖、逆序释放、失败清理、原生三类权限、超管两场景一致、默认图片/显式文字、分栏分页、并发与原生绘图取消。合成 probe 执行真实 NoneBot 分发、原生命令优先级/block、参数/别名/分隔符、等待 Client 期间多事件并发、顺序多回复、finish 和会话续接重新授权，并运行非 QQ 平台与官方 ORM/LocalStore/APScheduler 生命周期。不连接外部平台，不能代替真实聊天验收。
+
+版本编号与发布规则见 [版本说明](versions.md)。

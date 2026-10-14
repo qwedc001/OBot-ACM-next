@@ -49,7 +49,7 @@ Service 不接收整条指令字符串，不解析 `/help text` 或 `board bind`
 
 ## 当前模块
 
-- board：bind、confirm、unbind、list、version、push、starred、today、yesterday、history、verdict、user.id、user.name 各有独立 handler。
+- board：bind、confirm、unbind、list、version、push.on、push.off、push.status、push.test、starred、today、yesterday、history、verdict、user.id、user.name 各有独立 handler。
 - debug：根帮助、markdown、button 独立。
 - help：默认图片、text、render 独立；显示参数不再在 HelpService 中解析。
 - maintenance：ping、whoami、status 各自 `$main`。
