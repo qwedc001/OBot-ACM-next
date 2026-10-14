@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
+from nonebot.log import logger
 from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.sqlite import insert
 
@@ -453,33 +454,90 @@ class BoardService(Service):
             )
         return "已开启每日 00:30 昨日榜单推送。" if enabled else "已关闭每日榜单推送。"
 
-    async def daily_push(self):
-        from ..clients.jobs import QueueClosed, QueueFull
+    async def push_status(self, context, name=None):
+        from nonebot_plugin_apscheduler import scheduler
+
+        await self.require_manage(context)
+        config = await self.choose(context, name)
+        job = scheduler.get_job("board.push")
+        next_run = getattr(job, "next_run_time", None)
+        when = (
+            next_run.astimezone(ZoneInfo(self.settings.obot_board_timezone)).strftime("%Y-%m-%d %H:%M:%S")
+            if next_run
+            else "暂无"
+        )
+        return (
+            f"{config.name}：推送{'开启' if config.push_target else '关闭'}\n"
+            f"调度器：{'运行中' if scheduler.running else '未运行'}\n"
+            f"任务：{'已注册' if job else '未注册'}\n下次执行：{when}（{self.settings.obot_board_timezone}）\n"
+            "推送配置保存在数据库；任务每次启动重新注册，离线时错过的推送不会自动补发。"
+        )
+
+    async def _deliver_board(self, config):
+        actor = Actor(config.owner_id, "scheduler:board")
+        artifact = await self.image_for_config(actor, config, "full")
+        async with self.sessions() as session:
+            latest = await session.get(BoardConfig, config.id)
+            if (
+                latest is None
+                or latest.revision != config.revision
+                or latest.options != config.options
+                or latest.push_target != config.push_target
+            ):
+                logger.info("Board push skipped: config={} reason=config_changed", config.id)
+                return False
+        data = await self.peeper.artifacts.read(actor, artifact.id)
+        await self.reply.send_to(Message(Text("昨日训练榜单"), Image(data)), SendTarget(**config.push_target))
+        logger.info("Board push accepted by adapter: config={}", config.id)
+        return True
+
+    @staticmethod
+    def log_push_failure(config, error):
         from ..clients.reply import DeliveryFailed
 
+        diagnosis = DeliveryFailed.from_exception(error)
+        logger.warning(
+            "Board push failed: config={} type={} status={} code={}",
+            config.id,
+            type(error).__name__,
+            diagnosis.status_code,
+            diagnosis.code,
+        )
+
+    async def test_push(self, context, name=None):
+        from ..clients.reply import DeliveryFailed
+
+        await self.require_manage(context)
+        config = await self.choose(context, name)
+        if not config.push_target:
+            raise BoardError("当前配置尚未开启推送，请先 /board push on。")
+        try:
+            delivered = await self._deliver_board(config)
+        except DeliveryFailed as error:
+            self.log_push_failure(config, error)
+            details = [f"HTTP {error.status_code}" if error.status_code is not None else "HTTP 状态未知"]
+            if error.code is not None:
+                details.append(f"平台错误码 {error.code}")
+            raise BoardError(
+                "主动推送失败（"
+                + "，".join(details)
+                + "）。请检查 QQ 的允许主动发送开关及机器人主动消息能力。"
+            ) from None
+        if not delivered:
+            raise BoardError("推送配置已改变，本次测试取消，请重新尝试。")
+        return "已通过主动接口发送昨日榜单，请检查是否收到图片。"
+
+    async def daily_push(self):
         async with self.sessions() as session:
-            configs = (await session.scalars(select(BoardConfig))).all()
+            configs = (
+                await session.scalars(select(BoardConfig).where(BoardConfig.push_target.is_not(None)))
+            ).all()
+        logger.info("Board daily push started: enabled={}", len(configs))
         for config in configs:
-            if not config.push_target:
-                continue
             try:
-                actor = Actor(config.owner_id, "scheduler:board")
-                artifact = await self.image_for_config(actor, config, "full")
-                async with self.sessions() as session:
-                    latest = await session.get(BoardConfig, config.id)
-                    if (
-                        latest is None
-                        or latest.revision != config.revision
-                        or latest.options != config.options
-                        or latest.push_target != config.push_target
-                    ):
-                        continue
-                data = await self.peeper.artifacts.read(actor, artifact.id)
-                await self.reply.send_to(
-                    Message(Text("昨日训练榜单"), Image(data)), SendTarget(**config.push_target)
-                )
-            except (BoardError, TimeoutError, DeliveryFailed, QueueFull, QueueClosed):
-                continue
+                await self._deliver_board(config)
+            except Exception as error:
+                self.log_push_failure(config, error)
 
     async def daily_update(self):
         yesterday = (
@@ -490,8 +548,10 @@ class BoardService(Service):
         for config in configs:
             try:
                 await self.snapshot(config, yesterday, force=True)
-            except (BoardError, TimeoutError):
-                continue
+            except (BoardError, TimeoutError) as error:
+                logger.warning(
+                    "Board daily snapshot failed: config={} type={}", config.id, type(error).__name__
+                )
 
     async def start(self):
         from nonebot_plugin_apscheduler import scheduler
@@ -518,6 +578,8 @@ class BoardService(Service):
             max_instances=1,
             coalesce=True,
         )
+
+        logger.info("Board schedules registered: timezone={} push=00:30", self.settings.obot_board_timezone)
 
     async def close(self):
         from nonebot_plugin_apscheduler import scheduler

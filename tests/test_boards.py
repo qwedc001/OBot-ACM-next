@@ -328,3 +328,67 @@ async def test_starred_changed_during_render_cannot_deliver_old_setting(database
     await boards.push(context(), True, None, {"adapter": "QQ", "kind": "c2c", "id": "user", "bot_id": "bot"})
     await boards.daily_push()
     boards.reply.send_to.assert_not_awaited()
+
+
+async def test_push_setting_survives_recreation_and_schedule_is_registered_again(database, tmp_path):
+    from nonebot_plugin_apscheduler import scheduler
+
+    boards = service(database, tmp_path)
+    await bind(boards)
+    target = {"adapter": "QQ", "kind": "c2c", "id": "user", "bot_id": "bot"}
+    await boards.push(context(), True, None, target)
+    await boards.start()
+    assert scheduler.get_job("board.push") is not None
+    await boards.close()
+    assert scheduler.get_job("board.push") is None
+    restarted = service(database, tmp_path)
+    try:
+        await restarted.start()
+        assert (await restarted.choose(context())).push_target == target
+        assert "已注册" in await restarted.push_status(context())
+        with pytest.raises(AccessDenied):
+            await restarted.push_status(context(group="room"))
+    finally:
+        await restarted.close()
+
+
+async def test_push_failure_logs_safe_code_and_test_command_reports_it(database, tmp_path, monkeypatch):
+    from framework.clients.reply import DeliveryFailed
+    from framework.services.boards import logger
+
+    boards = service(database, tmp_path)
+    await bind(boards)
+    with pytest.raises(BoardError, match="尚未开启"):
+        await boards.test_push(context())
+    await boards.push(
+        context(), True, None, {"adapter": "QQ", "kind": "c2c", "id": "secret-target", "bot_id": "bot"}
+    )
+    boards.peeper.render.return_value = SimpleNamespace(id="artifact")
+    boards.peeper.artifacts = SimpleNamespace(read=AsyncMock(return_value=b"PNG"))
+    boards.reply = SimpleNamespace(
+        send_to=AsyncMock(side_effect=DeliveryFailed(status_code=403, code=400123))
+    )
+    messages = []
+    monkeypatch.setattr(logger, "warning", lambda message, *args: messages.append(message.format(*args)))
+    await boards.daily_push()
+    assert "status=403 code=400123" in messages[-1]
+    assert "secret-target" not in messages[-1]
+    with pytest.raises(BoardError, match="HTTP 403.*400123"):
+        await boards.test_push(context())
+
+
+async def test_one_failed_board_does_not_block_other_opted_in_boards(database, tmp_path):
+    from framework.clients.reply import DeliveryFailed
+
+    boards = service(database, tmp_path)
+    await bind(boards, name="first")
+    await bind(boards, name="second")
+    for name in ("first", "second"):
+        await boards.push(
+            context(), True, name, {"adapter": "QQ", "kind": "c2c", "id": "user", "bot_id": "bot"}
+        )
+    boards.peeper.render.return_value = SimpleNamespace(id="artifact")
+    boards.peeper.artifacts = SimpleNamespace(read=AsyncMock(return_value=b"PNG"))
+    boards.reply = SimpleNamespace(send_to=AsyncMock(side_effect=[DeliveryFailed(), {"id": "accepted"}]))
+    await boards.daily_push()
+    assert boards.reply.send_to.await_count == 2

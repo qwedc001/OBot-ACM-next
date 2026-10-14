@@ -278,3 +278,30 @@ async def test_registration_unknown_adapter_and_cancellation(client, bot, monkey
     monkeypatch.setattr(Bot, "send", AsyncMock(side_effect=asyncio.CancelledError))
     with pytest.raises(asyncio.CancelledError):
         await client.send("hi", bot=bot, event=event())
+
+
+@pytest.mark.parametrize("proactive", [False, True])
+async def test_sdk_error_retains_only_numeric_diagnostics(client, bot, monkeypatch, proactive):
+    import json
+
+    from nonebot.adapters.qq.exception import ActionFailed
+    from nonebot.drivers import Response
+
+    error = ActionFailed(
+        Response(
+            status_code=403,
+            headers={},
+            content=json.dumps(
+                {"code": 400123, "message": "secret-account-password", "data": {"token": "secret-token"}}
+            ),
+        )
+    )
+    monkeypatch.setattr(Bot, "post_c2c_messages", AsyncMock(side_effect=error))
+    with pytest.raises(DeliveryFailed) as failure:
+        if proactive:
+            await client.send_to("hello", SendTarget("QQ", "c2c", "user", "app"), bot=bot)
+        else:
+            await client.send("hello", bot=bot, event=event())
+    assert failure.value.status_code == 403 and failure.value.code == 400123
+    assert str(failure.value) == "Message delivery failed"
+    assert "secret" not in str(failure.value.__dict__)

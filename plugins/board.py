@@ -43,8 +43,10 @@ board = template_command(
     Subcommand("unbind", Args["name", str]),
     Subcommand("list"),
     Subcommand("version"),
-    Subcommand("push", Args["enabled", Literal["on", "off"]]["name", str, None]),
-    Subcommand("starred", Args["setting?", Literal["on", "off", "toggle"], "toggle"]["name", str, None]),
+    Subcommand(
+        "push", *(Subcommand(action, Args["name", str, None]) for action in ("on", "off", "status", "test"))
+    ),
+    Subcommand("starred", Args["setting", Literal["on", "off", "toggle"], "toggle"]["name", str, None]),
     Subcommand("today", Args["name", str, None]),
     Subcommand("yesterday", Args["name", str, None]),
     Subcommand("history", Args["day", str]["name", str, None]),
@@ -83,7 +85,7 @@ async def handle_board_help(context: CommandContext, services: BotServices, repl
     if context.scene.kind in {SceneKind.C2C, SceneKind.DIRECT}:
         text += "\n/board user id 用户ID [配置名]：查询用户\n/board user name 用户名 [配置名]：按名字查询"
     if await services.boards.can_manage(context):
-        text += "\n/board bind 配置名：生成一次性设置链接\n/board confirm 配置名：发起人确认群绑定\n/board unbind 配置名：解除当前对话绑定\n/board push on|off [配置名]：开启或关闭每日推送\n/board starred [on|off|toggle] [配置名]：切换打星用户显示（默认切换）"
+        text += "\n/board bind 配置名：生成一次性设置链接\n/board confirm 配置名：发起人确认群绑定\n/board unbind 配置名：解除当前对话绑定\n/board push on|off [配置名]：开启或关闭每日推送\n/board push status [配置名]：查看推送与调度状态\n/board push test [配置名]：测试主动发送昨日榜单\n/board starred [on|off|toggle] [配置名]：切换打星用户显示（默认切换）"
     await reply.finish(text)
 
 
@@ -125,18 +127,39 @@ async def handle_board_version(services: BotServices, reply: Reply):
     await reply.finish("Peeper-Board-Generator " + await services.clients.peeper.version())
 
 
-@board.assign("push")
+@board.assign("push.on")
 @board_errors
-async def handle_board_push(
-    bot: Bot,
-    context: CommandContext,
-    services: BotServices,
-    reply: Reply,
-    enabled: str,
-    name: str | None = None,
+async def handle_board_push_on(
+    bot: Bot, context: CommandContext, services: BotServices, reply: Reply, name: str | None = None
 ):
     target = asdict(get_platform(bot).send_target(bot, context.scene))
-    await reply.finish(await services.boards.push(context, enabled == "on", name, target))
+    await reply.finish(await services.boards.push(context, True, name, target))
+
+
+@board.assign("push.off")
+@board_errors
+async def handle_board_push_off(
+    context: CommandContext, services: BotServices, reply: Reply, name: str | None = None
+):
+    await reply.finish(await services.boards.push(context, False, name, None))
+
+
+@board.assign("push.status")
+@board_errors
+async def handle_board_push_status(
+    context: CommandContext, services: BotServices, reply: Reply, name: str | None = None
+):
+    await reply.finish(await services.boards.push_status(context, name))
+
+
+@board.assign("push.test")
+@board_errors
+async def handle_board_push_test(
+    context: CommandContext, services: BotServices, reply: Reply, name: str | None = None
+):
+    await services.boards.require_manage(context)
+    await reply.send("正在测试主动推送，这会向已开启推送的当前对话发送昨日榜单。")
+    await reply.finish(await services.boards.test_push(context, name))
 
 
 @board.assign("starred")

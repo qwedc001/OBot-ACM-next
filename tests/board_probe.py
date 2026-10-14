@@ -162,6 +162,23 @@ async def main():
                     assert user.await_args.args[1:] == ("name", "Alice Smith", "privateOJ")
                     assert "profile" in str((await request("/board user id 2 privateOJ"))[0])
                     assert user.await_args.args[1:] == ("id", "2", "privateOJ")
+                assert "已注册" in str((await request("/board push status", group=True, role="admin"))[0])
+                assert "权限不足" in str((await request("/board push status", group=True))[0])
+                assert "权限不足" in str((await request("/board push test", group=True))[0])
+                assert "已开启" in str((await request("/board push on", group=True, role="admin"))[0])
+                from framework.clients.reply import DeliveryFailed
+
+                with (
+                    patch.object(services.boards, "image_for_config", AsyncMock(return_value=artifact)),
+                    patch.object(services.clients.artifacts, "read", AsyncMock(return_value=b"PNG")),
+                    patch.object(services.clients.reply, "send_to", AsyncMock()) as proactive,
+                ):
+                    response = await request("/board push test", group=True, role="admin")
+                    assert len(response) == 2 and "主动接口" in str(response[-1])
+                    assert proactive.await_args.args[1].kind == "group"
+                    proactive.side_effect = DeliveryFailed(status_code=403, code=400123)
+                    response = await request("/board push test", group=True, role="admin")
+                    assert "HTTP 403" in str(response[-1]) and "400123" in str(response[-1])
                 assert "已关闭" in str((await request("/board starred privateOJ"))[0])
                 # Board generation is separately tested with the real renderer; this probe checks routing and authorization.
                 assert "解除绑定" in str((await request("/board unbind privateOJ"))[0])

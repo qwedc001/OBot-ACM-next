@@ -33,6 +33,8 @@ uv sync --extra render
 | `/board user name 用户名 [配置名]` | 私聊模糊匹配名字查询；含空格的名字使用引号 |
 | `/board version` | 上游生成器版本 |
 | `/board push on或off [配置名]` | 管理者开启或关闭本对话的每日推送 |
+| `/board push status [配置名]` | 管理者查看推送开关、任务注册及下次执行时间 |
+| `/board push test [配置名]` | 管理者通过主动接口测试发送昨日榜单，会实际发送一条榜单 |
 | `/board starred [on或off或toggle] [配置名]` | 管理者开启、关闭或切换打星用户显示；省略状态默认切换 |
 | `/board unbind 配置名` | 管理者解除本对话绑定并清除相关缓存 |
 
@@ -40,11 +42,13 @@ uv sync --extra render
 
 `/board starred off xxxOJ` 隐藏打星用户，`/board starred on xxxOJ` 恢复显示；只有一个配置时可直接 `/board starred` 切换。设置持久保存在当前个人或群配置中，立即作用于下一次生成和每日推送，不需要重新绑定，也不会删除历史快照。
 
+推送开关和目标保存在数据库，重启后仍有效。两个固定任务在每次启动时重新注册，不需要持久化绑定 Python 对象的调度任务；服务离线错过的执行不会自动补发。主动发送失败记录异常类型、HTTP 状态与数值平台错误码，不记录 SDK 响应正文、凭据或目标身份。单个配置失败不会阻止其它配置推送。`/board push test` 使用与定时任务相同的主动发送流程，不能以被动回复成功代替主动能力验收。QQ 客户端的允许主动发送开关、平台能力与发送配额会影响实际送达。
+
 APScheduler 每日 00:05 更新前一天缓存；明确开启推送后于 00:30 发送昨日榜单。时区默认 Asia/Shanghai。今日数据短暂缓存 30 秒；历史榜单只使用已积累的快照，缺少记录时明确提示，不捏造历史排名。上游总榜会注明不在日期边界附近抓取的排名来源。
 
 ## 配置与运行
 
-`OBOT_PUBLIC_BASE_URL` 设置公网 HTTPS 根地址，不设置时绑定网页关闭。`OBOT_BOARD_BIND_TTL` 设置链接有效秒数，`OBOT_BOARD_TIMEZONE` 设置统计与定时时区。Caddy 仅将 `/board/*` 转发到机器人，保留其他路径给后续 dashboard。
+`OBOT_PUBLIC_BASE_URL` 设置公网 HTTPS 根地址。不设置时绑定网页关闭。`OBOT_BOARD_BIND_TTL` 设置链接有效秒数，`OBOT_BOARD_TIMEZONE` 设置统计与定时时区。Caddy 仅将 `/board/*` 转发到机器人，保留其他路径给后续 dashboard。
 
 凭据使用 Fernet 加密后存入应用数据库，密钥保存在 LocalStore 的 `keys/credentials.key`。备份时需要同时保存数据库和密钥；数据库备份本身不能恢复凭据。绑定令牌只保存哈希，原始令牌置于网址片段并在页面加载后移除，不写入 URL 请求路径或访问日志。网页不回显密码，要求同源 JSON 请求。
 

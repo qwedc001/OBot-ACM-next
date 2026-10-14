@@ -18,7 +18,23 @@ type DeliveryObserver = Callable[[float, float, bool], None]
 
 
 class DeliveryFailed(Exception):
-    """Safe delivery failure, without SDK response bodies or credentials."""
+    """Safe delivery failure; only numeric SDK diagnostics are retained."""
+
+    def __init__(self, message="Message delivery failed", *, status_code=None, code=None):
+        super().__init__(message)
+        self.status_code = status_code if type(status_code) is int else None
+        self.code = code if type(code) is int else None
+
+    @classmethod
+    def from_exception(cls, error):
+        values = {}
+        for field in ("status_code", "code"):
+            try:
+                value = getattr(error, field, None)
+            except Exception:
+                value = None
+            values[field] = value if type(value) is int else None
+        return cls(**values)
 
 
 class UnsupportedContent(ValueError):
@@ -99,8 +115,8 @@ class ReplyClient(Client):
             native = await adapter.build(event, self._checked_message(adapter, content), at_sender)
             try:
                 result = await bot.send(event, native)
-            except Exception:
-                raise DeliveryFailed("Message delivery failed") from None
+            except Exception as error:
+                raise DeliveryFailed.from_exception(error) from None
             delivered = True
             return result
         finally:
@@ -145,8 +161,8 @@ class ReplyClient(Client):
             native = await adapter.build(target, self._checked_message(adapter, content), False)
             try:
                 result = await adapter.send_to(bot, target, native)
-            except Exception:
-                raise DeliveryFailed("Message delivery failed") from None
+            except Exception as error:
+                raise DeliveryFailed.from_exception(error) from None
             delivered = True
             return result
         finally:
