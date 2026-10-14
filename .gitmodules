@@ -1,0 +1,3 @@
+[submodule "third-party/peeper-board-generator"]
+	path = third-party/peeper-board-generator
+	url = https://github.com/qwedc001/Peeper-Board-Generator.git

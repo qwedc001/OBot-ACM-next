@@ -42,3 +42,7 @@ class Platform(ABC):
     @abstractmethod
     async def send_to(self, bot: Bot, target: SendTarget, message: Any) -> Any:
         """Use the native SDK's proactive delivery and upload methods."""
+
+    def send_target(self, bot: Bot, scene: SceneRef) -> SendTarget:
+        """Optional scene routing for opted-in scheduled workflows."""
+        raise NotImplementedError("Platform has no scene-to-target mapping")

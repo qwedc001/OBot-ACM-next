@@ -155,6 +155,8 @@ async def main():
         assert nonebot.load_plugin("plugins.maintenance")
         assert nonebot.load_plugin("plugins.help")
         assert nonebot.load_plugin("plugins.debug")
+        assert nonebot.load_plugin("plugins.fun")
+        assert nonebot.load_plugin("plugins.board")
         manage = command(
             CommandSpec("probe.manage", "probe", "manage", "Manage", permission=Role.GROUP_ADMIN), block=True
         )
@@ -166,12 +168,15 @@ async def main():
         bot = ProbeBot(nonebot.get_driver()._adapters["Probe"], "same-app")
         counter = 0
 
-        async def request(text, user="member", group=None, admin=False):
+        async def request(text, user="member", group=None, admin=False, *, expect_reply=True):
             nonlocal counter
             counter += 1
             event = ProbeEvent(id=str(counter), text=text, user_id=user, group_id=group, admin=admin)
             before = len(bot.deliveries)
             await handle_event(bot, event)
+            if not expect_reply:
+                assert len(bot.deliveries) == before
+                return event, None
             assert len(bot.deliveries) == before + 1
             return event, bot.deliveries[-1][2]
 
@@ -195,6 +200,12 @@ async def main():
             for group, admin in ((None, True), ("room", False), ("room", True)):
                 _, response = await request("/probe.manage", group=group, admin=admin)
                 assert (response.extract_plain_text() == "managed") == bool(group and admin)
+            for group in (None, "room"):
+                for user in ("root", "member"):
+                    for entry in ("/fun", "/maintenance", "/maintainence", "/probe"):
+                        await request(entry, user=user, group=group, expect_reply=False)
+                _, module = await request("/help text fun", group=group)
+                assert "/fun.hitokoto" in module.extract_plain_text()
             qq_user = await services.identities.resolve(
                 ExternalIdentity("qq", "same-app", "person", "member")
             )
@@ -231,6 +242,24 @@ async def main():
             assert len(text_bot.deliveries) == 1
             assert "/maintenance.ping" in text_bot.deliveries[0][2].extract_plain_text()
             assert all(part.is_text() for part in text_bot.deliveries[0][2])
+            await handle_event(text_bot, ProbeEvent(id="board-directory", text="/board", user_id="member"))
+            assert "/board today" in text_bot.deliveries[-1][2].extract_plain_text()
+            await handle_event(
+                text_bot, ProbeEvent(id="board-image-unavailable", text="/board today", user_id="member")
+            )
+            assert "不支持图片" in text_bot.deliveries[-1][2].extract_plain_text()
+            await handle_event(text_bot, ProbeEvent(id="text-module", text="/help fun", user_id="member"))
+            module = text_bot.deliveries[-1][2]
+            assert "/fun.hitokoto" in module.extract_plain_text() and all(part.is_text() for part in module)
+            from unittest.mock import AsyncMock, patch
+
+            with patch.object(
+                services.clients.http,
+                "get_json",
+                AsyncMock(return_value={"hitokoto": "跨平台一言", "from": "测试", "from_who": None}),
+            ):
+                await handle_event(text_bot, ProbeEvent(id="public-quote", text="/一言", user_id="member"))
+                assert "跨平台一言" in text_bot.deliveries[-1][2].extract_plain_text()
             for choice in ("markdown", "button"):
                 await handle_event(
                     text_bot, ProbeEvent(id=f"debug-{choice}", text=f"/debug {choice}", user_id="root")

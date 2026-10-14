@@ -8,6 +8,7 @@ from nonebot.message import event_preprocessor
 
 from ..runtime import Services
 from .api import build_internal_router
+from .board_web import build_board_router
 from .command_context import observe_delivery
 from .platforms import get_platform, load_platforms, registered_platforms, supports_bot
 
@@ -27,6 +28,7 @@ def install_lifecycle(services: Services) -> None:
     driver.on_startup(startup)
     driver.on_shutdown(services.close)
     driver.server_app.include_router(build_internal_router(services))
+    driver.server_app.include_router(build_board_router(services))
     # Bounded, process-local duplicate suppression, not a durable event ledger.
     seen: OrderedDict[tuple[str, str, str, str, str], float] = OrderedDict()
 

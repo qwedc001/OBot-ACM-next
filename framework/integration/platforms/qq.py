@@ -46,3 +46,11 @@ class QQPlatform(Platform):
 
     async def send_to(self, bot: Bot, target: SendTarget, message):
         return await send_qq_to(bot, target, message)
+
+    def send_target(self, bot: Bot, scene: SceneRef) -> SendTarget:
+        return SendTarget(
+            bot.adapter.get_name(),
+            "dms" if scene.kind == SceneKind.DIRECT else scene.kind.value,
+            scene.external_id,
+            bot_id=bot.self_id,
+        )

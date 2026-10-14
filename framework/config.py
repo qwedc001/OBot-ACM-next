@@ -20,3 +20,6 @@ class Settings(BaseModel):
     obot_internal_token: SecretStr | None = None
     obot_artifact_ttl: float = Field(default=3600, gt=0)
     obot_artifact_max_bytes: int = Field(default=16 * 1024 * 1024, gt=0)
+    obot_public_base_url: str | None = None
+    obot_board_bind_ttl: int = Field(default=900, ge=60, le=3600)
+    obot_board_timezone: str = "Asia/Shanghai"
