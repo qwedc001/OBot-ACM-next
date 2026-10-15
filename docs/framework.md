@@ -96,7 +96,7 @@ uv run --no-sync python -m framework.admin superuser remove USER_ID
 
 `BotServices`、`Reply`、`CommandContext` 是原生 Depends 的类型别名。Plugin 可在多个 await 之间顺序发送消息；Service 返回业务数据，handler 决定收发顺序。等待慢 Client 时其他事件继续处理。
 
-maintenance 包含 ping、whoami、status，全部要求 superuser；正式路径 `/maintenance.ping` 等，短别名 `/ping` 等。help 位于独立 `backend/plugins/help.py`，正式路径 `/help`，everyone 可用，默认图片；`/help text` 显式文字。
+maintenance 包含 ping、whoami、whoisthis、status，全部要求 superuser；正式路径 `/maintenance.ping` 等，短别名 `/ping` 等。help 位于独立 `backend/plugins/help.py`，正式路径 `/help`，everyone 可用，默认图片；`/help text` 显式文字。
 
 `/help` 展示当前用户所有可执行的已注册命令，包括已授权的 hidden 项；`/help maintenance` 展开模块，`/help ping` 或 `/help maintenance.ping` 展示详情。目录由可见命令推导，不显示不可访问的模块。系统 COMMAND_SEP 默认英文句点，可切换其他标点；example_alias 允许示例使用已注册短别名，maintenance 已设置。maintainence 是帮助目录纠错别名。
 
@@ -232,3 +232,12 @@ Hydro 训练榜单、一次性网页绑定和固定提交的生成器 submodule 
 `uv run --extra render pytest -q` 使用临时空环境文件和数据库，测试 Service/Client 自动发现、跨类依赖、逆序释放、失败清理、原生三类权限、超管两场景一致、默认图片/显式文字、分栏分页、并发与原生绘图取消。合成 probe 执行真实 NoneBot 分发、原生命令优先级/block、参数/别名/分隔符、等待 Client 期间多事件并发、顺序多回复、finish 和会话续接重新授权，并运行非 QQ 平台与官方 ORM/LocalStore/APScheduler 生命周期。不连接外部平台，不能代替真实聊天验收。
 
 版本编号与发布规则见 [版本说明](versions.md)。
+
+
+### 查询他人主体
+
+超管在群内发送 `@机器人 /whoisthis @某人`，或 `/maintenance.whoisthis @某人`，查询目标的主体、外部身份、当前场景与超管登记状态。一次只接受一位用户；重复提及同一人会去重，机器人和全体成员不作为目标。普通用户与群管不能查询，该指令不会授予或撤销权限。
+
+QQ 接入层优先使用官方提及元数据的 `member_openid`，不把显示用的 `id` 当作群成员身份。对于未登记用户，完整元数据允许建立默认无超管标记的身份记录，后续该用户真实消息沿用同一主体。旧消息仅有提及文本 ID 时，只查询已有记录，不能据此猜测和创建新身份。元数据不足时会提示目标先在群内 @机器人发送任意消息，无需执行 whoami。
+
+查询后仍由可信服务器操作者使用 `python -m framework.admin superuser add 主体ID` 登记超管。群身份与私聊身份仅在可信关联后共享主体，不按相同显示 ID 或昵称自动合并。通用 Plugin 使用 Bot/Event，提及映射由 Platform.mentioned_users 提供，其他平台可以独立实现；未实现时不猜测目标。

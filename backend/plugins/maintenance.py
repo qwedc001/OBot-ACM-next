@@ -1,14 +1,16 @@
+from nonebot.adapters import Bot, Event
 from nonebot.plugin import PluginMetadata
 
 from framework.catalog import CommandDirectory, CommandSpec, catalog
-from framework.contracts import Role
+from framework.contracts import Role, SceneKind
 from framework.integration.command_context import BotServices, CommandContext, Reply
 from framework.integration.commands import template_command as command
+from framework.integration.platforms import get_platform
 
 __plugin_meta__ = PluginMetadata(
     name="维护与诊断",
     description="仅机器人管理员可用的连通检查、身份与运行状态",
-    usage="/help maintenance /maintenance.ping /maintenance.whoami /maintenance.status",
+    usage="/help maintenance /ping /whoami /whoisthis @某人 /status",
     type="application",
     supported_adapters=None,
 )
@@ -58,6 +60,32 @@ identity = command(
 @identity.assign("$main")
 async def identity_handler(context: CommandContext, services: BotServices, reply: Reply) -> None:
     await reply.finish(await services.maintenance.whoami(context))
+
+
+lookup_identity = command(
+    CommandSpec(
+        id="core.whoisthis",
+        plugin_id="maintenance",
+        name="whoisthis",
+        aliases=("whoisthis",),
+        example_alias="whoisthis",
+        summary="查看被提及用户的主体，便于登记管理员身份",
+        permission=Role.SUPERUSER,
+        scopes=frozenset({SceneKind.GROUP, SceneKind.CHANNEL}),
+        usage="/whoisthis @某人",
+        examples=("/whoisthis @某人",),
+    ),
+    priority=10,
+    block=True,
+)
+
+
+@lookup_identity.assign("$main")
+async def lookup_identity_handler(
+    bot: Bot, event: Event, context: CommandContext, services: BotServices, reply: Reply
+) -> None:
+    targets = get_platform(bot).mentioned_users(bot, event)
+    await reply.finish(await services.maintenance.whoisthis(context, targets))
 
 
 status = command(

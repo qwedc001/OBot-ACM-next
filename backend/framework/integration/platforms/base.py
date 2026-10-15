@@ -6,7 +6,7 @@ from typing import Any, ClassVar
 
 from nonebot.adapters import Adapter, Bot, Event
 
-from ...contracts import ExternalIdentity, SceneRef
+from ...contracts import ExternalIdentity, MentionedUser, SceneRef
 from ...messages import Message, SendTarget
 
 
@@ -46,3 +46,7 @@ class Platform(ABC):
     def send_target(self, bot: Bot, scene: SceneRef) -> SendTarget:
         """Optional scene routing for opted-in scheduled workflows."""
         raise NotImplementedError("Platform has no scene-to-target mapping")
+
+    def mentioned_users(self, bot: Bot, event: Event) -> tuple[MentionedUser, ...]:
+        """Map native mentions to identities; unsupported platforms return no targets."""
+        return ()

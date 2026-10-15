@@ -54,6 +54,12 @@ class ExternalIdentity:
 
 
 @dataclass(frozen=True)
+class MentionedUser:
+    identity: ExternalIdentity
+    authoritative: bool = False
+
+
+@dataclass(frozen=True)
 class Actor:
     id: str
     identity_key: str

@@ -24,6 +24,11 @@ class IdentityService(Service):
         self.session_factory = session_factory
         self.superusers = superusers
 
+    async def lookup(self, identity: ExternalIdentity) -> Actor | None:
+        async with self.session_factory() as session:
+            known = await session.get(Identity, identity.key)
+            return Actor(known.user_id, identity.key) if known else None
+
     async def resolve(self, identity: ExternalIdentity) -> Actor:
         async with self.session_factory() as session:
             known = await session.get(Identity, identity.key)

@@ -1,12 +1,13 @@
 """Bot administrator diagnostics; command declarations live in plugins."""
 
-from framework.contracts import RequestContext
+from framework.catalog import CommandSpec
+from framework.contracts import AccessDenied, MentionedUser, RequestContext, Role, SceneKind
 
 from .base import Service
 
 
 class MaintenanceService(Service):
-    dependencies = ("clients.jobs",)
+    dependencies = ("clients.jobs", "identities")
 
     @classmethod
     def build(cls, container):
@@ -20,6 +21,43 @@ class MaintenanceService(Service):
 
     async def whoami(self, context: RequestContext) -> str:
         return f"权限：超级管理员\n主体：{context.actor.id}\n外部身份：{context.actor.identity_key}\n场景：{context.scene.key}"
+
+    async def whoisthis(self, context: RequestContext, targets: tuple[MentionedUser, ...]) -> str:
+        permission = CommandSpec(
+            "maintenance.lookup", "maintenance", "whoisthis", "查询提及用户的身份", permission=Role.SUPERUSER
+        )
+        if not context.command_allowed or not await context.command_allowed(permission):
+            raise AccessDenied("Bot administrator required")
+        if context.scene.kind not in {SceneKind.GROUP, SceneKind.CHANNEL}:
+            return "请在群聊或频道中使用 /whoisthis @某人。"
+        unique = {}
+        for target in targets:
+            if (
+                target.identity.provider != context.scene.provider
+                or target.identity.app_id != context.scene.app_id
+            ):
+                return "提及身份与当前平台不一致，无法查询。"
+            previous = unique.get(target.identity.key)
+            if previous is None or target.authoritative:
+                unique[target.identity.key] = target
+        if len(unique) != 1:
+            return "请在指令后 @且仅@一位用户，例如 /whoisthis @某人；不要选择全体成员或机器人。"
+        target = next(iter(unique.values()))
+        identities = self.container.identities
+        actor = await identities.lookup(target.identity)
+        created = actor is None
+        if actor is None and target.authoritative:
+            actor = await identities.resolve(target.identity)
+        if actor is None:
+            return "尚未找到该用户的主体，且平台未提供完整提及身份。请让对方在本群 @机器人发送任意消息（无需管理权限），再重新查询。"
+        registered = await identities.is_superuser(actor)
+        result = (
+            f"主体：{actor.id}\n外部身份：{actor.identity_key}\n场景：{context.scene.key}\n"
+            f"超管登记：{'已登记' if registered else '未登记'}"
+        )
+        if created:
+            result += "\n已建立身份记录；本次查询不会更改权限。"
+        return result
 
     async def status(self) -> str:
         snapshot = self.container.snapshot()

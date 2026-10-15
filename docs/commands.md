@@ -52,7 +52,7 @@ Service 不接收整条指令字符串，不解析 `/help text` 或 `board bind`
 - board：bind、confirm、unbind、list、version、push.on、push.off、push.status、push.test、starred、today、yesterday、history、verdict、user.id、user.name 各有独立 handler。
 - debug：根帮助、markdown、button 独立。
 - help：默认图片、text、render 独立；显示参数不再在 HelpService 中解析。
-- maintenance：ping、whoami、status 各自 `$main`。
+- maintenance：ping、whoami、whoisthis、status 各自 `$main`。
 - fun：hitokoto 的 `$main`；后续功能各自声明语法与 handler。
 
 低层 `command` 仅保留 NoneBot 原生 command/prefix/keyword 注册，用于原生控制流和集成验证；业务模块统一采用 `template_command`。两者共用相同的 CommandSpec、权限、上下文和耗时记录，不引入另一套调度器。

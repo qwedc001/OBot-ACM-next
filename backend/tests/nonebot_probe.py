@@ -259,7 +259,7 @@ async def main():
                     both.append(actual)
                 assert both[0][2:4] == both[1][2:4]
                 _, compatible = await request("/help render")
-                assert "5 条" in compatible if render_enabled else "/help" in compatible
+                assert "6 条" in compatible if render_enabled else "/help" in compatible
                 native_root = event("/ping", user="native-config-root")
                 assert await SUPERUSER(bot, native_root)
                 multiple = event(f"/probe{separator}manage multi", user="native-config-root")
@@ -323,7 +323,7 @@ async def main():
             assert len(replies) == 46
             if render_enabled:
                 assert len(images) == 4 and all(data.startswith(b"\x89PNG\r\n\x1a\n") for data in images)
-                assert models[0]["count"] == 1 and all(model["count"] == 5 for model in models[1:])
+                assert models[0]["count"] == 1 and all(model["count"] == 6 for model in models[1:])
                 if len(sys.argv) > 2:
                     Path(sys.argv[2]).write_bytes(images[1])
             outcomes = services.telemetry.snapshot()["command_outcomes"]
