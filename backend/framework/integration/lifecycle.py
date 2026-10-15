@@ -8,6 +8,7 @@ from nonebot.message import event_preprocessor
 
 from web.app import install_web
 
+from ..contracts import SceneKind
 from ..runtime import Services
 from .api import build_internal_router
 from .command_context import observe_delivery
@@ -52,6 +53,11 @@ def install_lifecycle(services: Services) -> None:
             raise IgnoredException("Duplicate message event")
         seen[key] = now
         services.telemetry.last_received_at = time.time()
+        if incoming.scene.kind == SceneKind.GROUP:
+            actor = await services.identities.resolve(incoming.identity)
+            await services.scene_access.observe(
+                actor, incoming.scene, await get_platform(bot).group_admin(bot, event)
+            )
 
     @driver.on_bot_connect
     async def connected(bot: Bot) -> None:

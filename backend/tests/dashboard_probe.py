@@ -81,7 +81,33 @@ async def main():
                 )
                 await handle_event(bot, group)
                 assert "https://" not in sent[-1]["content"]
-                print(json.dumps({"ok": True, "private_login": True, "group_link_denied": True}))
+                check = (await services.scene_access.issue_check(account.actor))["command"]
+                raw = group.model_dump(exclude={"message"})
+                raw.update(id="member-verify", content=check)
+                await handle_event(bot, GroupAtMessageCreateEvent.model_validate(raw))
+                from framework.contracts import SceneKind, SceneRef
+
+                scene = SceneRef("qq", "app", SceneKind.GROUP, "room")
+                assert not await services.scene_access.allowed(account.actor, scene)
+                raw["author"]["member_role"] = "admin"
+                raw["id"] = "admin-verify"
+                await handle_event(bot, GroupAtMessageCreateEvent.model_validate(raw))
+                assert "已验证" in sent[-1]["content"]
+                assert await services.scene_access.allowed(account.actor, scene)
+                raw["author"]["member_role"] = "member"
+                raw.update(id="demoted", content="hello")
+                await handle_event(bot, GroupAtMessageCreateEvent.model_validate(raw))
+                assert not await services.scene_access.allowed(account.actor, scene)
+                print(
+                    json.dumps(
+                        {
+                            "ok": True,
+                            "private_login": True,
+                            "group_link_denied": True,
+                            "group_admin_verification": True,
+                        }
+                    )
+                )
         finally:
             await driver._lifespan.shutdown()
 

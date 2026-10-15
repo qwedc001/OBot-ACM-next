@@ -4,7 +4,7 @@ OBot ACM 面向算法竞赛和群聊日常；Python 3.12、uv、NoneBot2，前�
 
 - backend/plugins 为原生入口，backend/framework/services 为异步业务，clients 为通用能力；Service/Client 继承基类、自动发现。backend/web 承接 HTTP，frontend/src/plugins 自动发现工具清单、路由与 API，共用 Service。
 - 指令用 Alconna 模板/assign，每功能独立 handler；显式 await ReplyClient.send/finish/send_to，不发送返回值。公共消息使用通用 Bot/Event/Message；平台差异归 integration/platforms，耗时同步工作进线程/进程。
-- 权限 everyone/group_admin/superuser，help 与执行共用鉴权。help 独立、默认图片、最多三栏；maintenance/debug 仅超管。网页私聊 /dashboard 一次性登录，群管理仍在 QQ。
+- 权限 everyone/group_admin/superuser，help 与执行共用鉴权。help 独立、默认图片、最多三栏；maintenance/debug 仅超管。网页私聊 /dashboard 登录，群榜单由原生群权限短时授权，凭据不出后端。
 - 不自动注册目录或 QQ 面板；短名用别名。复用 LocalStore/ORM/APScheduler。
 - third-party/peeper-board-generator 为固定 submodule，不改上游；个人/群榜单隔离、凭据加密，群绑定需原群确认。
 - 迁移期 0.x.y：功能升 x、修复升 y；完成迁移才 1.0.0，可有 alpha/beta。

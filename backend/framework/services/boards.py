@@ -296,23 +296,18 @@ class BoardService(Service):
                 )
                 today = datetime.now(ZoneInfo(self.settings.obot_board_timezone)).date().isoformat()
                 if row and not force and (day != today or row.captured_at > time.time() - 30):
-                    return {"day": row.day, "captured_at": row.captured_at, "payload": row.payload}
+                    return {
+                        "day": row.day,
+                        "captured_at": row.captured_at,
+                        "payload": self.apply_options(row.payload, config.options),
+                    }
                 if historical:
                     raise BoardError("没有该日期的有效榜单缓存，历史记录从绑定后开始积累。")
             values = await self.credentials.decrypt(config.credentials)
             payload = await self.hydro.daily(
                 config.host, values, day, self.settings.obot_board_timezone, refresh=force or row is None
             )
-            cutoff = (
-                datetime.fromisoformat(config.options.get("exclude_before", "1970-01-01"))
-                .replace(tzinfo=ZoneInfo(self.settings.obot_board_timezone))
-                .timestamp()
-            )
-            for ranking in payload["rankings"]:
-                user = ranking["user"]
-                ranking["unrated"] = int(user["uid"]) in config.options.get("exclude_uid", []) or bool(
-                    user["register_at"] and user["register_at"] < cutoff
-                )
+            payload = self.apply_options(payload, config.options)
             captured_at = time.time()
             async with self.sessions() as session, session.begin():
                 current = await session.get(BoardConfig, config.id)
@@ -431,6 +426,42 @@ class BoardService(Service):
             if not result.rowcount:
                 raise BoardError("配置已改变，请重新设置打星用户显示。")
         return f"{config.name}：已{'开启' if enabled else '关闭'}打星用户显示，下次生成榜单时生效。"
+
+    def apply_options(self, payload, options):
+        cutoff = (
+            datetime.fromisoformat(options.get("exclude_before", "1970-01-01"))
+            .replace(tzinfo=ZoneInfo(self.settings.obot_board_timezone))
+            .timestamp()
+        )
+        return {
+            **payload,
+            "rankings": [
+                {
+                    **ranking,
+                    "unrated": int(ranking["user"]["uid"]) in options.get("exclude_uid", [])
+                    or bool(ranking["user"]["register_at"] and ranking["user"]["register_at"] < cutoff),
+                }
+                for ranking in payload["rankings"]
+            ],
+        }
+
+    async def configure(self, context, options, name):
+        await self.require_manage(context)
+        config = await self.choose(context, name)
+        options = self.validate_options(options)
+        async with self.sessions() as session, session.begin():
+            result = await session.execute(
+                update(BoardConfig)
+                .where(
+                    BoardConfig.id == config.id,
+                    BoardConfig.revision == config.revision,
+                    BoardConfig.options == config.options,
+                )
+                .values(options=options, updated_at=time.time())
+            )
+            if not result.rowcount:
+                raise BoardError("配置已改变，请刷新页面后重试。")
+        return f"{config.name}：榜单显示设置已保存。"
 
     async def push(self, context, enabled, name, target):
         await self.require_manage(context)

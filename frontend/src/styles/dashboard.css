@@ -841,3 +841,48 @@ code {
     scroll-behavior: auto !important;
   }
 }
+
+.board-scope {
+  padding: 22px;
+  margin-bottom: 24px;
+}
+.board-scope > label {
+  margin-right: 14px;
+  font-weight: 650;
+}
+.board-scope > .el-select {
+  width: min(340px, 100%);
+  margin-right: 12px;
+}
+.board-scope > p {
+  margin-bottom: 0;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.group-check {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--ep-surface-sunken);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.group-check code {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-bottom: 12px;
+  user-select: all;
+}
+@media (max-width: 700px) {
+  .board-scope > label {
+    display: block;
+    margin-bottom: 10px;
+  }
+  .board-scope > .el-select {
+    display: block;
+    margin-bottom: 12px;
+  }
+  .board-actions {
+    flex-wrap: wrap;
+  }
+}

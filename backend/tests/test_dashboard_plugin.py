@@ -17,4 +17,5 @@ def test_private_qq_login_command_and_group_no_capability():
         "ok": True,
         "private_login": True,
         "group_link_denied": True,
+        "group_admin_verification": True,
     }

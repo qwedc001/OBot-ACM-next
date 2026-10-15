@@ -176,3 +176,74 @@ test("dark theme persists and mobile shell has no horizontal overflow", async ({
     ),
   ).toBe(true);
 });
+
+test("group admin verification unlocks only the configured group and demotion revokes it", async ({
+  page,
+  request,
+}) => {
+  await signIn(page, request);
+  await page.goto("/board");
+  await page.getByRole("button", { name: "验证管理群" }).click();
+  const command = await page.locator(".group-check code").innerText();
+  expect(command).toMatch(/^\/dashboard-verify [A-Za-z0-9_-]{24}$/);
+  expect(
+    (
+      await request.post("/__test__/group-role", {
+        data: { admin: true, command },
+      })
+    ).ok(),
+  ).toBeTruthy();
+  await page.getByRole("button", { name: "刷新", exact: true }).click();
+  await page.getByRole("combobox", { name: "配置范围" }).press("ArrowDown");
+  await page.getByRole("option", { name: /群聊.*team-oj/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "team-oj", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "demo-oj", exact: true }),
+  ).toHaveCount(0);
+  const scopes = (
+    await (await page.request.get("/api/plugins/board/scopes")).json()
+  ).scopes;
+  const selector = scopes.find((item) => item.id !== "personal").id;
+  const configs = await (
+    await page.request.get("/api/plugins/board/configs?scope=" + selector)
+  ).json();
+  expect(JSON.stringify(configs)).not.toMatch(
+    /credentials|password|fixture-admin|push_target/,
+  );
+  await page.getByRole("button", { name: "显示设置", exact: true }).click();
+  await page.getByLabel("排除 UID", { exact: true }).fill("7, 9");
+  await page.getByRole("button", { name: "保存显示设置" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByText(/排除 2 个 UID/)).toBeVisible();
+  await expect(page.locator(".group-check")).toHaveCount(0);
+  await page.getByRole("button", { name: "今日榜单", exact: true }).click();
+  await expect(page.getByRole("img", { name: "训练榜单图片" })).toBeVisible({
+    timeout: 50000,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await screenshot(page, "board-group-mobile");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  expect(
+    (
+      await request.post("/__test__/group-role", { data: { admin: false } })
+    ).ok(),
+  ).toBeTruthy();
+  expect(
+    (
+      await page.request.get("/api/plugins/board/configs?scope=" + selector)
+    ).status(),
+  ).toBe(403);
+  await page.getByRole("button", { name: "刷新", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "demo-oj", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "team-oj", exact: true }),
+  ).toHaveCount(0);
+});

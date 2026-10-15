@@ -1,9 +1,10 @@
 """The web login entry is an independent public command; links are sent only in private."""
 
+from arclet.alconna import Args
 from nonebot.plugin import PluginMetadata
 
 from framework.catalog import CommandSpec
-from framework.contracts import SceneKind
+from framework.contracts import AccessDenied, Role, SceneKind
 from framework.dashboard import DashboardError
 from framework.integration.command_context import BotServices, CommandContext, Reply
 from framework.integration.commands import template_command
@@ -42,3 +43,32 @@ async def handle_dashboard(context: CommandContext, services: BotServices, reply
         f"点击链接登录网页（{services.settings.obot_web_login_ttl} 秒内有效，仅可使用一次，请勿转发）：\n"
         + link
     )
+
+
+verify = template_command(
+    CommandSpec(
+        id="dashboard.verify",
+        plugin_id="dashboard",
+        name="dashboard-verify",
+        directory=(),
+        permission=Role.GROUP_ADMIN,
+        scopes=frozenset({SceneKind.GROUP}),
+        summary="在群内验证网页的群榜单管理权限",
+        usage="/dashboard-verify 验证码",
+        examples=("/dashboard-verify <网页提供的验证码>",),
+    ),
+    Args["code", str],
+    priority=9,
+    block=True,
+)
+
+
+@verify.assign("$main")
+async def handle_group_verify(code: str, context: CommandContext, services: BotServices, reply: Reply):
+    try:
+        result = await services.scene_access.verify(context, code)
+    except DashboardError as error:
+        await reply.finish(str(error))
+    except AccessDenied:
+        await reply.finish("无法验证本群管理身份，请由群主或群管理员在群内执行。")
+    await reply.finish(result)

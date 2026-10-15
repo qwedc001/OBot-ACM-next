@@ -88,3 +88,25 @@ class WebSession(Model):
     identity_key: Mapped[str]
     expires_at: Mapped[float] = mapped_column(Float, index=True)
     created_at: Mapped[float] = mapped_column(Float)
+
+
+class SceneAuthority(Model):
+    __tablename__ = "bot_scene_authorities"
+    scope: Mapped[str] = mapped_column(primary_key=True)
+    identity_key: Mapped[str] = mapped_column(ForeignKey("bot_identities.key"), primary_key=True)
+    is_admin: Mapped[bool]
+    verified_at: Mapped[float] = mapped_column(Float, index=True)
+
+
+class WebSceneGrant(Model):
+    __tablename__ = "bot_web_scene_grants"
+    user_id: Mapped[str] = mapped_column(ForeignKey("bot_users.id"), primary_key=True)
+    scope: Mapped[str] = mapped_column(primary_key=True)
+    identity_key: Mapped[str] = mapped_column(ForeignKey("bot_identities.key"), index=True)
+
+
+class WebGroupCheck(Model):
+    __tablename__ = "bot_web_group_checks"
+    digest: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("bot_users.id"), index=True)
+    expires_at: Mapped[float] = mapped_column(Float, index=True)

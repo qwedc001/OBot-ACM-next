@@ -28,7 +28,7 @@ def main():
             log_level="ERROR",
         )
         from framework.config import Settings
-        from framework.contracts import Actor, RequestContext, SceneKind, SceneRef
+        from framework.contracts import Actor, ExternalIdentity, RequestContext, Role, SceneKind, SceneRef
         from framework.integration.lifecycle import install_lifecycle
         from framework.migrate import upgrade
         from framework.paths import PROJECT_ROOT
@@ -61,6 +61,24 @@ def main():
                 url = await services.dashboard.issue(context(role))
             return {"url": url}
 
+        group_scene = SceneRef("qq", "fixture", SceneKind.GROUP, "fixture-room")
+        group_actor = None
+
+        async def group_context(admin=True):
+            async def allowed(spec):
+                return spec.permission == Role.EVERYONE or (admin and spec.permission == Role.GROUP_ADMIN)
+
+            return RequestContext(group_actor, group_scene, "fixture-group", command_allowed=allowed)
+
+        @app.post("/__test__/group-role", include_in_schema=False)
+        async def group_role(request: Request):
+            values = await request.json()
+            admin = values.get("admin") is True
+            await services.scene_access.observe(group_actor, group_scene, admin)
+            if values.get("command"):
+                await services.scene_access.verify(await group_context(admin), values["command"].split()[-1])
+            return {"ok": True}
+
         install_lifecycle(services)
         nonebot.load_from_toml(PROJECT_ROOT / "pyproject.toml")
 
@@ -82,12 +100,21 @@ def main():
             }
 
         async def seed():
+            nonlocal group_actor
             async with services.session_factory() as session, session.begin():
                 session.add_all([User(id="fixture-user"), User(id="fixture-admin", superuser=True)])
             services.clients.hydro.validate = AsyncMock()
             services.clients.hydro.daily = AsyncMock(side_effect=daily)
             raw = (await services.boards.issue(context("user"), "demo-oj")).split("#")[1]
             await services.boards.submit(raw, "https://oj.example.com", "fixture-admin", "synthetic")
+            group_actor = await services.identities.resolve(
+                ExternalIdentity("qq", "fixture", "group_member", "fixture-group-admin")
+            )
+            await services.scene_access.observe(group_actor, group_scene, True)
+            ctx = await group_context()
+            raw = (await services.boards.issue(ctx, "team-oj")).split("#")[1]
+            await services.boards.submit(raw, "https://oj.example.com", "fixture-admin", "synthetic")
+            await services.boards.confirm(ctx, "team-oj")
 
         nonebot.get_driver().on_startup(seed)
         uvicorn.run(app, host="127.0.0.1", port=8765, log_level="warning", access_log=False)

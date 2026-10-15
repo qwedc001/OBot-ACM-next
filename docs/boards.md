@@ -48,7 +48,7 @@ APScheduler 每日 00:05 更新前一天缓存；明确开启推送后于 00:30 
 
 ## 配置与运行
 
-`OBOT_PUBLIC_BASE_URL` 设置公网 HTTPS 根地址。不设置时绑定网页关闭。`OBOT_BOARD_BIND_TTL` 设置链接有效秒数，`OBOT_BOARD_TIMEZONE` 设置统计与定时时区。Caddy 将网页和 API 转发到同一后端，阻止公网 `/internal/*`，配置见 [网页工作台](web.md)。绑定表单使用 EP 的 Vue 页面，保留原链接路径和一次性语义。私聊 `/dashboard` 登录后可查看个人配置、切换打星显示及生成今日/昨日榜单；群配置继续在原群管理。
+`OBOT_PUBLIC_BASE_URL` 设置公网 HTTPS 根地址。不设置时绑定网页关闭。`OBOT_BOARD_BIND_TTL` 设置链接有效秒数，`OBOT_BOARD_TIMEZONE` 设置统计与定时时区。Caddy 将网页和 API 转发到同一后端，阻止公网 `/internal/*`，配置见 [网页工作台](web.md)。绑定表单使用 EP 的 Vue 页面，保留原链接路径和一次性语义。私聊 `/dashboard` 登录后可查看个人配置、切换打星显示及生成今日/昨日榜单；群主/群管可在工作台管理已授权群的非敏感显示设置，群绑定确认和推送开关仍在原群操作。
 
 凭据使用 Fernet 加密后存入应用数据库，密钥保存在 LocalStore 的 `keys/credentials.key`。备份时需要同时保存数据库和密钥；数据库备份本身不能恢复凭据。绑定令牌只保存哈希，原始令牌置于网址片段并在页面加载后移除，不写入 URL 请求路径或访问日志。网页不回显密码，要求同源 JSON 请求。
 
