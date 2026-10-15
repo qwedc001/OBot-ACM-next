@@ -50,3 +50,7 @@ class Platform(ABC):
     def mentioned_users(self, bot: Bot, event: Event) -> tuple[MentionedUser, ...]:
         """Map native mentions to identities; unsupported platforms return no targets."""
         return ()
+
+    def reply_author(self, bot: Bot, event: Event) -> MentionedUser | None:
+        """Return an authenticated native reply author when the platform supplies one."""
+        return None

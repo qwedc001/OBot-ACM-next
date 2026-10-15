@@ -10,8 +10,7 @@ from unittest.mock import AsyncMock, patch
 import nonebot
 from nonebot.adapters.qq import Bot
 from nonebot.adapters.qq.config import BotInfo
-from nonebot.adapters.qq.event import C2CMessageCreateEvent, GroupAtMessageCreateEvent
-from nonebot.message import handle_event
+from nonebot.adapters.qq.models import Dispatch, User
 
 
 async def main():
@@ -32,6 +31,7 @@ async def main():
         from framework.config import Settings
         from framework.contracts import ExternalIdentity
         from framework.integration.lifecycle import install_lifecycle
+        from framework.integration.platforms.qq_transport import QQAdapter
         from framework.migrate import upgrade
         from framework.runtime import configure_services
 
@@ -44,6 +44,7 @@ async def main():
         driver = nonebot.get_driver()
         await driver._lifespan.startup()
         bot = Bot(nonebot.get_adapter("QQ"), "app", BotInfo(id="app", secret="synthetic"))
+        bot._self_info = User(id="app", username="test-bot", bot=True)
         sent, counter = [], 0
 
         def mention(id="display_id", member="member_openid", *, bot=False, is_you=False):
@@ -56,7 +57,9 @@ async def main():
                 "username": "test-person",
             }
 
-        async def request(content, mentions=None, *, user="operator", private=False, role="member"):
+        async def request(
+            content, mentions=None, *, user="operator", private=False, role="member", extra=None
+        ):
             nonlocal counter
             counter += 1
             payload = {
@@ -67,7 +70,6 @@ async def main():
             }
             if private:
                 payload["author"] = {"id": user, "user_openid": user}
-                event = C2CMessageCreateEvent.model_validate(payload)
             else:
                 payload.update(
                     author={"id": user, "member_openid": user, "member_role": role, "bot": False},
@@ -75,9 +77,20 @@ async def main():
                     group_openid="room",
                     mentions=mentions,
                 )
-                event = GroupAtMessageCreateEvent.model_validate(payload)
+            if extra:
+                payload.update(extra)
+            if payload.get("mentions") is None:
+                payload.pop("mentions", None)
+            event = QQAdapter.payload_to_event(
+                Dispatch(
+                    type="C2C_MESSAGE_CREATE" if private else "GROUP_AT_MESSAGE_CREATE",
+                    data=payload,
+                    id=f"dispatch-{counter}",
+                )
+            )
+            assert event is not None
             before = len(sent)
-            await handle_event(bot, event)
+            await bot.handle_event(event)
             assert len(sent) == before + 1
             return sent[-1]["content"]
 
@@ -121,9 +134,9 @@ async def main():
                     "/whoisthis <@app> <@display_id>",
                     [mention("app", "bot", bot=True, is_you=True), mention()],
                 )
-                assert "仅@一位" in await request("/whoisthis")
-                assert "仅@一位" in await request("/whoisthis", [mention(bot=True)])
-                assert "仅@一位" in await request(
+                assert "平台未提供" in await request("/whoisthis")
+                assert "平台未提供" in await request("/whoisthis", [mention(bot=True)])
+                assert "平台未提供" in await request(
                     "/whoisthis", [{"scope": "all", "is_you": True, "username": "all"}]
                 )
                 assert "仅@一位" in await request(
@@ -141,6 +154,54 @@ async def main():
                 assert "群聊或频道" in await request("/whoisthis", private=True)
                 assert "whoisthis" not in await request("/help text", user="member")
                 assert "whoisthis" in await request("/help text")
+                # Match the observed production payload: at text and mentions are
+                # absent before native SDK processing, not stripped by Alconna.
+                assert "平台未提供" in await request(
+                    "/whoisthis  ",
+                    extra={
+                        "message_type": 0,
+                        "message_scene": {
+                            "source": "default",
+                            "ext": ["msg_idx=current", "auth_token=synthetic"],
+                        },
+                    },
+                )
+                reference = {
+                    "message_type": 103,
+                    "message_scene": {"source": "default", "ext": ["ref_msg_idx=target", "msg_idx=current"]},
+                    "msg_elements": [
+                        {
+                            "content": "not the target",
+                            "msg_idx": "other",
+                            "author": {"id": "decoy", "member_openid": "decoy"},
+                        },
+                        {
+                            "content": "hello",
+                            "msg_idx": "target",
+                            "author": {"id": "display_id", "member_openid": "member_openid"},
+                        },
+                    ],
+                }
+                assert actor.id in await request("/whoisthis", extra=reference)
+                assert (
+                    await services.identities.lookup(ExternalIdentity("qq", "app", "group_member", "decoy"))
+                    is None
+                )
+                for author in (None, {"id": "display_only"}, {"member_openid": "robot", "bot": True}):
+                    missing_author = {
+                        **reference,
+                        "msg_elements": [{"content": "hello", "msg_idx": "target", "author": author}],
+                    }
+                    assert "平台未提供" in await request("/whoisthis", extra=missing_author)
+                mismatched = {
+                    **reference,
+                    "message_scene": {"source": "default", "ext": ["ref_msg_idx=missing"]},
+                }
+                assert "平台未提供" in await request("/whoisthis", extra=mismatched)
+                assert "权限不足" in await request("/whoisthis", user="member", extra=reference)
+                assert "权限不足" in await request(
+                    "/whoisthis", user="group_admin", role="admin", extra=reference
+                )
                 # A later actual message uses the account created from authoritative member_openid.
                 assert (await services.identities.resolve(person)).id == actor.id
                 print(json.dumps({"ok": True, "native_mentions": True, "no_privilege_change": True}))

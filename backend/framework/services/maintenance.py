@@ -40,6 +40,8 @@ class MaintenanceService(Service):
             previous = unique.get(target.identity.key)
             if previous is None or target.authoritative:
                 unique[target.identity.key] = target
+        if not unique:
+            return "平台未提供目标用户的身份。请尝试引用回复目标用户的消息，并发送 /whoisthis；也可在指令后 @一位用户。若引用仍无法识别，说明本次推送缺少可用于查询的身份信息。"
         if len(unique) != 1:
             return "请在指令后 @且仅@一位用户，例如 /whoisthis @某人；不要选择全体成员或机器人。"
         target = next(iter(unique.values()))

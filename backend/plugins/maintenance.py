@@ -69,11 +69,11 @@ lookup_identity = command(
         name="whoisthis",
         aliases=("whoisthis",),
         example_alias="whoisthis",
-        summary="查看被提及用户的主体，便于登记管理员身份",
+        summary="查看提及或引用用户的主体，便于登记管理员身份",
         permission=Role.SUPERUSER,
         scopes=frozenset({SceneKind.GROUP, SceneKind.CHANNEL}),
-        usage="/whoisthis @某人",
-        examples=("/whoisthis @某人",),
+        usage="/whoisthis @某人；或引用目标用户的消息发送 /whoisthis",
+        examples=("/whoisthis @某人", "引用目标消息后发送 /whoisthis"),
     ),
     priority=10,
     block=True,
@@ -84,7 +84,10 @@ lookup_identity = command(
 async def lookup_identity_handler(
     bot: Bot, event: Event, context: CommandContext, services: BotServices, reply: Reply
 ) -> None:
-    targets = get_platform(bot).mentioned_users(bot, event)
+    platform = get_platform(bot)
+    targets = platform.mentioned_users(bot, event)
+    if not targets and (author := platform.reply_author(bot, event)) is not None:
+        targets = (author,)
     await reply.finish(await services.maintenance.whoisthis(context, targets))
 
 

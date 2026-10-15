@@ -56,3 +56,4 @@ Service 不接收整条指令字符串，不解析 `/help text` 或 `board bind`
 - fun：hitokoto 的 `$main`；后续功能各自声明语法与 handler。
 
 低层 `command` 仅保留 NoneBot 原生 command/prefix/keyword 注册，用于原生控制流和集成验证；业务模块统一采用 `template_command`。两者共用相同的 CommandSpec、权限、上下文和耗时记录，不引入另一套调度器。
+提及用户参数使用原生 Event，经 `Platform.mentioned_users` 转成通用身份对象；不要把昵称或显示 ID 当作稳定身份。whoisthis 使用独立 `$main` handler 读取提及目标，无提及时尝试 `Platform.reply_author` 返回的原生引用作者。缺少稳定身份时返回明确提示，不修改现有 TextCommandSource，也不把适配器消息类型引入通用 Plugin。

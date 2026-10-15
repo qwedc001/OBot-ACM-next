@@ -83,6 +83,30 @@ class QQPlatform(Platform):
     async def build_message(self, recipient: Event | SendTarget, message: Message, at_sender: bool | None):
         return await build_qq_reply(recipient, message, at_sender)
 
+    def reply_author(self, bot: Bot, event: Event) -> MentionedUser | None:
+        if isinstance(event, DirectMessageCreateEvent):
+            return None
+        if not isinstance(event, (GroupMessageCreateEvent, GuildMessageEvent)):
+            return None
+        # The native adapter resolves the reference index before dispatch. Do not
+        # guess an author from arbitrary msg_elements or a display-name match.
+        reply = event.reply
+        author = reply.author if reply else None
+        if not author or getattr(author, "bot", False):
+            return None
+        group = isinstance(event, GroupMessageCreateEvent)
+        user_id = author.member_openid if group else author.id
+        if not user_id or not user_id.strip() or user_id == bot.self_id:
+            return None
+        try:
+            if user_id == bot.self_info.id:
+                return None
+        except RuntimeError:
+            pass
+        return MentionedUser(
+            ExternalIdentity("qq", bot.self_id, "group_member" if group else "guild_user", user_id), True
+        )
+
     async def send_to(self, bot: Bot, target: SendTarget, message):
         return await send_qq_to(bot, target, message)
 
