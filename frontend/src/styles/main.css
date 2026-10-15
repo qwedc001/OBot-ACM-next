@@ -1,0 +1,1122 @@
+/* Adapted from Floating-Ocean/OBot-EP, commit 3e417697c31934008fd32ac7ca06f923b31ffd98. */
+/*
+ * 设计语言参考 OBot 的渲染图（src/render/pixie/render_pick_one.py）：
+ *   - 每个类别在彩虹渐变（红 -> 紫，sat 0.76）上取一个固定色相
+ *   - 卡片底色 = 该色相低透明度叠加；文字与进度条 = 同色系深色
+ *   - 扁平但有层次：留白、字重、极淡的渐变与投影
+ *
+ * 字体：中文用 Noto Sans SC（可变字重，能把 700/800 的字重真正渲染出来），
+ * 西文与数字用 Inter / Segoe UI Variable，等宽用 JetBrains Mono。
+ * 之前 font-weight: 800 在只装了 YaHei 的机器上会被合成得很脏，这是「廉价感」的一大来源。
+ */
+
+:root {
+  /* 背景：暖调中性色，避免冷灰显得脏 */
+  --ep-bg: #eceef4;
+  --ep-bg-soft: #f6f7fb;
+
+  /* 表面 */
+  --ep-surface: #ffffff;
+  --ep-surface-sunken: #f3f4f9;
+  --ep-border: #e3e5ee;
+  --ep-border-strong: #cfd3e0;
+
+  /* 文字：偏蓝黑，比纯灰更有精神 */
+  --ep-ink: #171a26;
+  --ep-ink-muted: #5b6076;
+  --ep-ink-faint: #8b90a6;
+
+  /* 品牌渐变：雾蓝 → 青瓷。蓝那支是 secondary，背景弥散光斑与登录页柔光也用它 */
+  --ep-brand-a: #5d90b2;
+  --ep-brand-b: #4e7f70;
+  --ep-brand-secondary: #5d90b2;
+  --ep-brand-gradient: linear-gradient(
+    135deg,
+    var(--ep-brand-a),
+    var(--ep-brand-b)
+  );
+  /* 实心块上要放白字的（导航选中态、图片角标）：蓝端对比度不够，另起一支纯青瓷 */
+  --ep-brand-gradient-deep: linear-gradient(135deg, #5f8d7e, #3e665a);
+
+  /* 类别配色默认值（具体类别由后端 accent 覆盖） */
+  --ep-accent-ink: #333333;
+  --ep-accent-tint: rgba(0, 0, 0, 0.04);
+  --ep-accent-strong: rgba(0, 0, 0, 0.09);
+  --ep-accent-track: rgba(0, 0, 0, 0.06);
+  --ep-accent-glow: rgba(0, 0, 0, 0.1);
+  /* 真正用来写字的那支：浅色下就是 accent-ink，深色下要换成亮版（见文件末尾 html.dark） */
+  --ep-accent-text: var(--ep-accent-ink);
+
+  /* 语义色：与品牌青保持同一饱和度水平，避免各说各话 */
+  --ep-warn: #b26a00;
+  --ep-warn-tint: rgba(178, 106, 0, 0.12);
+  --ep-danger: #cc3b48;
+  --ep-danger-tint: rgba(204, 59, 72, 0.1);
+  /* 通过色刻意比品牌青更黄更饱和：两者都是绿系，靠色相拉开才不会看混 */
+  --ep-ok: #2e7d32;
+  --ep-ok-tint: rgba(46, 125, 50, 0.1);
+
+  /* 尺寸 */
+  --ep-radius-sm: 10px;
+  --ep-radius: 16px;
+  --ep-radius-lg: 22px;
+  --ep-max-width: 1360px;
+
+  --ep-shadow-sm:
+    0 1px 2px rgba(23, 26, 38, 0.05), 0 3px 10px rgba(23, 26, 38, 0.045);
+  --ep-shadow-md:
+    0 6px 16px rgba(23, 26, 38, 0.08), 0 16px 40px rgba(23, 26, 38, 0.08);
+
+  /* 字体栈 */
+  --ep-font:
+    "Inter", "Segoe UI Variable Text", "Segoe UI", "Noto Sans SC",
+    "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --ep-font-mono:
+    "JetBrains Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+
+  /* Element Plus 贴合这套配色 */
+  --el-color-primary: #4e7f70;
+  --el-color-primary-light-3: #83a59b;
+  --el-color-primary-light-5: #a6bfb8;
+  --el-color-primary-light-7: #cad9d4;
+  --el-color-primary-light-8: #dce5e2;
+  --el-color-primary-light-9: #edf2f1;
+  --el-color-primary-dark-2: #3e665a;
+  /* 语义里的「成功」也用我们自己那支深绿：Element 自带的 #67c23a 太艳，
+     审核按钮和 ElMessage 的对勾图标都吃这一组 */
+  --el-color-success: #2e7d32;
+  --el-color-success-light-3: #6da470;
+  --el-color-success-light-5: #96be98;
+  --el-color-success-light-7: #c0d8c2;
+  --el-color-success-light-8: #d5e5d6;
+  --el-color-success-light-9: #eaf2ea;
+  --el-color-success-dark-2: #256428;
+  /* 「错误」同理：Element 自带的 #f56c6c 偏珊瑚粉，映射到我们自己的 --ep-danger。
+     error 与 danger 在 Element 里是同一支颜色的两个名字，两个都要给 */
+  --el-color-danger: #cc3b48;
+  --el-color-danger-light-3: #db767f;
+  --el-color-danger-light-5: #e69da4;
+  --el-color-danger-light-7: #f0c4c8;
+  --el-color-danger-light-8: #f5d8da;
+  --el-color-danger-light-9: #faebed;
+  --el-color-danger-dark-2: #a32f3a;
+  --el-color-danger-rgb: 204, 59, 72;
+  --el-color-error: #cc3b48;
+  --el-color-error-light-3: #db767f;
+  --el-color-error-light-5: #e69da4;
+  --el-color-error-light-7: #f0c4c8;
+  --el-color-error-light-8: #f5d8da;
+  --el-color-error-light-9: #faebed;
+  --el-color-error-dark-2: #a32f3a;
+  --el-color-error-rgb: 204, 59, 72;
+  /* 「警告」同理：Element 自带的 #e6a23c 比我们的 --ep-warn 亮一档 */
+  --el-color-warning: #b26a00;
+  --el-color-warning-light-3: #c9974c;
+  --el-color-warning-light-5: #d8b480;
+  --el-color-warning-light-7: #e8d2b2;
+  --el-color-warning-light-8: #f0e1cc;
+  --el-color-warning-light-9: #f7f0e6;
+  --el-color-warning-dark-2: #8e5500;
+  --el-color-warning-rgb: 178, 106, 0;
+  --el-border-radius-base: 10px;
+  --el-font-size-base: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  color: var(--ep-ink);
+  font-family: var(--ep-font);
+  font-size: 14.5px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  background-color: var(--ep-bg);
+  background-image:
+    radial-gradient(
+      1100px 520px at 6% -10%,
+      rgba(95, 141, 126, 0.16),
+      transparent 62%
+    ),
+    radial-gradient(
+      900px 500px at 98% 0%,
+      rgba(93, 144, 178, 0.18),
+      transparent 58%
+    ),
+    radial-gradient(
+      1000px 620px at 50% 110%,
+      rgba(78, 127, 112, 0.1),
+      transparent 62%
+    ),
+    linear-gradient(180deg, var(--ep-bg-soft), var(--ep-bg) 44%);
+  background-attachment: fixed;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* 中文标题不用负字距，会糊；西文才需要 */
+h1,
+h2,
+h3 {
+  font-weight: 700;
+  color: var(--ep-ink);
+}
+
+/* ---------- 布局 ---------- */
+
+.ep-page {
+  max-width: var(--ep-max-width);
+  margin: 0 auto;
+  /*
+   * 上边距刻意留够：顶栏是 sticky 的，太贴会显得内容顶在栏下面。
+   * 左右必须和 .shell-inner 用同一条 clamp —— 两边 padding 不一样时，
+   * 导航行里的文字与页面内容的左边线会差几个像素（1360px 屏宽下差 8px 上下），
+   * 而这条边线正是整页最容易看出「没对齐」的地方。
+   */
+  padding: 64px clamp(18px, 3.2vw, 52px) 104px;
+}
+
+.ep-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+  flex-wrap: wrap;
+  margin-bottom: 36px;
+}
+
+.ep-title {
+  margin: 0;
+  font-size: 33px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.24;
+}
+
+.ep-subtitle {
+  margin: 12px 0 0;
+  color: var(--ep-ink-muted);
+  font-size: 14.5px;
+  line-height: 1.75;
+  max-width: 64ch;
+}
+
+.ep-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+/* ---------- 卡片 ---------- */
+
+.ep-card {
+  background: var(--ep-surface);
+  border: 1px solid var(--ep-border);
+  border-radius: var(--ep-radius);
+  padding: 30px 32px;
+  box-shadow: var(--ep-shadow-sm);
+}
+
+.ep-card--flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.ep-section {
+  margin-bottom: 34px;
+}
+
+.ep-section-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ep-ink-faint);
+  margin: 0 0 18px;
+}
+
+/* ---------- 类别卡片（复刻 Bot 的 _StickerItem，带渐变与色相投影） ---------- */
+
+.ep-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* 卡片是 <button>：不写死底色的话，深色下 UA 的 ButtonFace（中灰）会从
+     半透明渐变底下透出来，整块发白 */
+  background-color: var(--ep-surface);
+  background-image: linear-gradient(
+    145deg,
+    var(--ep-accent-strong) 0%,
+    var(--ep-accent-tint) 52%,
+    var(--ep-surface) 100%
+  );
+  border-radius: var(--ep-radius-lg);
+  border: 1px solid var(--ep-border);
+  padding: 30px 30px 34px;
+  min-height: 196px;
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.ep-tile::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--ep-accent-text), transparent 78%);
+  opacity: 0.45;
+}
+
+.ep-tile:hover {
+  transform: translateY(-3px);
+  border-color: var(--ep-border-strong);
+  box-shadow:
+    0 12px 28px var(--ep-accent-glow),
+    0 20px 48px rgba(23, 26, 38, 0.09);
+}
+
+.ep-tile.is-static,
+.ep-tile.is-static:hover {
+  cursor: default;
+  transform: none;
+  box-shadow: var(--ep-shadow-sm);
+}
+
+.ep-tile-name {
+  font-size: 23px;
+  font-weight: 700;
+  color: var(--ep-accent-text);
+  line-height: 1.3;
+  padding-right: 72px;
+}
+
+/* 别名区撑满剩余空间，让同一行的卡片底部对齐 */
+.ep-tile-aliases {
+  margin-top: 18px;
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--ep-accent-text);
+  opacity: 0.8;
+  flex: 1 1 auto;
+}
+
+.ep-tile-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 20px;
+  flex: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ep-accent-text);
+  opacity: 0.86;
+}
+
+.ep-tile-key {
+  margin-top: 7px;
+  font-size: 12px;
+  color: var(--ep-ink-faint);
+  font-family: var(--ep-font-mono);
+  letter-spacing: 0.01em;
+}
+
+.ep-tile-count {
+  position: absolute;
+  top: 18px;
+  right: 28px;
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  background-image: linear-gradient(
+    160deg,
+    var(--ep-accent-text) 0%,
+    var(--ep-accent-text) 55%,
+    transparent 130%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  opacity: 0.12;
+  pointer-events: none;
+}
+
+.ep-tile-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 6px;
+  background: var(--ep-accent-track);
+}
+
+.ep-tile-bar > i {
+  display: block;
+  height: 100%;
+  background: var(--ep-accent-text);
+  opacity: 0.5;
+  border-radius: 0 4px 4px 0;
+}
+
+/* ---------- 徽标 ---------- */
+
+.ep-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 13px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  background: rgba(23, 26, 38, 0.055);
+  color: var(--ep-ink-muted);
+  white-space: nowrap;
+}
+
+.ep-chip--warn {
+  background: var(--ep-warn-tint);
+  color: var(--ep-warn);
+}
+
+.ep-chip--danger {
+  background: var(--ep-danger-tint);
+  color: var(--ep-danger);
+}
+
+.ep-chip--ok {
+  background: var(--ep-ok-tint);
+  color: var(--ep-ok);
+}
+
+.ep-chip--accent {
+  background: var(--ep-accent-strong);
+  color: var(--ep-accent-text);
+  border: 1px solid var(--ep-accent-track);
+}
+
+/*
+ * 铺在色相卡片上的状态标记。
+ *
+ * 形状中性（半透明白底胶囊），颜色只用卡片自己的色相 ——
+ * 之前语义色（绿/橙）+ 独立颜色的点压在彩虹底上很脏，
+ * 绿配紫、棕配青都难看。
+ */
+.ep-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 12px 4px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  color: var(--ep-accent-text);
+  /* 半透明白底压一层，保证在任意色相上都有足够对比 */
+  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+}
+
+/* 点用卡片自己的色相（currentColor），不再用独立颜色 */
+.ep-status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: currentColor;
+  opacity: 0.75;
+}
+
+/*
+ * 「没问题」的类别不点那个点 —— 点应该表示「这里有东西要处理」。
+ * 只用色相深浅和透明度区分状态，整块仍然是干净的。
+ */
+.ep-status--done {
+  padding-left: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--ep-accent-text);
+  opacity: 0.7;
+}
+
+.ep-status--done::before {
+  display: none;
+}
+
+.ep-status--todo {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* 待创建：整块用色相描边强调 */
+.ep-status--new {
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--ep-accent-text);
+  border-color: var(--ep-accent-text);
+}
+
+/* ---------- 统计条 ---------- */
+
+.ep-stats {
+  display: flex;
+  flex-wrap: wrap;
+  background: var(--ep-surface);
+  border: 1px solid var(--ep-border);
+  border-radius: var(--ep-radius);
+  overflow: hidden;
+  box-shadow: var(--ep-shadow-sm);
+}
+
+.ep-stat {
+  flex: 1 1 160px;
+  padding: 26px 32px;
+  border-right: 1px solid var(--ep-border);
+}
+
+.ep-stat:last-child {
+  border-right: none;
+}
+
+.ep-stat-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ep-ink-faint);
+}
+
+.ep-stat-value {
+  margin-top: 10px;
+  font-size: 31px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  font-variant-numeric: tabular-nums;
+}
+
+.ep-stat-value.is-warn {
+  color: var(--ep-warn);
+}
+
+.ep-stat-value.is-danger {
+  color: var(--ep-danger);
+}
+
+.ep-stat-value.is-ok {
+  color: var(--ep-ok);
+}
+
+.ep-stat-hint {
+  font-size: 12.5px;
+  color: var(--ep-ink-faint);
+  margin-top: 6px;
+  line-height: 1.55;
+}
+
+/* ---------- 网格与文本工具 ---------- */
+
+.ep-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 22px;
+  /* 同一行的卡片高度齐平（子项 flex 撑满格子） */
+  align-items: stretch;
+}
+
+.ep-mono {
+  font-family: var(--ep-font-mono);
+  font-size: 0.94em;
+  letter-spacing: -0.01em;
+}
+
+.ep-muted {
+  color: var(--ep-ink-muted);
+}
+
+.ep-faint {
+  color: var(--ep-ink-faint);
+}
+
+.ep-small {
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.ep-break {
+  word-break: break-all;
+}
+
+.ep-mt {
+  margin-top: 20px;
+}
+
+.ep-mb {
+  margin-bottom: 20px;
+}
+
+/* ---------- Element Plus：按钮与控件统一放大边距 ---------- */
+
+/*
+ * 按钮高度交给 Element 自己的 --el-button-size：
+ * 它按 size 分别设成 40 / 32 / 24 —— 正好等于 --el-component-size-large 等，
+ * 所以按钮与同 size 的输入框天然齐平。
+ * 之前自己写死 46px，而 size="large" 的输入框是 40px，永远差 6px。
+ * 这里只调内边距与圆角。
+ */
+.el-button {
+  font-weight: 600;
+  padding: 0 18px;
+  border-radius: 11px;
+}
+
+.el-button--large {
+  padding: 0 22px;
+  border-radius: 12px;
+  font-size: 14.5px;
+}
+
+.el-button--small {
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+/*
+ * 只在按钮直接相邻时补间距。以前是给所有 .el-button + .el-button 加 margin-left，
+ * 结果放在 flex 容器里（本身已有 gap）会变成双倍间距，反而更挤。
+ */
+.el-button + .el-button {
+  margin-left: 10px;
+}
+
+.el-button-group .el-button + .el-button {
+  margin-left: 0;
+}
+
+.el-button.is-text {
+  padding: 0 10px;
+}
+
+.el-card {
+  border-radius: var(--ep-radius);
+}
+
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper {
+  border-radius: var(--ep-radius-sm);
+}
+
+/*
+ * 不要再覆盖输入框的 padding / min-height。
+ *
+ * Element Plus 的 size（default 32 / large 40）已经算好了内边距与高度，
+ * 之前在这里额外加 padding 与 min-height，把 large 输入框顶到 50px，
+ * 跟同行的 select / checkbox（40px）就对不齐了。
+ * 这里只做圆角与 focus 光晕。
+ */
+
+/*
+ * 单元格里的长文本交给 el-table 的 show-overflow-tooltip 处理：
+ * 它会加 white-space: nowrap + overflow: hidden + text-overflow: ellipsis。
+ * 这里千万不要再设 overflow-wrap / word-break: anywhere，
+ * 否则长串会被拆行，省略号也不生效（之前那版就是这么坏掉的）。
+ */
+.el-table .cell {
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+/* 带 show-overflow-tooltip 的单元格强制单行省略 */
+.el-table .cell.el-tooltip {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * chip / tag 放进单元格时会被 .cell 的 overflow: hidden 裁掉两侧。
+ * 给单元格留出内边距，并让 chip 本身不参与压缩。
+ */
+.el-table .cell > .el-tag,
+.el-table .cell > .ep-chip,
+.el-table .cell > .ep-status {
+  flex: none;
+}
+
+.el-table .cell > .el-tag:only-child,
+.el-table .cell > .ep-chip:only-child {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.el-table {
+  --el-table-border-color: var(--ep-border);
+  font-size: 14px;
+}
+
+/* 表格左右留出内边距：之前首尾列紧贴卡片边缘，很挤 */
+.el-table th.el-table__cell,
+.el-table td.el-table__cell {
+  padding-left: 18px;
+  padding-right: 18px;
+}
+
+.el-table th.el-table__cell:first-child,
+.el-table td.el-table__cell:first-child {
+  padding-left: 28px;
+}
+
+.el-table th.el-table__cell:last-child,
+.el-table td.el-table__cell:last-child {
+  padding-right: 28px;
+}
+
+.el-table th.el-table__cell {
+  background: var(--ep-surface-sunken) !important;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ep-ink-faint);
+  padding-top: 15px;
+  padding-bottom: 15px;
+}
+
+.el-table td.el-table__cell {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+/* 分页条与表格用同一套左右内边距 */
+.el-pagination {
+  --el-pagination-button-height: 34px;
+  font-weight: 600;
+  gap: 6px;
+  padding-left: 28px;
+  padding-right: 28px;
+}
+
+.el-tabs__item {
+  font-size: 14.5px;
+  font-weight: 600;
+  height: 48px;
+  padding: 0 22px;
+}
+
+/* ---------- 表单与弹窗 ---------- */
+
+.el-form-item {
+  margin-bottom: 24px;
+}
+
+/* 顶对齐表单：标签独立一行，字号略小、颜色略淡，视觉上退到输入框之后 */
+.el-form--label-top .el-form-item__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ep-ink-muted);
+  line-height: 1.5;
+  padding-bottom: 8px;
+}
+
+.el-form-item__label {
+  font-weight: 600;
+  color: var(--ep-ink);
+}
+
+/*
+ * 输入框只补 border 与 focus 光晕，size 交给 Element Plus。
+ * 不要再写 padding / min-height：那会把 large 输入框顶到 50px，
+ * 跟同行的 select / checkbox（40px）对不齐。
+ */
+.el-input__wrapper,
+.el-select__wrapper {
+  box-shadow: 0 0 0 1px var(--ep-border) inset;
+  transition: box-shadow 0.15s ease;
+}
+
+.el-input__wrapper:hover,
+.el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--ep-border-strong) inset;
+}
+
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focused {
+  box-shadow:
+    0 0 0 1px var(--el-color-primary) inset,
+    0 0 0 3px var(--el-color-primary-light-8);
+}
+
+.el-textarea__inner {
+  line-height: 1.7;
+  box-shadow: 0 0 0 1px var(--ep-border) inset;
+}
+
+.el-textarea__inner:focus {
+  box-shadow:
+    0 0 0 1px var(--el-color-primary) inset,
+    0 0 0 3px var(--el-color-primary-light-8);
+}
+
+.el-input-number {
+  width: 168px;
+}
+
+.el-input-number .el-input__wrapper {
+  padding: 4px 42px 4px 15px;
+}
+
+/*
+ * 弹窗：圆角保留，头部/底部留白拉开，底部按钮不再贴着边。
+ *
+ * 现在站内所有可交互弹窗都改成了右侧抽屉（见下面 .el-drawer 那组），
+ * 这组规则暂时没有使用者 —— 留着是为了以后真加弹窗时观感与抽屉一致，
+ * 而不是退回 Element 的默认样式。
+ */
+.el-dialog {
+  border-radius: var(--ep-radius);
+  padding: 0;
+  overflow: hidden;
+}
+
+.el-dialog__header {
+  padding: 26px 32px 4px;
+  margin-right: 0;
+}
+
+.el-dialog__title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.el-dialog__headerbtn {
+  top: 24px;
+  right: 22px;
+  width: 34px;
+  height: 34px;
+}
+
+.el-dialog__body {
+  padding: 18px 32px 8px;
+}
+
+.el-dialog__footer {
+  padding: 18px 32px 26px;
+  border-top: 1px solid var(--ep-border);
+  background: var(--ep-surface-sunken);
+}
+
+.el-drawer {
+  border-radius: var(--ep-radius) 0 0 var(--ep-radius);
+}
+
+/*
+ * 抽屉内容区。
+ *
+ * 顶部这 24px 是「标题栏与第一块内容」之间的留白：原先只给 4px，每个抽屉都得自己
+ * 加一句 margin-top（18 / 24 / 28px）才不贴着标题栏，迟早有人忘。补在默认值上之后，
+ * 抽屉里的第一块内容不需要再自己留上边距（那几处重复的 margin-top 已经去掉）。
+ */
+.el-drawer__body {
+  padding: 24px 32px;
+}
+
+/* 抽屉底部操作栏：与弹窗 footer 一致的观感 */
+.el-drawer__footer {
+  padding: 16px 32px;
+  border-top: 1px solid var(--ep-border);
+  background: var(--ep-surface-sunken);
+}
+
+.el-drawer__header {
+  padding: 26px 32px 18px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--ep-border);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.el-message-box {
+  padding: 24px 26px 20px;
+  border-radius: var(--ep-radius);
+}
+
+.el-message-box__header {
+  padding-bottom: 10px;
+}
+
+.el-message-box__content {
+  padding: 6px 0 12px;
+  line-height: 1.7;
+}
+
+.el-popper.is-light {
+  border-radius: var(--ep-radius-sm);
+  box-shadow: var(--ep-shadow-md);
+}
+
+.el-alert {
+  border-radius: var(--ep-radius-sm);
+  padding: 14px 18px;
+}
+
+.el-dropdown-menu {
+  padding: 6px;
+}
+
+.el-dropdown-menu__item {
+  padding: 9px 16px;
+  font-size: 14px;
+  border-radius: 8px;
+}
+
+@media (max-width: 900px) {
+  .ep-page {
+    padding: 32px 20px 72px;
+  }
+
+  .ep-title {
+    font-size: 26px;
+  }
+
+  .ep-stat {
+    padding: 20px 22px;
+  }
+}
+
+/* ---------- 深色主题 ---------- */
+
+/*
+ * 只换变量，不换结构。`html.dark` 由 frontend/src/stores/theme.js 切换，
+ * web/index.html 里那段内联脚本保证首帧就是对的（不然会先闪一下浅色）。
+ *
+ * 三条约定：
+ *   - 背景不用纯黑，带一点蓝，跟品牌青/雾蓝同调；
+ *   - 品牌色在深底上要提亮，否则整块发闷。只有 --ep-brand-gradient-deep
+ *     （导航选中态、图片角标那些放白字的地方）保持原样：它本来就是深的，
+ *     换亮了白字反而看不清；
+ *   - 语义色整套提亮 —— 浅色下的 #2e7d32 压在深底上根本读不出来。
+ */
+html.dark {
+  color-scheme: dark;
+
+  --ep-bg: #12161d;
+  --ep-bg-soft: #171c24;
+
+  --ep-surface: #1a1f28;
+  --ep-surface-sunken: #151a22;
+  --ep-border: #2a313c;
+  --ep-border-strong: #3b4453;
+
+  --ep-ink: #e7eaf1;
+  --ep-ink-muted: #a6adbc;
+  --ep-ink-faint: #788193;
+
+  --ep-brand-a: #7fb5d4;
+  --ep-brand-b: #6aab98;
+
+  /* 类别配色的兜底（具体类别由后端 accent 覆盖）在深色下反过来用白 */
+  --ep-accent-ink: #d6dae3;
+  --ep-accent-tint: rgba(255, 255, 255, 0.05);
+  --ep-accent-strong: rgba(255, 255, 255, 0.1);
+  --ep-accent-track: rgba(255, 255, 255, 0.12);
+  --ep-accent-glow: rgba(0, 0, 0, 0.5);
+
+  /*
+   * 语义色在深底上要提亮才读得出来（浅色那支 #2e7d32 压在深底上几乎看不见），
+   * 但别往霓虹方向走：暖色在同等亮度下本来就显得比绿暗，warn 要再亮一档；
+   * danger 只是「文字色」，别亮到抢戏 —— 实心红另见 ToolShell 的 .nav-badge。
+   */
+  --ep-warn: #ecb45c;
+  --ep-warn-tint: rgba(236, 180, 92, 0.16);
+  --ep-danger: #d07d85;
+  --ep-danger-tint: rgba(208, 125, 133, 0.16);
+  --ep-ok: #6cc47a;
+  --ep-ok-tint: rgba(108, 196, 122, 0.16);
+
+  --ep-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 3px 10px rgba(0, 0, 0, 0.3);
+  --ep-shadow-md:
+    0 6px 16px rgba(0, 0, 0, 0.45), 0 16px 40px rgba(0, 0, 0, 0.4);
+
+  /*
+   * Element Plus 的四支语义色沿用我们的品牌色（它们本身够深，深色下当按钮底色正好），
+   * light-N / dark-2 按 Element 深色主题的规则重算：light-N 跟 #141414 混、dark-2 跟白混。
+   * 不重算的话，Element 深色主题自带的 --el-color-primary(#409eff) 会盖掉上面的品牌青。
+   */
+  --el-color-primary: #6fb79b;
+  --el-color-primary-light-3: #548672;
+  --el-color-primary-light-5: #426658;
+  --el-color-primary-light-7: #2f453c;
+  --el-color-primary-light-8: #26352f;
+  --el-color-primary-light-9: #1d2422;
+  --el-color-primary-dark-2: #8cc5af;
+  --el-color-success: #2e7d32;
+  --el-color-success-light-3: #265e29;
+  --el-color-success-light-5: #214823;
+  --el-color-success-light-7: #1c341d;
+  --el-color-success-light-8: #19291a;
+  --el-color-success-light-9: #171e17;
+  --el-color-success-dark-2: #58975b;
+  --el-color-danger: #cc3b48;
+  --el-color-danger-light-3: #952f38;
+  --el-color-danger-light-5: #70282e;
+  --el-color-danger-light-7: #4b2024;
+  --el-color-danger-light-8: #391c1e;
+  --el-color-danger-light-9: #261819;
+  --el-color-danger-dark-2: #d6626d;
+  --el-color-danger-rgb: 204, 59, 72;
+  --el-color-error: #cc3b48;
+  --el-color-error-light-3: #952f38;
+  --el-color-error-light-5: #70282e;
+  --el-color-error-light-7: #4b2024;
+  --el-color-error-light-8: #391c1e;
+  --el-color-error-light-9: #261819;
+  --el-color-error-dark-2: #d6626d;
+  --el-color-error-rgb: 204, 59, 72;
+  --el-color-warning: #b26a00;
+  --el-color-warning-light-3: #835006;
+  --el-color-warning-light-5: #633f0a;
+  --el-color-warning-light-7: #432e0e;
+  --el-color-warning-light-8: #342510;
+  --el-color-warning-light-9: #241d12;
+  --el-color-warning-dark-2: #c18833;
+  --el-color-warning-rgb: 178, 106, 0;
+}
+
+/* 弥散光斑在深底上要更实一点才看得出来，色相不变 */
+html.dark body {
+  background-image:
+    radial-gradient(
+      1100px 520px at 6% -10%,
+      rgba(106, 171, 152, 0.18),
+      transparent 62%
+    ),
+    radial-gradient(
+      900px 500px at 98% 0%,
+      rgba(127, 181, 212, 0.16),
+      transparent 58%
+    ),
+    radial-gradient(
+      1000px 620px at 50% 110%,
+      rgba(78, 127, 112, 0.14),
+      transparent 62%
+    ),
+    linear-gradient(180deg, var(--ep-bg-soft), var(--ep-bg) 44%);
+}
+
+/*
+ * 深色下主色是「当文字用」的浅青（选中 tab、链接、描边按钮都吃它），
+ * 实心主按钮上再压白字就只剩 2.3:1 了 —— 实心那支反过来用深色字。
+ * 描边 / 文字按钮本来就是浅青字压深底，排除掉；禁用态也跟着 Element 那套走。
+ */
+html.dark
+  .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):not(
+    .is-disabled
+  ) {
+  --el-button-text-color: #0f1c18;
+  --el-button-hover-text-color: #0f1c18;
+  --el-button-active-text-color: #0f1c18;
+}
+
+/*
+ * 卡片右上角那个大数字是块「水印」：浅色下用类别深色压浅底刚刚好，
+ * 深色下同一支色（已被提亮）再乘 0.32 透明度就彻底看不见了 —— 换成淡淡的白色。
+ */
+html.dark .ep-tile-count {
+  background-image: linear-gradient(
+    160deg,
+    #fff 0%,
+    #fff 55%,
+    transparent 130%
+  );
+  opacity: 0.6;
+}
+
+/*
+ * 「勾选类」控件里那些默认跟白色走的东西：复选框的勾、单选/复选按钮选中的文字。
+ * 它们压在深色下这支浅青填充上就是白底白字（勾只有 2.3:1），改成深色。
+ *
+ * 必须打在组件自己的类上 —— Element 是这么声明的：
+ *   .el-checkbox { --el-checkbox-checked-icon-color: var(--el-color-white); }
+ * 变量声明在元素自身上，就永远压过从 html.dark 继承下来的值，只写 html.dark 等于没写。
+ * 开关（el-switch）的滑块保持白色：那是个实心圆点，Element 深色主题也这么配。
+ */
+html.dark .el-checkbox {
+  --el-checkbox-checked-icon-color: #0f1c18;
+}
+
+html.dark .el-checkbox-button {
+  --el-checkbox-button-checked-text-color: #0f1c18;
+}
+
+html.dark .el-radio-button {
+  --el-radio-button-checked-text-color: #0f1c18;
+}
+
+/* 中性徽标原来是「深色低透明度底」，深色下换成白色低透明度 */
+html.dark .ep-chip {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/*
+ * 类别色（含两个插件的 accent）是后端按浅色卡片算的深色号，深色下压在深底上读不出来。
+ * 这里只把「写字的那支」往白色提亮，底色不动 —— 那层低透明度色晕在深底上正好。
+ *
+ * 用 oklch 而不是 srgb 混：srgb 里跟白色混会一路掉饱和度，提亮的同时颜色也灰了，
+ * 42% 那版就是这么变得看不清的；oklch 混出来的亮度够、色相还在。
+ *
+ * 定义在元素自己身上（而不是 :root），才能确保 var(--ep-accent-ink) 取到它内联的那份。
+ * 不支持 color-mix 的浏览器会让这个值失效，文字退化成继承正文字色，仍然可读。
+ */
+.ep-page,
+.ep-tile {
+  --ep-accent-text: var(--ep-accent-ink);
+}
+
+html.dark .ep-page,
+html.dark .ep-tile,
+html.dark .ep-chip--accent {
+  --ep-accent-text: color-mix(in oklch, var(--ep-accent-ink) 52%, #fff);
+}
+
+/* 状态胶囊原来靠「半透明白底压色相」保证对比，深色下换成深色半透明底 */
+html.dark .ep-status {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+html.dark .ep-status--done {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+html.dark .ep-status--todo {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+html.dark .ep-status--new {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: var(--ep-accent-text);
+}

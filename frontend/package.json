@@ -1,0 +1,29 @@
+{
+  "name": "obot-ep",
+  "version": "0.6.0",
+  "private": true,
+  "type": "module",
+  "description": "OBot-ACM Web 端维护工具前端",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test tests/*.test.mjs",
+    "test:e2e": "playwright test",
+    "format": "prettier --write src public tests *.js *.html package.json",
+    "format:check": "prettier --check src public tests *.js *.html package.json"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "axios": "^1.20.0",
+    "element-plus": "^2.14.6",
+    "vue": "^3.5.43",
+    "vue-router": "^4.5.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "prettier": "^3.9.10",
+    "vite": "^8.3.0"
+  }
+}

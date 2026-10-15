@@ -14,3 +14,7 @@ htmlcov/
 .vscode/
 .codex/
 deploy/
+node_modules/
+frontend/dist/
+.vite/
+playwright-report/

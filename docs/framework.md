@@ -5,7 +5,7 @@
 Plugin 是 NoneBot 入口，声明命令、别名、帮助与权限，获取事件上下文，再调用异步 Service。Service 负责应用流程和业务决策，可以组合多个 Client；也可供其他插件或后续内部 API 复用。Client 是通用能力对象，例如 HTTP、渲染、图片产物或工作队列，Service 和 Plugin 都可以直接调用。
 
 ```text
-framework/
+backend/framework/
   services/        Service、IdentityService、HelpService、MaintenanceService
   clients/         Client、HttpClient、RenderClient、ArtifactClient、JobQueue、ReplyClient
   integration/     NoneBot 原生命令、依赖注入、权限、生命周期与内部 API
@@ -15,18 +15,18 @@ framework/
   models.py        官方 ORM 应用模型
   catalog.py       指令与帮助的统一声明
   runtime.py       动态发现、依赖与生命周期
-plugins/
+backend/plugins/
   help.py          独立 /help
   maintenance.py   仅超管的维护指令
   debug.py         仅超管的 /debug markdown /debug button
-migrations/        标准 Alembic 修订
+backend/migrations/ 标准 Alembic 修订
 ```
 
 Service 与 Client 分别继承自己的抽象基类。最小公共 Component 仅提供 `build(container)`、`dependencies`、异步 `start()` / `close()` 契约，避免复制生命周期实现。业务方法不统一强制为某一种 handler 签名；各 Service 提供自己的明确异步接口。
 
 运行时扫描两个包，只发现模块自己定义的具体子类，忽略导入类、抽象类、普通辅助类；每模块一个实现，文件名为容器键。访问 `services.help` 获取业务服务，访问 `services.clients.http` 获取通用 Client。跨类依赖用 `clients.http` 等显式名称；两类依赖统一构造单例、依赖先启动、消费者先关闭。循环、未知依赖、多个实现与错误工厂会显式报错；启动失败释放已经构造的对象，关闭错误不阻止其他对象清理。重新启动会构造新的实例。
 
-新增业务服务示例，放在 `framework/services/contest.py`，无需修改注册列表：
+新增业务服务示例，放在 `backend/framework/services/contest.py`，无需修改注册列表：
 
 ```python
 from framework.services import Service
@@ -65,7 +65,7 @@ HttpClient 按 origin 限制并发，GET/HEAD 暂时性错误有限重试，POST
 
 ```sh
 uv run --no-sync python -m framework.migrate
-uv run --no-sync bot.py
+uv run --no-sync python -m backend.bot
 ```
 
 保留 ORM 的 Alembic 启动检查，不使用自动 sync。0.3.0 明确 breaking change，不转换旧 records/operations、规则、角色、ACL 或 revision 数据。原数据库只作为部署备份，不进入新运行路径。
@@ -96,7 +96,7 @@ uv run --no-sync python -m framework.admin superuser remove USER_ID
 
 `BotServices`、`Reply`、`CommandContext` 是原生 Depends 的类型别名。Plugin 可在多个 await 之间顺序发送消息；Service 返回业务数据，handler 决定收发顺序。等待慢 Client 时其他事件继续处理。
 
-maintenance 包含 ping、whoami、status，全部要求 superuser；正式路径 `/maintenance.ping` 等，短别名 `/ping` 等。help 位于独立 `plugins/help.py`，正式路径 `/help`，everyone 可用，默认图片；`/help text` 显式文字。
+maintenance 包含 ping、whoami、status，全部要求 superuser；正式路径 `/maintenance.ping` 等，短别名 `/ping` 等。help 位于独立 `backend/plugins/help.py`，正式路径 `/help`，everyone 可用，默认图片；`/help text` 显式文字。
 
 `/help` 展示当前用户所有可执行的已注册命令，包括已授权的 hidden 项；`/help maintenance` 展开模块，`/help ping` 或 `/help maintenance.ping` 展示详情。目录由可见命令推导，不显示不可访问的模块。系统 COMMAND_SEP 默认英文句点，可切换其他标点；example_alias 允许示例使用已注册短别名，maintenance 已设置。maintainence 是帮助目录纠错别名。
 
@@ -213,15 +213,15 @@ await client.delete_panel(bot, panel_id)
 
 OBOT_QQ_TRANSPORT 的 configured 模式使用 QQ_BOTS 原设置，websocket/webhook 显式覆盖接收方式。当前服务器使用 WebSocket 接收，HTTP API 发消息不变；WS 模式 webhook POST 返回409。需要检查 Bot connected，而不是只检查 service active。
 
-独立 EP 项目仍作为 dashboard 参考，尚未部署或接线。内部 /internal/v1/health 与 /internal/v1/commands 默认404；开启后需要实际回环连接与 Bearer 令牌，不信任 X-Forwarded-For。机器令牌不冒充 QQ 群管理者，commands 只返回 everyone 可用且非 hidden 的指令。返回正式 path、directory、别名、权限、separator、用法和格式化示例，可用于同一棵帮助树。
+网页工作台已接入 EP 的插件与主题体系，见 [网页架构](web.md) 与 [视觉设计](design.md)。登录使用私聊 `/dashboard` 一次性链接，业务 API 与机器人共享 Service、账号及权限。内部 /internal/v1/health 与 /internal/v1/commands 默认404；开启后需要实际回环连接与 Bearer 令牌，不信任 X-Forwarded-For。机器令牌不冒充 QQ 群管理者，commands 只返回 everyone 可用且非 hidden 的指令。返回正式 path、directory、别名、权限、separator、用法和格式化示例，可用于同一棵帮助树。
 
 health 提供版本、就绪、指令数、队列、连接状态、最近收发及最近100条处理结果与耗时，不保留消息正文。计时从 matcher 首个上下文 handler 开始，包含身份、处理和平台发送等待，不包含平台分发或客户端实际送达时间。并行发送等待按时间区间并集统计，不重复累计。发送成功只表示平台接受请求。重复事件缓存是有界进程内去重，不是业务 exactly-once 保证。
 
-Caddy 公网代理 /qq/* 与 /board/*，域名其余路径保留未来 dashboard；内部令牌不能交给前端。web 用户映射、业务 API 与提交审核在具体功能迁移时实现。后续迁移比赛平台 Client、业务 Service、图片视图和 QQ Plugin，再接 EP。根 AGENT.md 只保留千字以内基础指引；详细记录放在不提交的 .codex/reference-docs/。
+Caddy 将网页、/api/* 与 /qq/* 代理到同一后端，并阻止公网 /internal/*；内部机器令牌不能交给前端。网页当前只管理个人榜单，群操作继续依赖 QQ 群权限；运行状态仅超管可见。后续工具沿用前后端插件清单接入共享 Service。根 AGENT.md 只保留千字以内基础指引；详细记录放在不提交的 .codex/reference-docs/。
 
 ## 趣味工具：一言
 
-`plugins/fun.py` 提供 everyone 可用的 `/fun.hitokoto`，短别名 `/hitokoto`、`/一言`、`/来句`、`/来一句`、`/来句话`、`/来一句话`。`/help fun`、`/help hitokoto` 与全局帮助自动展示同一份命令声明。
+`backend/plugins/fun.py` 提供 everyone 可用的 `/fun.hitokoto`，短别名 `/hitokoto`、`/一言`、`/来句`、`/来一句`、`/来句话`、`/来一句话`。`/help fun`、`/help hitokoto` 与全局帮助自动展示同一份命令声明。
 
 HitokotoClient 通过共享 HttpClient 异步访问 [一言语句接口](https://developer.hitokoto.cn/sentence/)，校验正文/作者/出处。成功结果缓存两秒，合并同时请求，限制公益接口请求突发；等待和网络总耗时最多八秒，不缓存失败。HitokotoService 保留原有 `[Hitokoto]` 与作者/出处格式；缺少作者时不显示 None，缺少出处显示“未知出处”，请求失败提示稍后重试。Plugin 使用 ReplyClient 显式回复，各平台复用这条业务链，无数据库或新依赖。
 

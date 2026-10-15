@@ -1,17 +1,13 @@
 # 基础上下文
 
-OBot ACM 面向算法竞赛与群聊日常；Python 3.12、uv、NoneBot2。
+OBot ACM 面向算法竞赛和群聊日常；Python 3.12、uv、NoneBot2，前端沿用 EP 的 Vue3/Element Plus。
 
-- plugins 为原生入口，framework/services 为异步业务，framework/clients 为通用能力；Service/Client 继承基类、自动发现。
-- 指令统一 Alconna 模板/assign，每个功能独立 handler。Plugin 解析，Service 接收业务参数；handler 显式 await ReplyClient.send/finish/send_to，不发送返回值。
-- 公共代码用通用 Bot/Event/Message，平台差异归 framework/integration/platforms；同步耗时工作移入线程或进程。
-- 权限 everyone/group_admin/superuser；help 与执行共用鉴权。help 独立公开、默认图片、最多三栏；maintenance/debug 仅超管。
-- 不自动注册目录或 QQ 面板；短名用别名，菜单不填运行例子。复用 LocalStore/ORM/APScheduler。
-- Peeper 用 third-party/peeper-board-generator 固定 submodule，不改上游；个人/群配置隔离，网页一次性绑定，凭据加密，群绑定由发起群管确认。
-- 版本见 docs/versions.md：迁移期 0.x.y，功能升 x，修复升 y；原功能迁移完成后才 1.0.0，可用 alpha/beta。
-- 公开文件只用示例 endpoint，不写个人部署地址或凭据。
-- 不读取、输出或提交 .env.dev；允许运行时加载。未经授权不提交。.codex 必须忽略，笔记放 .codex/reference-docs。
+- backend/plugins 为原生入口，backend/framework/services 为异步业务，clients 为通用能力；Service/Client 继承基类、自动发现。backend/web 承接 HTTP，frontend/src/plugins 自动发现工具清单、路由与 API，共用 Service。
+- 指令用 Alconna 模板/assign，每功能独立 handler；显式 await ReplyClient.send/finish/send_to，不发送返回值。公共消息使用通用 Bot/Event/Message；平台差异归 integration/platforms，耗时同步工作进线程/进程。
+- 权限 everyone/group_admin/superuser，help 与执行共用鉴权。help 独立、默认图片、最多三栏；maintenance/debug 仅超管。网页私聊 /dashboard 一次性登录，群管理仍在 QQ。
+- 不自动注册目录或 QQ 面板；短名用别名。复用 LocalStore/ORM/APScheduler。
+- third-party/peeper-board-generator 为固定 submodule，不改上游；个人/群榜单隔离、凭据加密，群绑定需原群确认。
+- 迁移期 0.x.y：功能升 x、修复升 y；完成迁移才 1.0.0，可有 alpha/beta。
+- 公开文件仅示例 endpoint。不读、输出或提交 .env.dev，允许运行时加载。未经授权不提交；.codex 必须忽略，详细笔记放其 reference-docs。
 
-验证：uv run --extra render pytest -q；uv run ruff check .；uv run ruff format --check .。测试隔离配置与数据库，真实 QQ 另行验收。
-
-资料：docs/framework.md、docs/commands.md、docs/boards.md、docs/migration-analysis.md；部署 deploy/README.md。
+验证和扩展见 docs/framework.md、commands.md、boards.md、web.md、design.md、versions.md；部署见忽略的 deploy/README.md。环境、数据和密钥留仓库根目录；测试用隔离配置与数据库，真实 QQ 另行验收。

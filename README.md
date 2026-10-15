@@ -32,6 +32,12 @@ OBot ACM 是面向算法竞赛学习、训练与社区交流的聊天机器人�
 
 除了算法竞赛，OBot ACM 也希望成为群聊中的日常助手。图片与表情包、菜谱、随机选择、小工具和互动小游戏，都是让交流更轻松、更有趣的一部分。
 
+## 网页工作台
+
+OBot 的网页工作台提供个人训练榜单、指令目录与运行状态。私聊机器人发送 `/dashboard`，使用一次性链接登录；榜单配置和机器人共用身份，让查询、设置与图形展示衔接在一起。
+
+开发说明见 [框架](docs/framework.md)、[网页架构](docs/web.md) 与 [视觉设计](docs/design.md)。
+
 ## 关于
 
 项目源于训练榜单可视化项目 [Peeper-Board-Generator](https://github.com/qwedc001/Peeper-Board-Generator) 与 [Hydro_Peeper_Module](https://github.com/Floating-Ocean/Hydro_Peeper_Module)，从便捷查看训练榜单的想法出发，服务于算法竞赛爱好者的日常需要。

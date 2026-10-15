@@ -6,4 +6,4 @@
 
 全部原始 OBot 功能迁移并完成验收后，才发布 `1.0.0`。后续大版本按功能与发布规划决定。
 
-发布时同步 `pyproject.toml` 的项目版本、`framework/__init__.py` 的 `__version__` 和 `uv.lock` 中本项目的版本，并运行 `uv lock --check`。只修改本项目版本，禁止全局替换版本字符串；第三方依赖及 submodule 版本独立管理。
+发布时同步 `pyproject.toml` 的项目版本、`backend/framework/__init__.py` 的 `__version__` 和 `uv.lock` 中本项目的版本，、`frontend/package.json`，并运行 `uv lock --check`。只修改本项目版本，禁止全局替换版本字符串；第三方依赖及 submodule 版本独立管理。
