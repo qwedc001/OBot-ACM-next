@@ -1,6 +1,6 @@
 [project]
 name = "obot-acm-nonebot"
-version = "0.10.3"
+version = "0.11.0"
 description = "NoneBot2 bot for Competitive Programming and more"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -24,6 +24,7 @@ dependencies = [
 render = [
     "easy-pixie>=0.0.10",
     "pixie-python>=4.3.0",
+    "pillow>=12.0.0",
 ]
 
 [tool.nonebot]

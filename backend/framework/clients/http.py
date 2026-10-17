@@ -37,12 +37,22 @@ class HttpClient(Client):
         )
         self._retry_delay = retry_delay
 
-    async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+    async def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        accepted_statuses: frozenset[int] = frozenset(),
+        attempts: int | None = None,
+        **kwargs: Any,
+    ) -> httpx.Response:
         parts = urlsplit(url)
         if parts.scheme not in {"http", "https"} or not parts.hostname or parts.username or parts.password:
             raise ValueError("HTTP URL must have a host and no embedded credentials")
         method = method.upper()
-        attempts = 3 if method in {"GET", "HEAD"} else 1
+        attempts = (3 if method in {"GET", "HEAD"} else 1) if attempts is None else attempts
+        if attempts < 1 or (method not in {"GET", "HEAD"} and attempts != 1):
+            raise ValueError("Only GET/HEAD requests may retry")
         # Include port: independent upstreams sharing a host need separate budgets.
         origin = f"{parts.scheme}://{parts.hostname}:{parts.port or (443 if parts.scheme == 'https' else 80)}"
         async with self._limits[origin]:
@@ -53,7 +63,7 @@ class HttpClient(Client):
                     if attempt + 1 == attempts:
                         raise UpstreamError(f"{method} {parts.hostname}: transport failure") from None
                 else:
-                    if response.is_success:
+                    if response.is_success or response.status_code in accepted_statuses:
                         return response
                     retryable = response.status_code in {429, 502, 503, 504}
                     if not retryable or attempt + 1 == attempts:
@@ -70,3 +80,26 @@ class HttpClient(Client):
 
     async def close(self) -> None:
         await self._client.aclose()
+
+    async def download(self, url: str, *, limit: int = 2 * 1024 * 1024) -> bytes:
+        """Bound an optional binary download while reusing this connection pool."""
+        parts = urlsplit(url)
+        if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
+            raise ValueError("Download requires an HTTPS URL without credentials")
+        origin = f"https://{parts.hostname}:{parts.port or 443}"
+        try:
+            async with self._limits[origin], self._client.stream("GET", url, timeout=5) as response:
+                if not response.is_success:
+                    raise UpstreamError("Image download rejected")
+                length = response.headers.get("content-length", "")
+                if length.isdigit() and int(length) > limit:
+                    raise UpstreamError("Image download exceeds size limit")
+                chunks, size = [], 0
+                async for chunk in response.aiter_bytes():
+                    size += len(chunk)
+                    if size > limit:
+                        raise UpstreamError("Image download exceeds size limit")
+                    chunks.append(chunk)
+                return b"".join(chunks)
+        except httpx.TransportError:
+            raise UpstreamError("Image transport failure") from None
