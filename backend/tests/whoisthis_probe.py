@@ -27,6 +27,10 @@ async def main():
             command_sep={separator},
             log_level="ERROR",
         )
+        if "--patches" in sys.argv:
+            from patches import install
+
+            install()
         from framework.catalog import catalog
         from framework.config import Settings
         from framework.contracts import ExternalIdentity
@@ -126,6 +130,11 @@ async def main():
                 )
                 # Metadata-only mentions and legacy segments both resolve to the same observed account.
                 assert actor.id in await request(f"/maintenance{separator}whoisthis", [mention()])
+                if "--patches" in sys.argv:
+                    documented_user = {
+                        key: value for key, value in mention().items() if key not in {"scope", "is_you"}
+                    }
+                    assert actor.id in await request("/whoisthis", [documented_user])
                 assert actor.id in await request('/whoisthis <qqbot-at-user id="member_openid" />')
                 assert actor.id in await request(
                     "/whoisthis <@display_id> <@display_id>", [mention(), mention()]

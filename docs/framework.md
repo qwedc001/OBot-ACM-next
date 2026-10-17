@@ -136,7 +136,7 @@ QQ 转换和主动目标路由位于 `framework/integration/platforms/qq_message
 
 当前 QQ Keyboard 必须与 Markdown 同发，自定义布局最多五行、每行五个按钮；单消息最多一个 Markdown/Keyboard 或一张媒体图片。官方 Adapter 会选择最后一个同类段；转换层提前拒绝多图、多 Markdown、多 Keyboard 及图片与 Markdown/Keyboard 组合，防止内容丢失。图文混排可在 Markdown 内引用公网图片链接；多张上传图片则拆为多个 Message。模板和自定义 Markdown/按钮能否被腾讯接受取决于机器人平台已开通的能力，不自动降级丢弃内容。
 
-官方 Bot.send 管理被动回复的 msg_id 和递增 msg_seq；send_to 使用官方 send_to_*，由 Adapter 管理图片上传与消息类型，不维护额外发送锁或上传协议。SDK 发送异常转换为脱敏 DeliveryFailed，取消信号原样传播；构建参数错误显式报错。QQ 默认群/频道 at_sender=True、私聊False。ReplyClient 也支持普通 GroupMessageCreateEvent 的被动回复，这只表示发送实现支持该事件，不改变 Adapter 的事件订阅。
+官方 Bot.send 管理被动回复的 msg_id 和递增 msg_seq；send_to 使用官方 send_to_*，由 Adapter 管理图片上传与消息类型，不维护额外发送锁或上传协议。SDK 发送异常转换为脱敏 DeliveryFailed，取消信号原样传播；构建参数错误显式报错。QQ 默认群/频道 at_sender=True、私聊False。群普通回复由平台自动标明发送者，Markdown 则需要正文标签；适配器 1.7.3 的局部补偿独立放在 [backend/patches](../backend/patches/README.md)，不改变 ReplyClient 公共接口。ReplyClient 也支持普通 GroupMessageCreateEvent 的被动回复，这只表示发送实现支持该事件，不改变 Adapter 的事件订阅。
 
 HelpService 返回字符串或 tuple[Message, ...]，读取图片前校验访问权限并持有 lease，读取后再次检查帮助权限。合成测试执行真实 matcher、Bot.send 和 send_to_*，只 mock 最终 API，覆盖文本、图片上传、Markdown 参数、按钮、主动四场景、普通群消息、并发回复序号和 finish 控制流。SAA 不再作为依赖；这里复用其消息构建/被动与主动发送分离的思路。
 
@@ -240,6 +240,6 @@ Hydro 训练榜单、一次性网页绑定和固定提交的生成器 submodule 
 
 QQ 接入层优先使用官方提及元数据的 `member_openid`，不把显示用的 `id` 当作群成员身份。对于未登记用户，完整元数据允许建立默认无超管标记的身份记录，后续该用户真实消息沿用同一主体。旧消息仅有提及文本 ID 时，只查询已有记录，不能据此猜测和创建新身份。
 
-部分群消息实测在平台推送时已没有目标提及文本与 `mentions`。此时可以尝试引用回复目标用户的消息，发送 `@机器人 /whoisthis`；接入层通过 `Platform.reply_author` 读取原生适配器已按引用索引匹配的作者，只接受群作者的 `member_openid` 或频道作者的稳定 ID。引用缺作者、仅有显示 ID、索引不匹配时明确返回无法识别，不按昵称猜测。已有明确提及时以提及为准。此备用方式仍需要实际 QQ 收发验证，平台可能不提供引用作者。
+部分群消息实测在平台推送时已没有目标提及文本与 `mentions`。此时可以尝试引用回复目标用户的消息，发送 `@机器人 /whoisthis`；接入层通过 `Platform.reply_author` 读取原生适配器已按引用索引匹配的作者，只接受群作者的 `member_openid` 或频道作者的稳定 ID。引用缺作者、仅有显示 ID、索引不匹配时明确返回无法识别，不按昵称猜测。已有明确提及时以提及为准。2026-10-17 Android QQ 实测引用消息也没有提供作者；这一备用路径仅在平台确实提供作者时可用。原始推送与 SDK 处理的区别、上游 issue 和补丁边界见 [适配器补丁说明](../backend/patches/README.md)。
 
 查询后仍由可信服务器操作者使用 `python -m framework.admin superuser add 主体ID` 登记超管。群身份与私聊身份仅在可信关联后共享主体，不按相同显示 ID 或昵称自动合并。通用 Plugin 使用 Bot/Event，提及映射由 Platform.mentioned_users 提供，引用作者由 Platform.reply_author 提供，其他平台可以独立实现；未实现时不猜测目标。隔离测试从 QQ Dispatch 进入原生 Bot.handle_event，覆盖引用预处理与 NoneBot 分发。

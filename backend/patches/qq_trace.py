@@ -58,7 +58,7 @@ class Recorder:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             return
-        snapshot = redact(copy.deepcopy(value))
+        snapshot = {"phase": phase, "captured_at": time.time(), **redact(copy.deepcopy(value))}
         task = loop.create_task(asyncio.to_thread(self.write, phase, snapshot))
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
