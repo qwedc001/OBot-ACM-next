@@ -62,7 +62,7 @@ async def main():
             }
 
         async def request(
-            content, mentions=None, *, user="operator", private=False, role="member", extra=None
+            content, mentions=None, *, user="operator", private=False, role="member", extra=None, full=False
         ):
             nonlocal counter
             counter += 1
@@ -85,9 +85,17 @@ async def main():
                 payload.update(extra)
             if payload.get("mentions") is None:
                 payload.pop("mentions", None)
+            if full:
+                # Full-mode to_me must come from native mention processing,
+                # rather than a pre-filled synthetic event flag.
+                payload.pop("to_me", None)
             event = QQAdapter.payload_to_event(
                 Dispatch(
-                    type="C2C_MESSAGE_CREATE" if private else "GROUP_AT_MESSAGE_CREATE",
+                    type="C2C_MESSAGE_CREATE"
+                    if private
+                    else "GROUP_MESSAGE_CREATE"
+                    if full
+                    else "GROUP_AT_MESSAGE_CREATE",
                     data=payload,
                     id=f"dispatch-{counter}",
                 )
@@ -121,6 +129,13 @@ async def main():
                 output = await request("/whoisthis <@display_id>", [mention()])
                 actor = await services.identities.lookup(person)
                 assert actor and actor.id in output and person.key in output and "未登记" in output
+                # Upstream #195/#214 demonstrate real full-mode mentions. Once
+                # QQ grants that delivery mode, no alternate command handler or
+                # nickname/member-list matching should be needed in OBot.
+                full_mentions = [mention("bot_openid", "bot_openid", bot=True, is_you=True), mention()]
+                assert actor.id in await request("/whoisthis", full_mentions, full=True)
+                assert "权限不足" in await request("/whoisthis", full_mentions, user="member", full=True)
+                assert "平台未提供" in await request("/whoisthis", full=True)
                 assert not await services.identities.is_superuser(actor)
                 assert (
                     await services.identities.lookup(

@@ -31,7 +31,7 @@
 
 ## 手机实测：接收身份的边界
 
-Android QQ 原生选择目标用户 @ 后，送达适配器之前的推送可简化为：
+开启全量接收前，Android QQ 原生选择目标用户 @ 后，送达适配器之前的推送可简化为：
 
 ```json
 {"content": " /whoisthis  ", "message_type": 0, "author": {"member_openid": "SENDER"}, "group_openid": "GROUP"}
@@ -40,6 +40,37 @@ Android QQ 原生选择目标用户 @ 后，送达适配器之前的推送可简
 原始数据没有 `mentions`，正文也没有目标标签或名称。引用人类消息时能收到 `message_type=103`、`ref_msg_idx`、`msg_elements` 和 `parallel_message`，但这次引用元素没有作者字段。这不是命令解析器吞掉了目标，也不能仅靠 SDK 补丁生成可靠身份。`/whoisthis` 在缺少身份时仍明确报告无法识别。
 
 以上仅是本次机器人、群和账号的实测结果，不代表所有 QQ 推送均如此。临时切换 Webhook 的对照没有收到事件，结论不充分；已恢复 WebSocket，不据此判定传输方式影响身份字段。真实 ID、消息和完整私有采集文件不提交。
+
+### 接收模式与权限排查
+
+群 @ 与全量群事件使用同一 `GROUP_AND_C2C_EVENT (1 << 25)` 订阅位。`QQAdapter.setup` 在 WebSocket 模式已启用此位；官方订阅列表中未列出单独的提及订阅位；`group_members` 是成员进退群事件，不能补齐消息提及。不要为了试验开启无关订阅或授予机器人管理员身份。
+
+**不能把全量接收当作使用提及的必要条件。** 官方群 @ 事件本身就定义了 `mentions[]`，OBot 对 `GroupAtMessageCreateEvent` 和 `GroupMessageCreateEvent` 共用结构化提及解析。只要平台下发目标 `member_openid`，两种事件都能使用 `/whoisthis`。
+
+[全量消息文档](https://bot.q.qq.com/wiki/develop/api-v2/autogen/event/group_message_create.html) 要求开启“接收所有消息”。[上游 #195](https://github.com/nonebot/adapter-qq/pull/195) 的真实样本包含 `mentions`，[#214](https://github.com/nonebot/adapter-qq/issues/214) 也展示了全量模式下的人类用户提及，因此接收模式值得实际对照，不能由一次缺字段推送推断 QQ 全面不支持该功能。
+
+以群主账号检查手机 QQ 的群机器人权限页，并对比 `GET /v2/groups/{group_openid}/bot_state` 的 `recv_msg_setting`：文档值为 `all`、`only_mention`、`mention_and_context`。接口只读，某些应用还需要白名单权限。实测也可能返回未记载的空字符串，此时 SDK 的枚举验证会失败，不能擅自当作任一模式；诊断可通过 SDK 原有鉴权的 `_request` 查看原始字段，但不得公开身份或令牌。
+
+切换后应采集同一条原生 `@机器人 /whoisthis @目标` 在 Pydantic 之前的事件，核对事件类型与 `mentions[].member_openid`，再确认机器人返回的主体。原生 SDK 到命令处理的合成全量事件已覆盖成功、普通用户拒绝、目标身份缺失三种情况；是否能恢复真实目标，仍以该群配置后的实际推送为准。
+
+2026-10-17 实测对照：群主开启接收全部消息后，状态接口从未记载的空字符串变为 `all`，机器人仍为普通群成员。当晚再次发送原生 `@机器人 /whoisthis @目标`，收到的事件变为 `GROUP_MESSAGE_CREATE`；SDK 消息包含机器人自身和目标人类用户两个提及段，目标附带昵称与非机器人标识。原有指令成功匹配、执行并完成回复发送，未新增接收解析补丁。这次测试时原始采集已自动过期，因此切换后的证据来自 SDK 处理日志，不宣称取得了该条消息的原始 JSON。
+
+这次旧群测试本身只证明切换配置后恢复，切换前的空字符串不是已确认的 `only_mention`，不能单凭它认定全量是必要条件。随后进行了下面的新群对照。
+
+### 新建两人群的完整对照
+
+2026-10-17，用仅有机器人与群主的新群，QQ Android 9.3.70，通过原生成员选择器依次插入机器人与群主本人的提及，发送相同的 `/whoisthis @自己`。每次切换后读取官方 `bot_state` 确认模式；所有原始推送均在 SDK 验证前采集，账号、程序、WebSocket 连接和指令处理器保持一致。
+
+| 群内设置 | 接口模式 | 收到的事件 | 原始提及信息 | 指令结果 |
+| --- | --- | --- | --- | --- |
+| 默认仅 @ | 空字符串 | `GROUP_AT_MESSAGE_CREATE` | 无 `mentions`，正文无目标标签 | 无法识别 |
+| 接收全部消息 | `all` | `GROUP_MESSAGE_CREATE` | 两个提及与正文标签，人类 `member_openid` 与发送者一致 | 返回正确主体 |
+| 从全量明确切回仅 @ | `only_mention` | `GROUP_AT_MESSAGE_CREATE` | 无 `mentions`，正文无目标标签 | 无法识别 |
+| @ 加最近 10 条 | `mention_and_context` | `GROUP_AT_MESSAGE_CREATE` | 无 `mentions`；上下文元素只有文本，没有作者或提及 | 无法识别 |
+
+这排除了“只要重新保存配置便恢复”的猜测。在本机器人、新测试群、当前客户端的实测范围内，只有 `all` 提供了足够的目标身份。**这是平台实际下发行为，不是文档规定群 @ 事件必须全量，也不能推断其他机器人或所有目标用户均如此。** 两种事件的文档都定义了 `mentions`，却没有解释本次非全量推送为何省略该字段；平台侧条件仍需官方澄清。OBot 无法从缺少身份的推送中可靠还原目标，不通过昵称或历史消息猜测。
+
+群主侧实际入口是机器人资料卡 → 设置 → 顶部“机器人可获取的群聊消息范围”。本次测试后已恢复为仅 @；原始身份数据仅保存在私有诊断目录，不进入文档或测试夹具。
 
 ## QQ 推送诊断：qq_trace.py
 
