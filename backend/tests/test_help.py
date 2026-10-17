@@ -252,7 +252,7 @@ def test_whole_modules_use_measured_height_and_always_choose_the_shortest_column
     pytest.importorskip("pixie")
     model = layout_model((1, 4, 2, 1, 3, 1))
     # One command with wrapped text must outweigh several short commands.
-    model["groups"][0]["commands"][0]["summary"] = "较长说明用于实际折行测量 " * 60
+    model["groups"][0]["commands"][0]["summary"] = "较长说明用于实际折行测量 " * 90
     backend = HelpPixieBackend()
     pages = backend.layout(model)
     assert len(pages) == 1

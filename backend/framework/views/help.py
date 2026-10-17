@@ -10,17 +10,21 @@ from typing import Any
 
 from framework.clients.renderer import PixieBackend, RenderedImage
 
-from .. import __version__
+from .footer import CardFooter
+from .palette import DECENT, paint_card
 
-WIDTH = 1040
+WIDTH = 1108
 MAX_HEIGHT = 4096
-MARGIN = 60
+MARGIN = 96
 CONTENT_WIDTH = WIDTH - MARGIN * 2
-HEADER_HEIGHT = 282
-FOOTER_HEIGHT = 110
+HEADER_HEIGHT = 300
+FOOTER_HEIGHT = 300
 MAX_COLUMNS = 3
-COLUMN_GAP = 32
-ACCENT = (146, 220, 237)
+COLUMN_GAP = 96
+# Original help uses a near-black veil and a lightened gradient accent.
+ACCENT = (221, 244, 248)
+INK = (255, 255, 255, 228)
+MUTED = (255, 255, 255, 156)
 
 
 @dataclass
@@ -38,7 +42,7 @@ class HelpModule:
 
     @property
     def height(self) -> int:
-        return self.heading.height + 38 + sum(card.height for card in self.cards)
+        return self.heading.height + 64 + sum(card.height for card in self.cards)
 
 
 @dataclass
@@ -72,7 +76,7 @@ class HelpPixieBackend:
         size: int,
         *,
         weight: str = "R",
-        color: tuple = (238, 243, 249),
+        color: tuple = INK,
         width: int = CONTENT_WIDTH - 48,
     ):
         from easy_pixie import StyledString
@@ -80,33 +84,35 @@ class HelpPixieBackend:
         return StyledString(text, weight, size, font_color=color, max_width=width, line_multiplier=1.25)
 
     def layout(self, model: dict) -> list[HelpPage]:
+        from ._help import UsageBlock
+
         modules: list[HelpModule] = []
         capacity = MAX_HEIGHT - HEADER_HEIGHT - FOOTER_HEIGHT
         for group in model["groups"]:
             category = f"{group['name']} · {group['summary']}"
-            heading = self._text(category, 24, weight="B", color=ACCENT, width=CONTENT_WIDTH - 32)
+            heading = self._text(category, 32, weight="H", color=ACCENT, width=CONTENT_WIDTH - 68)
             cards = []
             for command in group["commands"]:
                 prefix = "" if command["mode"] == "keyword" else "/"
                 blocks = [
-                    self._text(prefix + command["name"], 34, weight="H", color=ACCENT),
-                    self._text(command["summary"], 26),
-                    self._text("用法：" + command["usage"], 24, color=(201, 212, 228)),
+                    self._text(prefix + command["name"], 46, weight="H", color=INK),
+                    self._text(command["summary"], 28),
+                    UsageBlock(command["usage"], CONTENT_WIDTH - 48, ACCENT),
                 ]
                 if command["aliases"]:
                     blocks.append(
                         self._text(
                             "别名：" + "、".join(prefix + alias for alias in command["aliases"]),
-                            22,
-                            color=(173, 191, 211),
+                            24,
+                            color=MUTED,
                         )
                     )
                 if command["examples"]:
-                    blocks.append(self._text("示例：" + "；".join(command["examples"]), 24, color=ACCENT))
-                card_height = sum(block.height for block in blocks) + 14 * (len(blocks) - 1) + 48
-                if heading.height + 38 + card_height + 24 > capacity:
+                    blocks.append(self._text("示例：" + "；".join(command["examples"]), 24, color=MUTED))
+                card_height = sum(block.height for block in blocks) + 12 * (len(blocks) - 1) + 32
+                if heading.height + 64 + card_height + 32 > capacity:
                     raise ValueError("Help entry exceeds a page; text help remains available")
-                cards.append(HelpCard(command["id"], blocks, card_height + 24))
+                cards.append(HelpCard(command["id"], blocks, card_height + 32))
             if cards:
                 modules.append(HelpModule(category, heading, cards))
         if not modules:
@@ -139,11 +145,9 @@ class HelpPixieBackend:
     def _draw_page(self, model: dict, layout: HelpPage, page: int, total: int):
         import pixie
         from easy_pixie import (
-            GradientColor,
-            GradientDirection,
             Loc,
             apply_tint,
-            draw_gradient_rect,
+            calculate_width,
             draw_img,
             draw_mask_rect,
             draw_text,
@@ -151,58 +155,46 @@ class HelpPixieBackend:
 
         width, height = layout.width, layout.height
         image = pixie.Image(width, height)
-        image.fill(pixie.parse_color("#0D1220"))
-        gradient = GradientColor(color_list=["#274B77", "#297065"], pos_list=[0.0, 1.0], name="Lowlight")
-        draw_gradient_rect(
-            image,
-            Loc(18, 18, width - 36, height - 36),
-            gradient,
-            GradientDirection.DIAGONAL_LEFT_TO_RIGHT,
-            34,
-        )
-        draw_mask_rect(image, Loc(24, 24, width - 48, height - 48), (9, 13, 23, 231), 30)
+        paint_card(image, DECENT, dark=True)
         icon = pixie.read_image(str(Path(__file__).with_name("assets") / "Help.png"))
-        draw_img(image, apply_tint(icon, ACCENT), Loc(MARGIN, 64, 62, 62))
-        draw_text(image, self._text("指令帮助", 54, weight="H", color=ACCENT), MARGIN + 82, 66)
+        draw_img(image, apply_tint(icon, ACCENT), Loc(MARGIN, 100, 86, 86))
+        draw_text(image, self._text("指令帮助", 78, weight="H", color=ACCENT), MARGIN + 112, 90)
         draw_text(
             image,
-            self._text(f"{model['title']} · {model['count']} 条可用指令", 24, color=(173, 191, 211)),
+            self._text(f"{model['title']} · {model['count']} 条可用指令", 26, color=MUTED),
             MARGIN,
-            147,
-        )
-        draw_text(
-            image,
-            self._text("按模块查找功能 · 示例中的短别名可直接使用", 22, color=(173, 191, 211)),
-            MARGIN,
-            195,
+            203,
         )
         for index, column in enumerate(layout.columns):
             x = MARGIN + index * (CONTENT_WIDTH + COLUMN_GAP)
             y = HEADER_HEIGHT
             for module in column.modules:
-                draw_mask_rect(
-                    image, Loc(x, y, CONTENT_WIDTH, module.heading.height + 18), (146, 220, 237, 28), 12
-                )
-                draw_text(image, module.heading, x + 16, y + 9)
-                y += module.heading.height + 38
+                chip_width = min(CONTENT_WIDTH, int(calculate_width(module.heading)) + 68)
+                chip_height = module.heading.height + 18
+                draw_mask_rect(image, Loc(x, y, chip_width, chip_height), (*ACCENT, 30), chip_height // 2)
+                draw_text(image, module.heading, x + 34, y + 9)
+                remaining = CONTENT_WIDTH - chip_width - 20
+                if remaining > 0:
+                    draw_mask_rect(
+                        image, Loc(x + chip_width + 20, y + chip_height // 2, remaining, 1), (*ACCENT, 80)
+                    )
+                y += module.heading.height + 64
                 for card in module.cards:
-                    draw_mask_rect(image, Loc(x, y, CONTENT_WIDTH, card.height - 24), (255, 255, 255, 8), 16)
-                    current = y + 24
+                    current = y + 16
                     for block in card.blocks:
-                        current = draw_text(image, block, x + 24, current) + 14
+                        draw = getattr(block, "draw", None)
+                        current = (
+                            draw(image, x, current) if draw else draw_text(image, block, x, current)
+                        ) + 12
                     y += card.height
-        draw_text(
-            image,
-            self._text(f"Lowlight · OBot {__version__}      {page}/{total}", 21, color=(144, 161, 185)),
-            MARGIN,
-            height - 82,
+        footer_y = height - FOOTER_HEIGHT + 12
+        draw_text(image, self._text("参数：<必填> 实线 · [选填] 虚线", 24, color=MUTED), MARGIN, footer_y)
+        footer = CardFooter(
+            width - MARGIN * 2,
+            dark=True,
+            detail="配色 " + DECENT.label + (f" · 第 {page}/{total} 页" if total > 1 else ""),
         )
-        draw_text(
-            image,
-            self._text("依据当前用户与对话场景的权限实时生成", 21, color=(144, 161, 185)),
-            MARGIN,
-            height - 51,
-        )
+        footer.draw(image, MARGIN, footer_y + 64)
         return image
 
     def render_pages(self, model: dict) -> tuple[RenderedImage, ...]:

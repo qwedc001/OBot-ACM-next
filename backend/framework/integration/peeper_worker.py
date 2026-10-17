@@ -24,6 +24,40 @@ class RenderTooLarge(Exception):
     pass
 
 
+def add_information_section(generator):
+    """Extend the upstream copyright section, without patching the submodule.
+
+    Peeper measures and draws this object via its public section interface.
+    Keeping its original section preserves generator credits and data notices;
+    measuring the additional area also includes it in canvas/pixel limits.
+    This runs only in the isolated drawing process, before output downscaling.
+    """
+    from module.board import misc
+
+    from ..views.footer import CardFooter
+
+    original = generator.section_copyright
+    footer = CardFooter(
+        misc._CONTENT_WIDTH - 2 * misc._SIDE_PADDING,
+        detail="配色 " + generator._gradient_color.name,
+    )
+
+    class CopyrightWithInformation:
+        def get_columns(self):
+            return original.get_columns()
+
+        def get_height(self):
+            return original.get_height() + 64 + footer.height
+
+        def render(self, image, x, y):
+            # Upstream's return value stops before its last information line;
+            # use its measured extent so our divider cannot cover that line.
+            original.render(image, x, y)
+            return footer.draw(image, x, y + original.get_height() + 64)
+
+    generator.section_copyright = CopyrightWithInformation()
+
+
 def render_image(generator):
     """Preflight the pinned renderer's canvas, then scale without dropping rows."""
     from module.board import misc
@@ -105,16 +139,16 @@ def main():
             },
         )
         with contextlib.redirect_stdout(sys.stderr):
-            image = render_image(
-                MiscBoardGenerator(
-                    config,
-                    model["mode"],
-                    str(source / "data" / "logo.png"),
-                    verdict=model["verdict"],
-                    separate_columns=True,
-                    date_string=model["day"],
-                )
+            generator = MiscBoardGenerator(
+                config,
+                model["mode"],
+                str(source / "data" / "logo.png"),
+                verdict=model["verdict"],
+                separate_columns=True,
+                date_string=model["day"],
             )
+            add_information_section(generator)
+            image = render_image(generator)
             path = root / "output.png"
             image.write_file(str(path))
         sys.stdout.buffer.write(path.read_bytes())
