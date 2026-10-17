@@ -46,7 +46,6 @@ onUnmounted(() => clearInterval(timer));
   <div class="ep-page">
     <div class="ep-page-head">
       <div>
-        <p class="eyebrow">MAINTENANCE / LIVE</p>
         <h1 class="ep-title">运行状态</h1>
         <p class="ep-subtitle">机器人连接、任务队列和最近的指令处理情况。</p>
       </div>

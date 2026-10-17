@@ -81,16 +81,11 @@ async function submit() {
     </header>
     <section class="bind-layout">
       <aside class="bind-story">
-        <p class="eyebrow">CONNECT YOUR TRAINING</p>
-        <h1>让每一次提交，<br />都有迹可循。</h1>
-        <p>连接你的 HydroOJ，<br />将日常训练汇成一份看得见的进步。</p>
+        <h1>连接 HydroOJ</h1>
+        <p>保存一个榜单配置，用于生成训练榜单和每日推送。</p>
         <div class="bind-assurance">
           <el-icon><Lock /></el-icon
-          ><span
-            >账号密码加密保存<br /><small
-              >链接仅用于本次绑定，不会显示已有密码。</small
-            ></span
-          >
+          ><span>账号密码加密保存<br /><small>请勿转发绑定链接。</small></span>
         </div>
       </aside>
       <section class="ep-card bind-card" v-loading="loading">
@@ -103,7 +98,6 @@ async function submit() {
           <p class="ep-muted">现在可以回到 QQ，开始查看榜单。</p></template
         ><template v-else
           ><div class="form-heading">
-            <span class="eyebrow">HYDRO OJ</span>
             <h2>{{ info ? "绑定 " + info.name : "绑定榜单配置" }}</h2>
             <p class="ep-muted" v-if="info">
               {{
@@ -150,27 +144,30 @@ async function submit() {
                   required
               /></el-form-item>
             </div>
-            <div class="form-divider">
-              <span>榜单显示</span><small>可选设置</small>
-            </div>
-            <el-form-item label="排除 UID" for="exclude-uid"
-              ><el-input
-                id="exclude-uid"
-                v-model="form.excludeUid"
-                placeholder="用逗号或空格分隔，例如 2, 3, 7" /></el-form-item
-            ><el-form-item label="排除此日期前注册的用户" for="exclude-before"
-              ><el-input
-                id="exclude-before"
-                v-model="form.excludeBefore"
-                type="date"
-            /></el-form-item>
-            <div class="switch-row">
-              <div>
-                <strong>显示打星用户</strong>
-                <p>保留其记录，同时使用星号标识。</p>
+            <details class="binding-options">
+              <summary>榜单显示设置<span>可选</span></summary>
+              <el-form-item label="排除 UID" for="exclude-uid"
+                ><el-input
+                  id="exclude-uid"
+                  v-model="form.excludeUid"
+                  placeholder="用逗号或空格分隔，例如 2, 3, 7" /></el-form-item
+              ><el-form-item label="排除此日期前注册的用户" for="exclude-before"
+                ><el-input
+                  id="exclude-before"
+                  v-model="form.excludeBefore"
+                  type="date"
+              /></el-form-item>
+              <div class="switch-row">
+                <div>
+                  <strong>显示打星用户</strong>
+                  <p>保留其记录，同时使用星号标识。</p>
+                </div>
+                <el-switch
+                  v-model="form.showUnrated"
+                  aria-label="显示打星用户"
+                />
               </div>
-              <el-switch v-model="form.showUnrated" aria-label="显示打星用户" />
-            </div>
+            </details>
             <el-button
               type="primary"
               native-type="submit"

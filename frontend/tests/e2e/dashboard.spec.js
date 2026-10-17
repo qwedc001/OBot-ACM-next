@@ -47,7 +47,7 @@ async function signIn(page, request, role = "user") {
   await expect(page).toHaveURL(/\/login$/);
   await page.getByRole("button", { name: "以 QQ 身份继续" }).click();
   await expect(page).toHaveURL("http://127.0.0.1:8765/");
-  await expect(page.getByRole("heading", { name: /每一段进步/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /工作台/ })).toBeVisible();
 }
 async function screenshot(page, name) {
   await mkdir(artifacts, { recursive: true });
@@ -186,7 +186,49 @@ test("personal board settings and real image rendering share the existing servic
   expect(
     await image.evaluate((element) => element.naturalWidth),
   ).toBeGreaterThan(1000);
+  await expect(page.locator(".board-preview")).toBeFocused();
+  await image.click();
+  await expect(page.locator(".el-image-viewer__wrapper")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".el-image-viewer__wrapper")).toHaveCount(0);
   await screenshot(page, "board-render-desktop");
+});
+
+test("command module selection, example search, reset and copy work on mobile", async ({
+  page,
+  request,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await signIn(page, request);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/commands");
+  await page.getByRole("combobox", { name: "指令模块" }).press("ArrowDown");
+  await page.getByRole("option", { name: "cp", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "/cp.cf", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "/fun.hitokoto", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("textbox", { name: "搜索指令" }).fill("  TOURIST  ");
+  await page
+    .getByRole("button", { name: "复制 /cf user tourist", exact: true })
+    .click();
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe("/cf user tourist");
+  await page.getByRole("textbox", { name: "搜索指令" }).fill("unknown-command");
+  await page.getByRole("button", { name: "清除筛选", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "/fun.hitokoto", exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await screenshot(page, "commands-mobile");
 });
 
 test("dark theme persists and mobile shell has no horizontal overflow", async ({

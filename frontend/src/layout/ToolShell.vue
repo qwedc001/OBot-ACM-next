@@ -76,6 +76,6 @@ async function logout() {
   </nav>
   <main><router-view /></main>
   <footer class="shell-footer">
-    <span>OBot's ACM</span><span>每一段进步，都值得被看见。</span>
+    <span>OBot's ACM</span><span>O宝的AC梦</span>
   </footer>
 </template>

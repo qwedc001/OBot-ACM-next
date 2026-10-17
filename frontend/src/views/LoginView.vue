@@ -40,14 +40,11 @@ async function copy() {
       <router-link to="/" class="auth-brand"
         ><OBotLogo :size="44" /><span>OBot's Endpoint</span></router-link
       >
-      <p class="eyebrow">YOUR NEXT ACCEPTED</p>
-      <h1>从一声问候，<br />到下一次 <em>Accepted.</em></h1>
-      <p>算法竞赛、训练记录，<br />以及更多日常的小乐趣。</p>
-      <span class="auth-signature">O宝的AC梦</span>
+      <h1>OBot 工作台</h1>
+      <p>查看训练榜单，管理 OJ 配置。<br />使用 QQ 机器人发来的链接登录。</p>
     </div>
     <section class="ep-card auth-card">
-      <span class="ep-chip ep-chip--accent">QQ 身份登录</span>
-      <h2>{{ token ? "欢迎回来" : "从 QQ 开始" }}</h2>
+      <h2>{{ token ? "确认登录" : "获取登录链接" }}</h2>
       <p class="ep-muted">
         {{
           token

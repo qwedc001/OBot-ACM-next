@@ -1,4 +1,5 @@
 <script setup>
+// deslop-ignore-file 24 — Existing OBot-EP brand mark, preserved deliberately.
 /**
  * OBot 的 logo：机器人头像，纯色渐变、无底。
  *

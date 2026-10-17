@@ -6,13 +6,32 @@ import { pluginApi } from "../api";
 const data = ref(null),
   error = ref(""),
   loading = ref(true),
-  query = ref("");
+  query = ref(""),
+  directory = ref("");
+const directories = computed(() => [
+  ...new Set(
+    (data.value?.commands ?? []).map(
+      (command) =>
+        command.directory.join(data.value?.separator ?? ".") || "通用功能",
+    ),
+  ),
+]);
 const visible = computed(() =>
-  (data.value?.commands ?? []).filter((command) =>
-    [command.name, command.summary, ...command.aliases]
-      .join(" ")
-      .toLowerCase()
-      .includes(query.value.toLowerCase()),
+  (data.value?.commands ?? []).filter(
+    (command) =>
+      (!directory.value ||
+        (command.directory.join(data.value?.separator ?? ".") || "通用功能") ===
+          directory.value) &&
+      [
+        command.name,
+        command.summary,
+        command.usage,
+        ...command.aliases,
+        ...command.examples,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(query.value.trim().toLowerCase()),
   ),
 );
 const groups = computed(() => {
@@ -50,21 +69,36 @@ onMounted(load);
   <div class="ep-page">
     <div class="ep-page-head">
       <div>
-        <p class="eyebrow">EXPLORE / COMMANDS</p>
         <h1 class="ep-title">指令手册</h1>
-        <p class="ep-subtitle">按照你的当前权限，找到每一句指令的用法。</p>
+        <p class="ep-subtitle">查找指令，点击示例即可复制。</p>
       </div>
-      <span class="ep-chip">{{ visible.length }} 条可用</span>
+      <span class="ep-muted" role="status">{{ visible.length }} 条可用</span>
     </div>
-    <el-input
-      v-model="query"
-      placeholder="搜索指令、别名或说明"
-      aria-label="搜索指令"
-      clearable
-      class="command-search"
-      ><template #prefix
-        ><el-icon><Search /></el-icon></template></el-input
-    ><el-alert
+    <div class="command-toolbar">
+      <el-input
+        v-model="query"
+        placeholder="搜索指令、别名或说明"
+        aria-label="搜索指令"
+        clearable
+        class="command-search"
+        ><template #prefix
+          ><el-icon><Search /></el-icon></template
+      ></el-input>
+      <el-select
+        v-model="directory"
+        aria-label="指令模块"
+        placeholder="全部模块"
+      >
+        <el-option label="全部模块" value="" />
+        <el-option
+          v-for="name in directories"
+          :key="name"
+          :label="name"
+          :value="name"
+        />
+      </el-select>
+    </div>
+    <el-alert
       v-if="error"
       :title="error"
       type="error"
@@ -73,10 +107,10 @@ onMounted(load);
     />
     <div v-loading="loading">
       <section v-for="group in groups" :key="group.name" class="command-group">
-        <h2 class="ep-section-label">{{ group.name }}</h2>
+        <h2 class="command-module">{{ group.name }}</h2>
         <div class="command-grid">
           <article
-            class="ep-card command-card"
+            class="command-card"
             v-for="command in group.commands"
             :key="command.id"
           >
@@ -93,11 +127,9 @@ onMounted(load);
             </div>
             <p>{{ command.summary }}</p>
             <p class="command-usage ep-muted">{{ command.usage }}</p>
-            <div v-if="command.aliases.length" class="command-aliases">
-              <span v-for="alias in command.aliases" :key="alias">{{
-                alias
-              }}</span>
-            </div>
+            <p v-if="command.aliases.length" class="command-aliases">
+              别名：{{ command.aliases.join("、") }}
+            </p>
             <button
               v-for="example in command.examples"
               :key="example"
@@ -114,7 +146,15 @@ onMounted(load);
       <el-empty
         v-if="!loading && !error && !visible.length"
         description="没有找到匹配的可用指令。"
-      />
+        ><el-button
+          @click="
+            query = '';
+            directory = '';
+          "
+          >清除筛选</el-button
+        ></el-empty
+      >
+      <el-button v-if="error" @click="load">重新加载</el-button>
     </div>
   </div>
 </template>

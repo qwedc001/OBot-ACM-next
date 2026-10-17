@@ -1,6 +1,6 @@
 <script setup>
-import { onMounted, onUnmounted, reactive, ref } from "vue";
-import { Refresh, Histogram } from "@element-plus/icons-vue";
+import { nextTick, onMounted, onUnmounted, reactive, ref } from "vue";
+import { Refresh } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { pluginApi } from "../api";
 import { bindingOptions } from "../form";
@@ -11,6 +11,8 @@ const configs = ref([]),
   loading = ref(true),
   error = ref(""),
   image = ref(""),
+  previewTitle = ref(""),
+  preview = ref(null),
   generating = ref(""),
   updating = ref(""),
   checking = ref(false),
@@ -76,15 +78,27 @@ async function starred(config, enabled) {
 async function render(config, mode) {
   if (generating.value) return;
   const selected = scope.value;
+  const revision = loadRevision;
   generating.value = config.name + mode;
   error.value = "";
   try {
     const blob = await pluginApi.render(config.name, mode, selected);
-    if (selected !== scope.value) return;
+    if (selected !== scope.value || revision !== loadRevision) return;
     clearImage();
     image.value = URL.createObjectURL(blob);
+    previewTitle.value =
+      config.name + (mode === "today" ? " · 今日榜单" : " · 昨日榜单");
+    await nextTick();
+    preview.value?.focus({ preventScroll: true });
+    preview.value?.scrollIntoView({
+      block: "start",
+      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
+    });
   } catch (failure) {
-    if (selected === scope.value) error.value = failure.message;
+    if (selected === scope.value && revision === loadRevision)
+      error.value = failure.message;
   } finally {
     generating.value = "";
   }
@@ -144,9 +158,8 @@ onUnmounted(() => {
   <div class="ep-page">
     <div class="ep-page-head">
       <div>
-        <p class="eyebrow">TRAINING / WORKSPACE</p>
         <h1 class="ep-title">训练榜单</h1>
-        <p class="ep-subtitle">管理个人与有群管理权限的榜单，查看训练进展。</p>
+        <p class="ep-subtitle">选择配置，生成榜单或调整显示设置。</p>
       </div>
       <el-button :loading="loading" @click="load"
         ><el-icon><Refresh /></el-icon>刷新</el-button
@@ -177,8 +190,8 @@ onUnmounted(() => {
         {{
           session.state.user?.tools
             ? "本次登录仅可查看和修改发起登录的群榜单。"
-            : "已验证的群管可管理对应群；超管可管理全部已有群榜单。"
-        }}这里只展示非敏感设置。
+            : "管理群榜单前，请先验证群管理权限。"
+        }}
       </p>
       <div v-if="check" class="group-check" role="status">
         <p>
@@ -204,9 +217,6 @@ onUnmounted(() => {
         :key="scope + config.name"
       >
         <div class="config-title">
-          <span class="tool-icon-soft"
-            ><el-icon><Histogram /></el-icon
-          ></span>
           <div>
             <h2>{{ config.name }}</h2>
             <a :href="config.host" target="_blank" rel="noreferrer noopener">{{
@@ -252,8 +262,7 @@ onUnmounted(() => {
         v-if="!loading && !configs.length && !error"
         class="ep-card board-empty"
       >
-        <p class="eyebrow">A NEW START</p>
-        <h2>从连接一个 OJ 开始。</h2>
+        <h2>还没有榜单配置</h2>
         <p class="ep-muted">
           私聊机器人发送
           <code>/board bind 配置名</code
@@ -261,14 +270,30 @@ onUnmounted(() => {
         </p>
       </section>
     </div>
-    <section v-if="image" class="ep-card board-preview">
+    <p v-if="generating" role="status" class="render-progress">
+      正在获取训练记录并生成榜单…
+    </p>
+    <section
+      v-if="image"
+      ref="preview"
+      tabindex="-1"
+      role="region"
+      :aria-label="previewTitle"
+      class="board-preview"
+    >
       <div class="section-heading">
-        <h2>榜单预览</h2>
+        <h2>{{ previewTitle }}</h2>
         <a :href="image" download="leaderboard.png" class="text-link"
-          >下载图片 ↗</a
+          >下载图片</a
         >
       </div>
-      <img :src="image" alt="训练榜单图片" />
+      <el-image
+        :src="image"
+        alt="训练榜单图片"
+        :preview-src-list="[image]"
+        preview-teleported
+      />
+      <p class="ep-muted preview-hint">点击图片放大查看。</p>
     </section>
     <el-dialog
       :model-value="Boolean(editing)"
