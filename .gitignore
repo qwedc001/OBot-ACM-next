@@ -7,6 +7,7 @@ __pycache__/
 .ruff_cache/
 *.log
 data/
+/data
 *.sqlite3*
 .coverage
 htmlcov/

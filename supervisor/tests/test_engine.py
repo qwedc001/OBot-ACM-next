@@ -135,6 +135,9 @@ async def test_real_git_fetch_and_detached_release(engine, monkeypatch):
     git("config", "user.name", "Test")
     git("config", "user.email", "test@example.invalid")
     (remote / "README.md").write_text("test")
+    (remote / ".gitignore").write_text(
+        (Path(__file__).resolve().parents[2] / ".gitignore").read_text(encoding="utf-8"), encoding="utf-8"
+    )
     git("add", ".")
     git("commit", "-m", "initial")
     commit = await engine.fetch()
@@ -157,6 +160,8 @@ async def test_real_git_fetch_and_detached_release(engine, monkeypatch):
     assert (engine.release(name) / "README.md").read_text() == "test"
     assert (engine.release(name) / "data").resolve() == engine.config.data_dir
     assert not (engine.release(name) / ".env.dev").read_text()
+    status = await original("git", "-C", engine.release(name), "status", "--porcelain", capture=True)
+    assert status == "", "Runtime mounts must remain ignored, including directory symlinks"
 
 
 @pytest.mark.skipif(os.name != "posix", reason="Production supervisor uses Linux Unix sockets")
