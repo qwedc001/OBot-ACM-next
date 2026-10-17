@@ -135,10 +135,11 @@ async def build_qq_reply(event: Event | SendTarget, message: Message, at_sender:
 
 async def send_qq_to(bot: Bot, target: SendTarget, message: QQMessage):
     # Route through high-level SDK methods so uploads and msg_type remain SDK-owned.
+    reply = {"msg_id": target.reply_id, "msg_seq": target.reply_sequence or 2} if target.reply_id else {}
     if target.kind == "c2c":
-        return await bot.send_to_c2c(openid=target.id, message=message)
+        return await bot.send_to_c2c(openid=target.id, message=message, **reply)
     if target.kind == "group":
-        return await bot.send_to_group(group_openid=target.id, message=message)
+        return await bot.send_to_group(group_openid=target.id, message=message, **reply)
     if target.kind == "channel":
         return await bot.send_to_channel(channel_id=target.id, message=message)
     if target.kind == "dms":

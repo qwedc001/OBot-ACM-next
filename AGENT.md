@@ -10,4 +10,4 @@ OBot ACM 面向算法竞赛和群聊日常；Python 3.12、uv、NoneBot2，前�
 - 迁移期 0.x.y：功能升 x、修复升 y；完成迁移才 1.0.0，可有 alpha/beta。
 - 公开文件仅示例 endpoint。不读、输出或提交 .env.dev，允许运行时加载。未经授权不提交；.codex 必须忽略，详细笔记放其 reference-docs。
 
-扩展见 docs/framework.md、commands.md、boards.md、web.md、design.md、versions.md；部署见忽略的 deploy/README.md。环境、数据和密钥留根目录；测试用隔离配置与数据库，真实 QQ 另行验收。
+扩展说明见 docs/。supervisor 独立安装，超管 /update 或 CLI 拉取、构建、重启，失败恢复代码与 data；见 docs/updating.md。环境、数据、密钥不入 Git；测试用隔离数据，真实 QQ 另行验收。

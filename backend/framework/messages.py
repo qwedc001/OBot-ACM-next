@@ -150,6 +150,8 @@ class SendTarget:
     kind: str
     id: str
     bot_id: str | None = None
+    reply_id: str | None = None
+    reply_sequence: int | None = None
 
     def __post_init__(self):
         if not self.adapter or not self.kind or not self.id:

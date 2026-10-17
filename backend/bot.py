@@ -17,6 +17,11 @@ catalog.configure_separator("." if "." in separators else sorted(separators)[0])
 services = configure_services(nonebot.get_plugin_config(Settings))
 install_lifecycle(services)
 nonebot.load_from_toml(PROJECT_ROOT / "pyproject.toml")
+failed_plugins = sorted(
+    name for name in nonebot.get_available_plugin_names() if nonebot.get_plugin(name) is None
+)
+if failed_plugins:
+    raise RuntimeError("Configured plugins failed to load: " + ", ".join(failed_plugins))
 if not catalog.commands:
     raise RuntimeError("OBot core commands failed to load")
 

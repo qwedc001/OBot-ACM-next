@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import runpy
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -24,6 +25,17 @@ async def main():
             localstore_data_dir=str(root / "data"),
             sqlalchemy_database_url=f"sqlite+aiosqlite:///{(root / 'bot.sqlite3').as_posix()}",
         )
+        if "--failed-plugin" in sys.argv:
+            original = nonebot.get_available_plugin_names
+            nonebot.get_available_plugin_names = lambda: original() | {"synthetic_failed_plugin"}
+            try:
+                runpy.run_module("backend.bot", run_name="entrypoint_check")
+            except RuntimeError as error:
+                assert "Configured plugins failed to load: synthetic_failed_plugin" in str(error)
+            else:
+                raise AssertionError("Partially loaded application must not become healthy")
+            print(json.dumps({"rejected_failed_plugin": True}))
+            return
         scope = runpy.run_module("backend.bot", run_name="entrypoint_check")
         services = scope["services"]
         from nonebot_plugin_orm import AlembicConfig, migrate

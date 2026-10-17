@@ -1,0 +1,14 @@
+[project]
+name = "obot-supervisor"
+version = "0.10.0"
+description = "Independent local OBot process supervisor and transactional Git updater"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+obot-supervisor = "obot_supervisor.cli:daemon_main"
+obotctl = "obot_supervisor.cli:main"
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
