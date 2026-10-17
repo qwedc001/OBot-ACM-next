@@ -9,6 +9,9 @@ from framework.paths import PROJECT_ROOT
 from framework.runtime import configure_services
 
 nonebot.init()
+from patches import install as install_adapter_patches  # noqa: E402
+
+install_adapter_patches()
 driver = nonebot.get_driver()
 separators = driver.config.command_sep
 if not separators:
