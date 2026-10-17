@@ -36,9 +36,9 @@ def permission_for(role: Role) -> Permission:
 
 def command_check(bot: Bot, event: Event) -> Callable[[CommandSpec], Awaitable[bool]]:
     async def check(spec: CommandSpec) -> bool:
-        if not await permission_for(spec.permission)(bot, event):
-            return False
         scene = get_platform(bot).normalize(bot, event).scene
+        if not await permission_for(spec.required_role(scene.kind))(bot, event):
+            return False
         return scene.kind in spec.scopes or await SUPERUSER(bot, event)
 
     return check

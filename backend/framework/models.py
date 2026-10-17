@@ -78,6 +78,7 @@ class WebLoginToken(Model):
     digest: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(32), ForeignKey("bot_users.id"), index=True)
     identity_key: Mapped[str]
+    group_scope: Mapped[str | None]
     expires_at: Mapped[float] = mapped_column(Float, index=True)
 
 
@@ -86,6 +87,7 @@ class WebSession(Model):
     digest: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(32), ForeignKey("bot_users.id"), index=True)
     identity_key: Mapped[str]
+    group_scope: Mapped[str | None]
     expires_at: Mapped[float] = mapped_column(Float, index=True)
     created_at: Mapped[float] = mapped_column(Float)
 

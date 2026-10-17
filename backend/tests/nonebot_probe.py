@@ -200,9 +200,11 @@ async def main():
                 await handle_event(bot, first)
                 assert len(replies) == 1
                 _, default = await request("/help")
-                assert "1 条" in default if render_enabled else "/help" in default
+                assert "2 条" in default if render_enabled else "/help" in default
                 _, text = await request("/help text")
-                assert "/help —" in text and f"/{prefix}" not in text
+                assert "/help —" in text and f"/{prefix}ping" not in text and f"/{prefix}whoami" in text
+                _, public_identity = await request("/whoami")
+                assert "普通用户" in public_identity
                 _, missing = await request("/help ping")
                 assert "没有找到" in missing
                 _, denial = await request("/status")
@@ -216,7 +218,9 @@ async def main():
                     assert (reply == "managed") == allowed
                     _, help_text = await request("/help text", role=role, user="other")
                     assert (f"/probe{separator}manage" in help_text) == allowed
-                    assert f"/{prefix}" not in help_text
+                    assert f"/{prefix}ping" not in help_text and f"/{prefix}whoami" in help_text
+                    _, identity_text = await request("/whoami", role=role, user="other")
+                    assert ("群管理员" if allowed else "普通用户") in identity_text
                     _, denial = await request("/ping", role=role, user="other")
                     assert "权限不足" in denial
                 value, denial = await request(f"/probe{separator}manage", user="other")
@@ -311,6 +315,7 @@ async def main():
                 _, paused = await request(f"/probe{separator}manage pause")
                 _, resumed = await request("next")
                 assert resumed == "continued: next"
+                before_failed_delivery = len(replies)
                 with patch.object(
                     Bot, "send_to_c2c", AsyncMock(side_effect=RuntimeError("secret SDK detail"))
                 ):
@@ -320,10 +325,10 @@ async def main():
                     value = event("/status", role=role)
                     assert not await SUPERUSER(bot, value)
 
-            assert len(replies) == 46
+            assert len(replies) == before_failed_delivery
             if render_enabled:
                 assert len(images) == 4 and all(data.startswith(b"\x89PNG\r\n\x1a\n") for data in images)
-                assert models[0]["count"] == 1 and all(model["count"] == 6 for model in models[1:])
+                assert models[0]["count"] == 2 and all(model["count"] == 6 for model in models[1:])
                 if len(sys.argv) > 2:
                     Path(sys.argv[2]).write_bytes(images[1])
             outcomes = services.telemetry.snapshot()["command_outcomes"]
@@ -336,7 +341,7 @@ async def main():
                 json.dumps(
                     {
                         "ok": True,
-                        "replies": len(replies),
+                        "public_identity_roles": True,
                         "duplicate_suppressed": True,
                         "superuser_scene_equivalence": True,
                         "canonical_paths_and_aliases": True,

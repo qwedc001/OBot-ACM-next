@@ -1,9 +1,32 @@
 import pytest
 
 from framework.catalog import CommandCatalog, CommandSpec, MatchMode
-from framework.contracts import Role
+from framework.contracts import Role, SceneKind
 
 from .conftest import access
+
+
+def test_scene_permissions_are_explicit_and_validated():
+    spec = CommandSpec(
+        "dashboard",
+        "dashboard",
+        "dashboard",
+        "网页登录",
+        scopes=frozenset({SceneKind.C2C, SceneKind.GROUP}),
+        scene_permissions=((SceneKind.GROUP, Role.GROUP_ADMIN),),
+    )
+    assert spec.required_role(SceneKind.C2C) == Role.EVERYONE
+    assert spec.required_role(SceneKind.GROUP) == Role.GROUP_ADMIN
+    assert spec.to_dict()["scene_permissions"] == {"group": "group_admin"}
+    with pytest.raises(ValueError):
+        CommandSpec(
+            "test",
+            "test",
+            "test",
+            "test",
+            scopes=frozenset({SceneKind.C2C}),
+            scene_permissions=((SceneKind.GROUP, Role.GROUP_ADMIN),),
+        )
 
 
 def test_alias_conflicts_and_prefix_shadowing_fail_at_registration():

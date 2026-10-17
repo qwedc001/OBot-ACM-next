@@ -65,7 +65,7 @@ async def login(services, client, actor=USER):
 
 async def test_login_is_private_revokes_old_link_and_saves_only_digests(web, database):
     services, _ = web
-    with pytest.raises(DashboardError, match="私聊"):
+    with pytest.raises(DashboardError, match="群主"):
         await services.dashboard.issue(context(group="room"))
     old = (await services.dashboard.issue(context())).split("#")[1]
     raw = (await services.dashboard.issue(context())).split("#")[1]

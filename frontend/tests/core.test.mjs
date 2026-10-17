@@ -61,6 +61,10 @@ test("plugin registry enforces slugs, route namespaces, ordering and permissions
     ["commands", "board"],
   );
   assert.equal(permitted(registry, true).length, 3);
+  assert.deepEqual(
+    permitted(registry, true, ["board"]).map((p) => p.manifest.slug),
+    ["board"],
+  );
   assert.throws(
     () => defineRegistry({ a: plugin("board", 1), b: plugin("board", 2) }),
     /duplicate/,

@@ -55,6 +55,10 @@ class WebContext:
         account = await self.services.dashboard.authenticate(request.cookies.get(COOKIE))
         if account is None:
             raise HTTPException(401, "请先使用 QQ 登录。")
+        if request.url.path.startswith("/api/plugins/") and not account.permits_tool(
+            request.url.path.split("/")[3]
+        ):
+            raise HTTPException(403, "本次登录仅允许管理发起登录的群榜单。")
         if admin and not account.superuser:
             raise HTTPException(403, "仅机器人超级管理员可以访问。")
         if csrf and not hmac.compare_digest(

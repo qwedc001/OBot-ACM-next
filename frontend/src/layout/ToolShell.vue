@@ -14,7 +14,7 @@ const route = useRoute(),
   version = ref(""),
   serverSlugs = ref(null);
 const available = computed(() =>
-  permitted(plugins, session.isAdmin.value).filter(
+  permitted(plugins, session.isAdmin.value, session.state.user?.tools).filter(
     (p) =>
       serverSlugs.value === null || serverSlugs.value.includes(p.manifest.slug),
   ),
@@ -49,9 +49,7 @@ async function logout() {
     >
     <div class="shell-account">
       <span class="shell-version" v-if="version">v{{ version }}</span
-      ><span class="ep-chip">{{
-        session.isAdmin.value ? "超级管理员" : "QQ 用户"
-      }}</span
+      ><span class="ep-chip">{{ session.state.user?.label ?? "QQ 用户" }}</span
       ><el-button
         circle
         :aria-label="'颜色模式：' + theme.preference.value"

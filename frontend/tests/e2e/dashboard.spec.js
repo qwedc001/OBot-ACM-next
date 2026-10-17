@@ -1,6 +1,38 @@
 import { test, expect } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 import { mkdir } from "node:fs/promises";
+
+test("group-issued login only exposes the issuing group's board workspace", async ({
+  page,
+  request,
+}) => {
+  const response = await request.post("/__test__/issue", {
+    data: { kind: "group-login" },
+  });
+  await page.goto((await response.json()).url);
+  await page.getByRole("button", { name: "以 QQ 身份继续" }).click();
+  await expect(page.getByText("群榜单工作台", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "指令手册", exact: true }),
+  ).toHaveCount(0);
+  await page.goto("http://127.0.0.1:8765/commands");
+  await expect(page).toHaveURL(/\/board$/);
+  await expect(
+    page.getByRole("heading", { name: "team-oj", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "demo-oj", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "验证管理群" })).toHaveCount(0);
+  expect(
+    (
+      await page.request.get("/api/plugins/board/configs?scope=personal")
+    ).status(),
+  ).toBe(403);
+  expect((await page.request.get("/api/plugins/commands")).status()).toBe(403);
+  await page.reload();
+  await expect(page.getByText("群榜单管理员", { exact: true })).toBeVisible();
+});
 const artifacts = fileURLToPath(
   new URL("../../../.codex/ep-screenshots/", import.meta.url),
 );

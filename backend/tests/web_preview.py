@@ -57,6 +57,9 @@ def main():
             role = "admin" if values.get("role") == "admin" else "user"
             if values.get("kind") == "bind":
                 url = await services.boards.issue(context(role), "browser-oj")
+            elif values.get("kind") == "group-login":
+                await services.scene_access.observe(group_actor, group_scene, True)
+                url = await services.dashboard.issue(await group_context())
             else:
                 url = await services.dashboard.issue(context(role))
             return {"url": url}

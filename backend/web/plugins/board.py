@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse, Response
 from framework.board import BoardError
 from framework.contracts import AccessDenied
 from framework.dashboard import DashboardError
+from framework.services.scene_access import scope_id
 
 from ..context import HEADERS
 from ..plugin import WebPlugin
@@ -53,11 +54,15 @@ def build_router(web):
     @router.get("/scopes")
     async def scopes(request: Request):
         account = await web.account(request)
-        groups = await services.scene_access.scopes(account.actor)
+        groups = (
+            await services.scene_access.scopes(account.actor)
+            if not account.group_scope
+            else [{"id": scope_id(account.group_scope), "label": "本群榜单"}]
+        )
         return JSONResponse(
             {
                 "scopes": [
-                    {"id": "personal", "label": "个人榜单"},
+                    *([] if account.group_scope else [{"id": "personal", "label": "个人榜单"}]),
                     *[{"id": item["id"], "label": item["label"]} for item in groups],
                 ],
                 "verification_ttl": services.settings.obot_web_group_ttl,
@@ -69,6 +74,8 @@ def build_router(web):
     async def group_check(request: Request):
         await web.body(request, limit=2048)
         account = await web.account(request, csrf=True)
+        if account.group_scope:
+            raise HTTPException(403, "本次登录仅允许管理发起登录的群，不能添加其他群授权。")
         return JSONResponse(await services.scene_access.issue_check(account.actor), headers=HEADERS)
 
     @router.get("/configs")

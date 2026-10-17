@@ -100,7 +100,9 @@ async def main():
                         assert "[Hitokoto]\n今天也要开心地 AC。\nBy 「训练日记」" in reply
                         assert ("<@user>" in reply) == (role != "private")
                     help_text = await request("/help text", role)
-                    assert f"/fun{separator}hitokoto" in help_text and "/maintenance" not in help_text
+                    assert f"/fun{separator}hitokoto" in help_text
+                    assert f"/maintenance{separator}whoami" in help_text
+                    assert f"/maintenance{separator}ping" not in help_text
                     directory = await request("/help text fun", role)
                     assert "趣味工具" in directory and "示例：/hitokoto" in directory
                     detail = await request("/help text 一言", role)

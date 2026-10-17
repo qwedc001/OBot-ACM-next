@@ -9,7 +9,9 @@ import {
 import { plugins } from "@/plugins/registry";
 import { permitted } from "@/plugins/registry-core";
 import { session } from "@/stores/session";
-const available = computed(() => permitted(plugins, session.isAdmin.value));
+const available = computed(() =>
+  permitted(plugins, session.isAdmin.value, session.state.user?.tools),
+);
 const icons = { board: Histogram, commands: Notebook, runtime: DataLine };
 </script>
 <template>
@@ -21,7 +23,11 @@ const icons = { board: Histogram, commands: Notebook, runtime: DataLine };
       <div class="hub-badges">
         <span class="ep-chip ep-chip--ok">QQ 身份已连接</span
         ><span class="ep-chip">{{
-          session.isAdmin.value ? "超级管理员工作台" : "个人工作台"
+          session.state.user?.role === "group_admin"
+            ? "群榜单工作台"
+            : session.isAdmin.value
+              ? "超级管理员工作台"
+              : "个人工作台"
         }}</span>
       </div>
     </section>

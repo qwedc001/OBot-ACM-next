@@ -26,6 +26,10 @@ export function defineRegistry(modules) {
     (a, b) => (a.manifest.order ?? 100) - (b.manifest.order ?? 100),
   );
 }
-export function permitted(plugins, admin) {
-  return plugins.filter((plugin) => !plugin.manifest.superuser || admin);
+export function permitted(plugins, admin, tools = null) {
+  return plugins.filter(
+    (plugin) =>
+      (!plugin.manifest.superuser || admin) &&
+      (!tools || tools.includes(plugin.manifest.slug)),
+  );
 }

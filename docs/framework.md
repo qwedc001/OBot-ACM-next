@@ -96,7 +96,7 @@ uv run --no-sync python -m framework.admin superuser remove USER_ID
 
 `BotServices`、`Reply`、`CommandContext` 是原生 Depends 的类型别名。Plugin 可在多个 await 之间顺序发送消息；Service 返回业务数据，handler 决定收发顺序。等待慢 Client 时其他事件继续处理。
 
-maintenance 包含 ping、whoami、whoisthis、status，全部要求 superuser；正式路径 `/maintenance.ping` 等，短别名 `/ping` 等。help 位于独立 `backend/plugins/help.py`，正式路径 `/help`，everyone 可用，默认图片；`/help text` 显式文字。
+maintenance 包含 ping、whoami、whoisthis、status；其中 whoami 为 everyone，显示普通用户、群管理员或超级管理员的实际角色，其余要求 superuser。正式路径 `/maintenance.ping` 等，短别名 `/ping` 等。help 位于独立 `backend/plugins/help.py`，正式路径 `/help`，everyone 可用，默认图片；`/help text` 显式文字。
 
 `/help` 展示当前用户所有可执行的已注册命令，包括已授权的 hidden 项；`/help maintenance` 展开模块，`/help ping` 或 `/help maintenance.ping` 展示详情。目录由可见命令推导，不显示不可访问的模块。系统 COMMAND_SEP 默认英文句点，可切换其他标点；example_alias 允许示例使用已注册短别名，maintenance 已设置。maintainence 是帮助目录纠错别名。
 

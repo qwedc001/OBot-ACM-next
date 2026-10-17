@@ -125,6 +125,22 @@ class SceneAccessService(Service):
         return result
 
     async def context(self, account, selector=None):
+        if account.group_scope:
+            scene = parse_scene(account.group_scope)
+            if (
+                scene is None
+                or selector not in (None, scope_id(account.group_scope))
+                or not await self.allowed(account.actor, scene)
+            ):
+                raise AccessDenied("This session only manages its issuing group")
+
+            async def scoped_allowed(spec):
+                return spec.required_role(SceneKind.GROUP) in {
+                    Role.EVERYONE,
+                    Role.GROUP_ADMIN,
+                } and await self.allowed(account.actor, scene)
+
+            return RequestContext(account.actor, scene, secrets.token_hex(16), command_allowed=scoped_allowed)
         if selector in (None, "personal"):
 
             async def personal_allowed(spec):

@@ -20,6 +20,12 @@ from .qq_transport import QQAdapter
 class QQPlatform(Platform):
     adapter_type = QQAdapter
     supported_segments = frozenset({Text, Image, Markdown, Keyboard})
+    private_identity_kinds = frozenset({"c2c_user"})
+
+    def private_target(self, bot: Bot, identity: ExternalIdentity) -> SendTarget:
+        if identity.provider != "qq" or identity.app_id != bot.self_id or identity.kind != "c2c_user":
+            raise ValueError("QQ private target requires a verified C2C identity for this bot")
+        return SendTarget(bot.adapter.get_name(), "c2c", identity.external_id, bot_id=bot.self_id)
 
     def normalize(self, bot: Bot, event: Event) -> Incoming:
         app_id = bot.self_id

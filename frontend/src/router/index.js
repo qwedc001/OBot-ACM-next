@@ -55,6 +55,12 @@ router.beforeEach(async (to) => {
     return { name: "login" };
   }
   if (!session.isLoggedIn.value) return { name: "login" };
+  if (
+    session.state.user?.tools &&
+    to.meta.plugin &&
+    !session.state.user.tools.includes(to.meta.plugin)
+  )
+    return { path: "/board" };
   if (to.meta.admin && !session.isAdmin.value) return { name: "hub" };
   return true;
 });

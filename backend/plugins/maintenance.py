@@ -9,7 +9,7 @@ from framework.integration.platforms import get_platform
 
 __plugin_meta__ = PluginMetadata(
     name="维护与诊断",
-    description="仅机器人管理员可用的连通检查、身份与运行状态",
+    description="公开身份查询，以及机器人管理员的连通检查与运行状态",
     usage="/help maintenance /ping /whoami /whoisthis @某人 /status",
     type="application",
     supported_adapters=None,
@@ -49,7 +49,7 @@ identity = command(
         example_alias="whoami",
         summary="查看自己的机器人身份与当前对话场景",
         menu_label="我的身份",
-        permission=Role.SUPERUSER,
+        permission=Role.EVERYONE,
         examples=("/whoami",),
     ),
     priority=10,

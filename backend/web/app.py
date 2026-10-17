@@ -37,7 +37,9 @@ def install_web(app, services):
         return JSONResponse(
             {
                 "plugins": [
-                    plugin.manifest() for plugin in plugins if not plugin.superuser or account.superuser
+                    plugin.manifest()
+                    for plugin in plugins
+                    if account.permits_tool(plugin.slug) and (not plugin.superuser or account.superuser)
                 ]
             },
             headers=HEADERS,

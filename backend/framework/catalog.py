@@ -30,11 +30,18 @@ class CommandSpec:
     directory: tuple[str, ...] | None = None
     example_alias: str | None = None
     menu_label: str | None = None
+    scene_permissions: tuple[tuple[SceneKind, Role], ...] = ()
 
     def __post_init__(self) -> None:
         if not re.fullmatch(r"[a-z][a-z0-9_.-]*", self.id):
             raise ValueError("Command ID must be stable and qualified")
         object.__setattr__(self, "permission", Role(self.permission))
+        overrides = tuple((SceneKind(scene), Role(role)) for scene, role in self.scene_permissions)
+        if len({scene for scene, _ in overrides}) != len(overrides) or any(
+            scene not in self.scopes for scene, _ in overrides
+        ):
+            raise ValueError("Scene permissions require unique supported scenes")
+        object.__setattr__(self, "scene_permissions", overrides)
         if not self.plugin_id or not self.summary or not self.scopes:
             raise ValueError("Command metadata is incomplete")
         if any(
@@ -55,6 +62,9 @@ class CommandSpec:
     def path(self) -> tuple[str, ...]:
         directory = (self.plugin_id,) if self.directory is None else self.directory
         return (*directory, *self.name.split("."))
+
+    def required_role(self, scene: SceneKind) -> Role:
+        return dict(self.scene_permissions).get(scene, self.permission)
 
     def qualified_name(self, separator: str = ".") -> str:
         return separator.join(self.path)
@@ -96,6 +106,7 @@ class CommandSpec:
             "short_name": self.name,
             "summary": self.summary,
             "permission": self.permission.value,
+            "scene_permissions": {scene.value: role.value for scene, role in self.scene_permissions},
             "aliases": list(self.aliases),
             "example_alias": self.example_alias,
             "menu_label": self.menu_label,

@@ -20,6 +20,7 @@ class Incoming:
 class Platform(ABC):
     adapter_type: ClassVar[type[Adapter]]
     supported_segments: ClassVar[frozenset[type]]
+    private_identity_kinds: ClassVar[frozenset[str]] = frozenset()
 
     @property
     def name(self) -> str:
@@ -54,3 +55,7 @@ class Platform(ABC):
     def reply_author(self, bot: Bot, event: Event) -> MentionedUser | None:
         """Return an authenticated native reply author when the platform supplies one."""
         return None
+
+    def private_target(self, bot: Bot, identity: ExternalIdentity) -> SendTarget:
+        """Route a previously verified private identity, without inventing an ID."""
+        raise NotImplementedError("Platform has no private message route")

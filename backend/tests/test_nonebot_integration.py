@@ -24,7 +24,7 @@ def test_real_nonebot_matchers_help_denial_and_duplicate_event(separator):
     assert result.returncode == 0, result.stdout + result.stderr
     assert json.loads(result.stdout.strip().splitlines()[-1]) == {
         "ok": True,
-        "replies": 46,
+        "public_identity_roles": True,
         "duplicate_suppressed": True,
         "superuser_scene_equivalence": True,
         "canonical_paths_and_aliases": True,

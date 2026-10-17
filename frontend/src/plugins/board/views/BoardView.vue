@@ -4,6 +4,7 @@ import { Refresh, Histogram } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { pluginApi } from "../api";
 import { bindingOptions } from "../form";
+import { session } from "@/stores/session";
 const configs = ref([]),
   scopes = ref([{ id: "personal", label: "个人榜单" }]),
   scope = ref("personal"),
@@ -46,8 +47,9 @@ async function load() {
   try {
     scopes.value = (await pluginApi.scopes()).scopes;
     if (!scopes.value.some((item) => item.id === scope.value)) {
-      scope.value = "personal";
-      ElMessage.info("群管理权限已失效，请重新验证。");
+      scope.value = scopes.value[0]?.id ?? "";
+      if (!session.state.user?.tools)
+        ElMessage.info("群管理权限已失效，请重新验证。");
     }
     await loadConfigs();
   } catch (failure) {
@@ -165,9 +167,18 @@ onUnmounted(() => {
           :value="item.id"
         />
       </el-select>
-      <el-button :loading="checking" @click="groupCheck">验证管理群</el-button>
+      <el-button
+        v-if="!session.state.user?.tools"
+        :loading="checking"
+        @click="groupCheck"
+        >验证管理群</el-button
+      >
       <p class="ep-muted">
-        已验证的群管可管理对应群；超管可管理全部已有群榜单。这里只展示非敏感设置。
+        {{
+          session.state.user?.tools
+            ? "本次登录仅可查看和修改发起登录的群榜单。"
+            : "已验证的群管可管理对应群；超管可管理全部已有群榜单。"
+        }}这里只展示非敏感设置。
       </p>
       <div v-if="check" class="group-check" role="status">
         <p>

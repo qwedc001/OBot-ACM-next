@@ -188,7 +188,8 @@ async def main():
             _, help_text = await request("/help text")
             assert (
                 "/help" in help_text.extract_plain_text()
-                and "/maintenance." not in help_text.extract_plain_text()
+                and "/maintenance.ping" not in help_text.extract_plain_text()
+                and "/maintenance.whoami" in help_text.extract_plain_text()
             )
             for group in (None, "room"):
                 _, pong = await request("/ping", user="root", group=group)

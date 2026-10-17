@@ -1,4 +1,4 @@
-"""Bot administrator diagnostics; command declarations live in plugins."""
+"""Public identity inspection and administrator diagnostics; declarations live in plugins."""
 
 from framework.catalog import CommandSpec
 from framework.contracts import AccessDenied, MentionedUser, RequestContext, Role, SceneKind
@@ -20,7 +20,17 @@ class MaintenanceService(Service):
         return "pong"
 
     async def whoami(self, context: RequestContext) -> str:
-        return f"权限：超级管理员\n主体：{context.actor.id}\n外部身份：{context.actor.identity_key}\n场景：{context.scene.key}"
+        role = "普通用户"
+        if context.command_allowed:
+            if await context.command_allowed(
+                CommandSpec("identity.role", "identity", "role", "权限", permission=Role.SUPERUSER)
+            ):
+                role = "超级管理员"
+            elif context.scene.kind in {SceneKind.GROUP, SceneKind.CHANNEL} and await context.command_allowed(
+                CommandSpec("identity.role", "identity", "role", "权限", permission=Role.GROUP_ADMIN)
+            ):
+                role = "群管理员"
+        return f"权限：{role}\n主体：{context.actor.id}\n外部身份：{context.actor.identity_key}\n场景：{context.scene.key}"
 
     async def whoisthis(self, context: RequestContext, targets: tuple[MentionedUser, ...]) -> str:
         permission = CommandSpec(
