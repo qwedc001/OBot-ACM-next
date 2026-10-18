@@ -47,6 +47,10 @@ class QQPlatform(Platform):
                 (domain for domain in ("qpic.cn", "qq.com") if host == domain or host.endswith("." + domain)),
                 "other" if host else "missing",
             )
+            # QQ's native group image payload also uses this CDN in qq.com.cn.
+            # Trust the observed host exactly, not all qq.com.cn subdomains.
+            if host == "multimedia.nt.qq.com.cn":
+                domain = host
             reasons = [
                 reason
                 for rejected, reason in (

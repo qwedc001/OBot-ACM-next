@@ -166,7 +166,7 @@ async def main():
                 # Compact Chinese aliases preserve old OBot usage; explicit
                 # namespaces remain optional. Longer aliases must not be eaten
                 # by /添加, /预览, /评论 or /回复.
-                attachment = [dict(content_type="image/gif", url="https://gchat.qpic.cn/synthetic")]
+                attachment = [dict(content_type="image/gif", url="https://multimedia.nt.qq.com.cn/synthetic")]
                 for alias in ("添加", "添加来只"):
                     for key in ("local", "group:local"):
                         for separator in ("", " "):

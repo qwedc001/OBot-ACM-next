@@ -197,6 +197,28 @@ def test_attachment_diagnostics_classify_rejections_without_logging_private_data
     assert records[-1] == "QQ upload attachments: total=0 accepted=0"
 
 
+@pytest.mark.parametrize(
+    ("url", "accepted"),
+    [
+        ("https://multimedia.nt.qq.com.cn/download?key=synthetic", True),
+        ("//multimedia.nt.qq.com.cn/download?key=synthetic", True),
+        ("https://multimedia.nt.qq.com.cn:443/a", True),
+        ("https://multimedia.nt.qq.com.cn.attacker.test/a", False),
+        ("https://fake.multimedia.nt.qq.com.cn/a", False),
+        ("https://other.qq.com.cn/a", False),
+        ("https://multimedia.nt.qq.com.cn@attacker.test/a", False),
+        ("http://multimedia.nt.qq.com.cn/a", False),
+        ("https://multimedia.nt.qq.com.cn:8443/a", False),
+    ],
+)
+def test_native_qq_image_cdn_attachment(url, accepted):
+    from framework.integration.platforms.qq import QQPlatform
+
+    event = SimpleNamespace(attachments=[SimpleNamespace(content_type="image/png", url=url)])
+    expected = "https:" + url if url.startswith("//") else url
+    assert QQPlatform().image_attachments(event) == ((expected,) if accepted else ())
+
+
 def test_native_qq_dispatch():
     import os
     import subprocess
