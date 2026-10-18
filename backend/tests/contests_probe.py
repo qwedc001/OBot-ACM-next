@@ -4,7 +4,7 @@ import asyncio
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch
 
 import nonebot
 from nonebot.adapters.qq import Bot
@@ -73,7 +73,9 @@ async def main():
                 patch.object(Bot, "post_c2c_messages", AsyncMock(side_effect=post)),
                 patch.object(Bot, "post_group_messages", AsyncMock(side_effect=post)),
                 patch.object(services.contests, "listing", AsyncMock(side_effect=listing)) as query,
-                patch.object(services.contests, "detail", AsyncMock(return_value="detail result")) as detail,
+                patch.object(
+                    services.contests, "detail", AsyncMock(return_value=("detail result",))
+                ) as detail,
             ):
                 for role in ("private", "member", "admin"):
                     for name in ("contest", "contests", "比赛", "近日比赛", "cp.contest"):
@@ -83,9 +85,9 @@ async def main():
                         assert await request(invocation + " cf", role) == ["list:True:cf:1", "page:2"]
                     assert await request("/contest recent manual", role) == ["list:False:manual:1", "page:2"]
                     assert await request('/contest detail "Example Round"', role) == ["detail result"]
-                    detail.assert_awaited_with("Example Round")
+                    detail.assert_awaited_with(ANY, "Example Round", image_available=True)
                     assert await request("/contest detail Example Round", role) == ["detail result"]
-                    detail.assert_awaited_with("Example Round")
+                    detail.assert_awaited_with(ANY, "Example Round", image_available=True)
                     for suffix in (" todya", " today other", " recent cf extra", " detail"):
                         before = query.await_count, detail.await_count
                         replies = await request("/contest" + suffix, role)

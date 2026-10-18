@@ -10,7 +10,6 @@ from framework.catalog import CommandSpec
 from framework.integration.command_context import BotServices, CommandContext, Reply
 from framework.integration.commands import template_command
 from framework.messages import Image
-from framework.responses import text_chunks
 
 __plugin_meta__ = PluginMetadata(
     name="比赛查询",
@@ -26,7 +25,7 @@ contests = template_command(
         id="cp.contest",
         plugin_id="cp",
         name="contest",
-        summary="聚合线上与手动比赛，默认图片列表",
+        summary="聚合线上与手动比赛，列表与单场详情默认图片",
         aliases=("contest", "contests", "比赛", "近日比赛", "最近的比赛"),
         example_alias="contest",
         usage="/contest [recent|today [all|cf|atc|nk|manual]]；/contest detail 关键词",
@@ -94,7 +93,12 @@ async def handle_today_alias(
 
 
 @contests.assign("detail")
-async def handle_detail(services: BotServices, reply: Reply, query: tuple[str, ...]):
-    for chunk in text_chunks(await services.contests.detail(" ".join(query))):
-        await reply.send(chunk)
+async def handle_detail(
+    bot: Bot, context: CommandContext, services: BotServices, reply: Reply, query: tuple[str, ...]
+):
+    messages = await services.contests.detail(
+        context, " ".join(query), image_available=reply.supports(bot.adapter.get_name(), Image)
+    )
+    for message in messages:
+        await reply.send(message)
     await reply.finish()

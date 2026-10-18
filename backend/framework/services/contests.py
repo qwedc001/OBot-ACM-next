@@ -114,29 +114,30 @@ class ContestsService(Service):
             text += "\n\n" + "\n".join(warnings)
         if not image_available or not items:
             return text_chunks(text)
+        return await self._images(
+            context,
+            {"title": title, "now": snapshot.now, "items": [asdict(c) for c in items], "warnings": warnings},
+            text,
+            title,
+        )
+
+    async def _images(self, context, model, fallback, caption):
+        """Shared render/artifact path; links stay clickable in the caption."""
         try:
-            artifacts = await self.renderer.render_pages(
-                context.actor,
-                "contests",
-                {
-                    "title": title,
-                    "now": snapshot.now,
-                    "items": [asdict(c) for c in items],
-                    "warnings": warnings,
-                },
-            )
+            artifacts = await self.renderer.render_pages(context.actor, "contests", model)
             messages = []
             for index, artifact in enumerate(artifacts, 1):
                 data = await self.renderer.artifacts.read(context.actor, artifact.id)
-                messages.append(Message(Text(f"{title} · {index}/{len(artifacts)}"), Image(data)))
+                label = f"{caption} · {index}/{len(artifacts)}" if len(artifacts) > 1 else caption
+                messages.append(Message(Text(label), Image(data)))
             return tuple(messages)
         except (ImportError, OSError, ValueError, TimeoutError, QueueFull, QueueClosed):
             logger.warning("Contest image unavailable")
-            return text_chunks(text + "\n图片暂不可用，已返回文字列表。")
+            return text_chunks(fallback + "\n图片暂不可用，已返回文字内容。")
 
-    async def detail(self, query):
+    async def detail(self, context, query, *, image_available=True):
         if not query.strip() or len(query) > 160:
-            return "请输入不超过 160 字的比赛名称、简称或查询标识。"
+            return ("请输入不超过 160 字的比赛名称、简称或查询标识。",)
         snapshot = await self.collect()
         candidates, fuzzy = await asyncio.to_thread(search_contests, snapshot.items, query)
         if not candidates:
@@ -151,4 +152,20 @@ class ContestsService(Service):
                 text += "\n仅显示前 5 项，请缩小查询范围。"
         if snapshot.warnings:
             text += "\n\n" + "\n".join(snapshot.warnings)
-        return text
+        if len(candidates) == 1 and image_available:
+            contest = candidates[0]
+            title = "近似匹配的比赛" if fuzzy else "比赛详情"
+            caption = f"{title} · {contest.name}" + ("\n" + contest.url if contest.url else "")
+            return await self._images(
+                context,
+                {
+                    "detail": True,
+                    "title": title,
+                    "now": snapshot.now,
+                    "items": [asdict(contest)],
+                    "warnings": snapshot.warnings,
+                },
+                text,
+                caption,
+            )
+        return text_chunks(text)

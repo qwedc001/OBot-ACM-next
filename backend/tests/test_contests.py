@@ -211,11 +211,11 @@ async def test_text_fallback_detail_disambiguation_and_no_query_in_errors():
         result = await service.listing(context())
         assert "图片暂不可用" in "".join(result) and "private failure" not in "".join(result)
         assert "牛客暂时无法获取" in "".join(result)
-        assert SAMPLE.name in await service.detail("cf:1")
+        assert SAMPLE.name in "".join(await service.detail(context(), "cf:1"))
         service.collect.return_value = replace(snapshot, items=(SAMPLE, replace(SAMPLE, key="manual:2")))
-        assert "/contest detail manual:2" in await service.detail(SAMPLE.name)
+        assert "/contest detail manual:2" in "".join(await service.detail(context(), SAMPLE.name))
         service.collect.reset_mock()
-        assert "160" in await service.detail("x" * 161)
+        assert "160" in "".join(await service.detail(context(), "x" * 161))
         service.collect.assert_not_awaited()
         service.collect.return_value = replace(snapshot, items=())
         assert "成功获取的数据" in "".join(await service.listing(context()))
@@ -251,7 +251,36 @@ async def test_image_pages_keep_actor_scope_order_and_text_only_skips_rendering(
         await service.close()
 
 
-def test_measured_render_pages_are_bounded_and_include_all_contests():
+async def test_detail_image_preserves_link_fuzzy_label_and_text_fallback():
+    renderer = Mock()
+    renderer.render_pages = AsyncMock(return_value=(SimpleNamespace(id="detail"),))
+    renderer.artifacts.read = AsyncMock(return_value=b"image")
+    service = ContestsService(None, {}, renderer)
+    contest = replace(SAMPLE, url="https://codeforces.com/contest/1")
+    service.collect = AsyncMock(return_value=ContestSnapshot((contest,), ("牛客暂时无法获取。",), NOW))
+    ctx = context()
+    try:
+        result = await service.detail(ctx, "cf:1")
+        assert len(result) == 1 and result[0].parts[1] == Image(b"image")
+        assert contest.url in result[0].parts[0].content and "1/1" not in result[0].parts[0].content
+        model = renderer.render_pages.call_args.args[2]
+        assert model["detail"] and model["warnings"] == ("牛客暂时无法获取。",)
+        assert model["items"] == [asdict(contest)]
+        result = await service.detail(ctx, "Exampel Round")
+        assert "近似匹配" in result[0].parts[0].content
+        assert "近似匹配" in renderer.render_pages.call_args.args[2]["title"]
+        renderer.render_pages.reset_mock()
+        text = "".join(await service.detail(ctx, "cf:1", image_available=False))
+        assert contest.url in text and contest.name in text
+        renderer.render_pages.assert_not_awaited()
+        renderer.render_pages.side_effect = ValueError("private render error")
+        fallback = "".join(await service.detail(ctx, "cf:1"))
+        assert "图片暂不可用" in fallback and contest.url in fallback and "private" not in fallback
+    finally:
+        await service.close()
+
+
+def test_measured_render_pages_are_bounded_and_include_all_contests(monkeypatch):
     pytest.importorskip("pixie")
     items = [
         replace(SAMPLE, key=f"cf:{i}", name="示例公开赛与非常长的中英文标题 Example Round " * 4)
@@ -264,12 +293,62 @@ def test_measured_render_pages_are_bounded_and_include_all_contests():
         "warnings": ["牛客暂时无法获取。"],
     }
     backend = ContestBackend()
+    # Force overflow with a smaller canvas, without relying on a row-count cap.
+    monkeypatch.setattr("framework.views.contests.MAX_HEIGHT", 2000)
+    monkeypatch.setattr("framework.views.contests.max_columns", lambda *_: 2)
+    seen = []
+    draw = backend.draw
+
+    def record(page):
+        seen.extend(c["key"] for c in page["items"])
+        return draw(page)
+
+    monkeypatch.setattr(backend, "draw", record)
     pages = backend.render_pages(model)
-    assert len(pages) >= 2 and all(p.height <= MAX_HEIGHT and p.width <= 2552 for p in pages)
+    assert seen == [c.key for c in items]
+    assert len(pages) >= 2 and all(p.height <= 2000 and p.width <= 8192 for p in pages)
     assert all(p.data.startswith(b"\x89PNG") for p in pages)
     width, height, placements, _, footer, bottom = backend.layout({**model, "items": model["items"][:3]})
     assert bottom + footer.height < height
     assert all(0 <= x < width and y + block.height < height for block, x, y in placements)
+
+
+def test_desktop_lists_prefer_columns_and_do_not_split_at_twelve():
+    pytest.importorskip("pixie")
+    backend = ContestBackend()
+    model = {
+        "title": "近日算法竞赛",
+        "now": NOW,
+        "items": [asdict(replace(SAMPLE, key=f"cf:{i}")) for i in range(17)],
+    }
+    pages = backend.render_pages(model)
+    from framework.views.layout import aspect_error
+
+    assert len(pages) == 1 and pages[0].width >= 2552 and pages[0].height <= MAX_HEIGHT
+    assert aspect_error(pages[0].width, pages[0].height) < 0.25
+    width, height, *_ = backend.layout({**model, "items": model["items"][:4]})
+    assert width > 920 and width > height  # four contests no longer form a tall narrow sheet
+
+
+def test_detail_layout_long_fields_stay_inside_landscape_card():
+    pytest.importorskip("pixie")
+    backend = ContestBackend()
+    contest = replace(SAMPLE, name="跨平台竞赛 " * 20, supplement="比赛说明 " * 30, start=NOW - 60)
+    model = {
+        "title": "近似匹配的比赛",
+        "detail": True,
+        "now": NOW,
+        "items": [asdict(contest)],
+        "warnings": ["牛客暂时无法获取。"],
+    }
+    width, height, blocks, bars, footer, bottom = backend.layout(model)
+    from framework.views.layout import aspect_error
+
+    assert aspect_error(width, height) < 0.15 and bottom + footer.height < height
+    assert all(x + block.max_width <= width and y + block.height < bottom for block, x, y in blocks)
+    assert len(bars) == 1 and 0 < bars[0][-1] < 1
+    image = backend.render_pages(model)[0]
+    assert image.data.startswith(b"\x89PNG") and image.height == height
 
 
 def test_native_contest_commands():
