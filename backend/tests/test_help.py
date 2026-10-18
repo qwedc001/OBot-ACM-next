@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from framework.catalog import CommandCatalog, CommandDirectory, CommandSpec
 from framework.clients.artifacts import ArtifactUnavailable
+from framework.clients.jobs import QueueClosed, QueueFull
 from framework.config import Settings
 from framework.contracts import AccessDenied, Actor, RequestContext, Role, SceneKind, SceneRef
 from framework.models import ImageArtifact
@@ -153,14 +154,15 @@ async def test_native_png_help_is_private_and_filtered(tmp_path, database):
         await services.close()
 
 
-async def test_render_unavailable_returns_complete_permission_filtered_text(tmp_path, database):
+@pytest.mark.parametrize("failure", [ImportError, TimeoutError, QueueFull, QueueClosed])
+async def test_render_unavailable_returns_complete_permission_filtered_text(tmp_path, database, failure):
     services = Services(Settings(obot_data_dir=tmp_path), help_catalog(), session_factory=database)
     await services.start()
     try:
         context = RequestContext(
             USER, SceneRef("qq", "bot", SceneKind.GROUP, "g"), "event", command_allowed=access()
         )
-        with patch.object(services.clients.renderer, "render_pages", side_effect=ImportError("no pixie")):
+        with patch.object(services.clients.renderer, "render_pages", side_effect=failure()):
             result = await services.help.reply(context, "")
         assert "/tools.nested.ping" in result and "/help" in result
         assert "私有榜单" not in result and "图片暂不可用" in result
