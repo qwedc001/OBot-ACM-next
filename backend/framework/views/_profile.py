@@ -29,6 +29,7 @@ from easy_pixie import (
 )
 
 from .footer import CardFooter
+from .layout import aspect_error, fits, max_columns
 
 _CONTENT_WIDTH = 1216
 _AVATAR_SIZE = 176
@@ -97,7 +98,7 @@ def _fit_styled_string(
         if calculate_width(candidate) <= max_width:
             return candidate
         size -= 2
-    return StyledString(content, weight, min_size, **kwargs)
+    return StyledString(content, weight, min_size, max_width=max_width, **kwargs)
 
 
 class _IdentitySection:
@@ -107,12 +108,12 @@ class _IdentitySection:
     这样左右两侧始终等高，也不会因为补充信息换行把头像挤成半截。
     """
 
-    def __init__(self, info: SimpleNamespace, text_color: pixie.Color):
+    def __init__(self, info: SimpleNamespace, text_color: pixie.Color, content_width: int):
         self.img_platform = _platform_icon(info.platform_name, text_color)
         self._avatar = _load_avatar(info.avatar_data)
         self._ring_color = change_alpha(hex_to_color(info.accent_color), alpha=88)
 
-        head_width = _CONTENT_WIDTH
+        head_width = content_width
         if self._avatar:
             head_width -= _AVATAR_SIZE + _AVATAR_GAP
 
@@ -128,7 +129,7 @@ class _IdentitySection:
             font_color=_BODY_COLOR,
             line_multiplier=1.3,
             padding_bottom=10,
-            max_width=_CONTENT_WIDTH,
+            max_width=content_width,
         )
         self.str_timeline = StyledString(
             " · ".join(info.timeline),
@@ -136,7 +137,7 @@ class _IdentitySection:
             26,
             font_color=_MUTED_COLOR,
             line_multiplier=1.3,
-            max_width=_CONTENT_WIDTH,
+            max_width=content_width,
         )
         self._detail_rows = [row for row in [self.str_social, self.str_timeline] if row.content]
 
@@ -186,7 +187,8 @@ class _IdentitySection:
 class _RatingSection:
     """Rating 与段位"""
 
-    def __init__(self, info: SimpleNamespace, text_color: pixie.Color):
+    def __init__(self, info: SimpleNamespace, text_color: pixie.Color, content_width: int):
+        self._width = content_width
         accent = hex_to_color(info.accent_color)
         self._panel_color = change_alpha(accent, alpha=36)
         self._pill_color = change_alpha(accent, alpha=48)
@@ -197,20 +199,23 @@ class _RatingSection:
             "H",
             _RANK_SIZE,
             _RANK_MIN_SIZE,
-            _CONTENT_WIDTH // 2,
+            self._width // 2,
             font_color=darken_color(accent, 0.5),
         )
         self._rank_text_width = calculate_width(self.str_rank)
         self._rank_text_height = calculate_height(self.str_rank)
         self._pill_width = int(self._rank_text_width) + 56
         self._pill_height = int(self._rank_text_height) + 28
-        # 大号数字需要给右侧段位徽章留出位置
+        # Narrow columns move the rank below Rating instead of wrapping digits
+        # or squeezing the number against a long badge.
+        rating_width = self._width - _BAND_SIDE_PADDING * 2 - self._pill_width - 72
+        self._stacked = calculate_width(StyledString(info.rating, "H", _RATING_MIN_SIZE)) > rating_width
         self.str_rating = _fit_styled_string(
             info.rating,
             "H",
             _RATING_SIZE,
             _RATING_MIN_SIZE,
-            max(256, _CONTENT_WIDTH - _BAND_SIDE_PADDING * 2 - self._pill_width - 72),
+            self._width - _BAND_SIDE_PADDING * 2 if self._stacked else rating_width,
             font_color=text_color,
         )
         self.str_note = StyledString(info.rating_note, "B", 28, font_color=_MUTED_COLOR, max_width=720)
@@ -223,19 +228,21 @@ class _RatingSection:
         self._right_offset = calculate_height(self.str_label) + 28
 
     def get_height(self):
+        if self._stacked:
+            return self._left_height + 32 + self._right_height + _BAND_PADDING * 2 - 20
         return max(self._left_height, self._right_offset + self._right_height) + _BAND_PADDING * 2 - 20
 
     def render(self, img: pixie.Image, x: int, y: int) -> int:
         height = self.get_height()
-        draw_mask_rect(img, Loc(x, y, _CONTENT_WIDTH, height), self._panel_color, _BAND_RADIUS)
+        draw_mask_rect(img, Loc(x, y, self._width, height), self._panel_color, _BAND_RADIUS)
 
         current_y = y + _BAND_PADDING
         current_y = draw_text(img, self.str_label, x + _BAND_SIDE_PADDING, current_y)
         draw_text(img, self.str_rating, x + _BAND_SIDE_PADDING - 8, current_y)
 
-        right = x + _CONTENT_WIDTH - _BAND_SIDE_PADDING
-        current_y = y + _BAND_PADDING + self._right_offset
-        pill_x = right - self._rank_text_width - 28
+        right = x + self._width - _BAND_SIDE_PADDING
+        current_y = y + _BAND_PADDING + (self._left_height + 32 if self._stacked else self._right_offset)
+        pill_x = x + _BAND_SIDE_PADDING if self._stacked else right - self._rank_text_width - 28
         draw_mask_rect(
             img,
             Loc(pill_x, current_y, self._pill_width, self._pill_height),
@@ -247,7 +254,8 @@ class _RatingSection:
         )
         current_y += self._pill_height + 22
         if self.str_note.content:
-            draw_text(img, self.str_note, right - self._note_text_width, current_y)
+            note_x = x + _BAND_SIDE_PADDING if self._stacked else right - self._note_text_width
+            draw_text(img, self.str_note, note_x, current_y)
 
         return y + height
 
@@ -259,9 +267,9 @@ class _MetricsSection:
     格子高度按内容自适应，实在放不下时换行而不是溢出或省略。
     """
 
-    def __init__(self, metrics: list[tuple[str, str]]):
+    def __init__(self, metrics: list[tuple[str, str]], content_width: int):
         self._cols = max(1, len(metrics)) if len(metrics) <= 4 else (3 if len(metrics) % 3 == 0 else 4)
-        self._cell_width = (_CONTENT_WIDTH - _CELL_GAP * (self._cols - 1)) // self._cols if metrics else 0
+        self._cell_width = (content_width - _CELL_GAP * (self._cols - 1)) // self._cols if metrics else 0
         inner_width = self._cell_width - _CELL_SIDE_PADDING * 2
 
         self._value_size = self._pick_value_size([value for _, value in metrics], inner_width)
@@ -323,7 +331,7 @@ class _MetricsSection:
 class _DetailSection:
     """带标题的补充信息块"""
 
-    def __init__(self, section: SimpleNamespace, accent_color: pixie.Color):
+    def __init__(self, section: SimpleNamespace, accent_color: pixie.Color, content_width: int):
         self._bar_color = change_alpha(accent_color, alpha=108)
         self.str_title = StyledString(section.title, "H", 34, font_color=_CONTENT_COLOR, padding_bottom=26)
         self.str_lines = [
@@ -334,7 +342,7 @@ class _DetailSection:
                 font_color=_BODY_COLOR,
                 line_multiplier=1.3,
                 padding_bottom=10,
-                max_width=_CONTENT_WIDTH - 28,
+                max_width=content_width - 28,
             )
             for line in section.lines
         ]
@@ -352,36 +360,56 @@ class _DetailSection:
 
 
 class UserCardRenderer:
-    def __init__(self, info):
+    def __init__(self, info, content_width=_CONTENT_WIDTH):
         self.info = info
+        self._width = content_width
         accent = hex_to_color(info.accent_color)
         self.gradient = GradientColor(["#fcfcfc", lighten_color(accent, 0.3)], [0.0, 1.0], info.accent_color)
         text_color = darken_color(accent, 0.32)
         self.sections = [
-            _IdentitySection(info, text_color),
-            _RatingSection(info, text_color),
-            _MetricsSection(info.metrics),
+            _IdentitySection(info, text_color, content_width),
+            _RatingSection(info, text_color, content_width),
+            _MetricsSection(info.metrics, content_width),
         ]
-        self.sections.extend(_DetailSection(section, accent) for section in info.sections)
+        self.sections.extend(_DetailSection(section, accent, content_width) for section in info.sections)
         if info.warnings:
             self.sections.append(
-                _DetailSection(SimpleNamespace(title="数据提示", lines=info.warnings), accent)
+                _DetailSection(SimpleNamespace(title="数据提示", lines=info.warnings), accent, content_width)
             )
-        self.footer = CardFooter(_CONTENT_WIDTH, detail="配色 " + info.accent_color.upper())
+
+    def layout(self):
+        # Keep identity and Rating together. Other complete sections flow into
+        # the shortest column; existing fonts, metric cells and rank colours stay.
+        groups = [self.sections[:2]] + [[section] for section in self.sections[2:] if section.get_height()]
+        candidates = []
+        for count in range(1, min(len(groups), max_columns(self._width, 96, 128)) + 1):
+            columns, heights = [[] for _ in range(count)], [0] * count
+            for group in groups:
+                column = min(range(count), key=heights.__getitem__)
+                columns[column].extend(group)
+                heights[column] += sum(section.get_height() + _SECTION_PADDING for section in group)
+            width = 256 + count * self._width + (count - 1) * 96
+            footer = CardFooter(width - 256, detail="配色 " + self.info.accent_color.upper())
+            bottom = 168 + max(heights)
+            height = bottom + footer.height + 112
+            if fits(width, height):
+                candidates.append((width, height, columns, footer, bottom))
+        if not candidates:
+            raise ValueError("Profile exceeds image size limit")
+        return min(candidates, key=lambda layout: aspect_error(*layout[:2]))
 
     def render(self):
         # Match SimpleCardRenderer's outer/container/content paddings without
         # importing the old process-wide Constants or renderer registry.
-        width = _CONTENT_WIDTH + 256
-        height = 64 + 136 + 112 + sum(section.get_height() for section in self.sections)
-        height += _SECTION_PADDING * len(self.sections) + self.footer.height
+        width, height, columns, footer, bottom = self.layout()
         image = pixie.Image(width, height)
         image.fill(pixie.parse_color("#000000"))
         bounds = Loc(32, 32, width - 64, height - 64)
         draw_gradient_rect(image, bounds, self.gradient, GradientDirection.DIAGONAL_LEFT_TO_RIGHT, 96)
         draw_mask_rect(image, bounds, (255, 255, 255, 152), 96)
-        y = 168
-        for section in self.sections:
-            y = section.render(image, 128, y) + _SECTION_PADDING
-        self.footer.draw(image, 128, y)
+        for column, sections in enumerate(columns):
+            y = 168
+            for section in sections:
+                y = section.render(image, 128 + column * (self._width + 96), y) + _SECTION_PADDING
+        footer.draw(image, 128, bottom)
         return image

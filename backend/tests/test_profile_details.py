@@ -284,8 +284,10 @@ def test_complete_card_renders_avatar_and_sections_using_source_layout(tmp_path)
     rendered = backend.render(model)
     model["avatar"] = None
     without = backend.render(model)
-    assert rendered.data != without.data and rendered.width == 1472
-    assert rendered.height > 1700 and rendered.height < 4096
+    assert rendered.data != without.data and rendered.width > 1472
+    from framework.views.layout import aspect_error
+
+    assert aspect_error(rendered.width, rendered.height) < 0.25
     path = tmp_path / "card.png"
     path.write_bytes(rendered.data)
     from PIL import Image
@@ -293,3 +295,28 @@ def test_complete_card_renders_avatar_and_sections_using_source_layout(tmp_path)
     with Image.open(path) as image:
         # Original avatar origin is x128, y168; the middle retains real pixels.
         assert image.getpixel((216, 256))[:3] == (0, 255, 0)
+
+
+def test_narrow_rating_band_keeps_digits_together_and_moves_rank_below():
+    pixie = pytest.importorskip("pixie")
+    from types import SimpleNamespace
+
+    from easy_pixie import StyledString
+
+    from framework.views import _profile
+
+    info = SimpleNamespace(
+        accent_color="#FF0000", rating="3343", rank="Legendary Grandmaster", rating_note="最高 Rating 4009"
+    )
+    section = _profile._RatingSection(info, pixie.parse_color("#330000"), 832)
+    assert section.str_rating.height == StyledString("3343", "H", 168).height
+    image = pixie.Image(896, section.get_height() + 64)
+    with patch.object(_profile, "draw_text", wraps=_profile.draw_text) as drawing:
+        section.render(image, 32, 32)
+    positions = {call.args[1].content: call.args for call in drawing.call_args_list}
+    rating, rank = positions["3343"], positions["Legendary Grandmaster"]
+    assert rank[3] >= rating[3] + rating[1].height
+    assert all(
+        32 <= call.args[3] and call.args[3] + call.args[1].height < image.height
+        for call in drawing.call_args_list
+    )

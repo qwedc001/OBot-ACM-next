@@ -1,4 +1,4 @@
-"""Compact PickOne category and eight-image contact sheets, inspired by OBot-ACM.
+"""Measured PickOne category and media contact sheets, inspired by OBot-ACM.
 
 Uses existing render workers, Dashboard's category palette and the shared footer.
 Original media are sent unchanged; only these generated sheets receive a footer.
@@ -12,10 +12,27 @@ from pathlib import Path
 from ..clients.renderer import PixieBackend
 from ..curation.pickone.palette import accent_of
 from .footer import CardFooter
+from .layout import aspect_error, fits, max_columns
 from .palette import DECENT, paint_card
 
 
 class PickOneBackend:
+    @staticmethod
+    def layout(model):
+        count = len(model["items"])
+        cell_height = 450 if model.get("preview") else 170
+        candidates = []
+        for columns in range(1, min(max(1, count), max_columns(524, 24, 64)) + 1):
+            width = 128 + columns * 524 + (columns - 1) * 24
+            footer = CardFooter(width - 128, detail="配色 " + DECENT.label)
+            bottom = 215 + math.ceil(count / columns) * (cell_height + 24)
+            height = bottom + footer.height + 80
+            if fits(width, height):
+                candidates.append((width, height, columns, cell_height, footer, bottom))
+        if not candidates:
+            raise ValueError("PickOne sheet exceeds image size limit")
+        return min(candidates, key=lambda layout: aspect_error(*layout[:2]))
+
     def draw(self, model):
         import pixie
         from easy_pixie import Loc, StyledString, draw_img, draw_mask_rect, draw_text
@@ -23,10 +40,8 @@ class PickOneBackend:
 
         preview = model.get("preview", False)
         items = model["items"]
-        cell_height = 450 if preview else 170
-        footer = CardFooter(1072, detail="配色 " + DECENT.label)
-        bottom = 215 + math.ceil(len(items) / 2) * (cell_height + 24)
-        image = pixie.Image(1200, bottom + footer.height + 80)
+        width, height, columns, cell_height, footer, bottom = self.layout(model)
+        image = pixie.Image(width, height)
         paint_card(image, DECENT)
 
         def text(value, x, y, size=26, color=(30, 35, 40), width=484):
@@ -38,11 +53,11 @@ class PickOneBackend:
                 block = StyledString(value + "…", "B", size, font_color=color, max_width=width)
             return draw_text(image, block, x, y)
 
-        text(model["title"][:32], 64, 64, 48, width=1072)
-        text(model["hint"], 64, 135, 23, width=1072)
+        text(model["title"][:32], 64, 64, 48, width=width - 128)
+        text(model["hint"], 64, 135, 23, width=width - 128)
         with tempfile.TemporaryDirectory(prefix="obot-pickone-render-") as directory:
             for index, item in enumerate(items):
-                x, y = 64 + (index % 2) * 548, 210 + (index // 2) * (cell_height + 24)
+                x, y = 64 + (index % columns) * 548, 210 + (index // columns) * (cell_height + 24)
                 draw_mask_rect(image, Loc(x, y, 524, cell_height), (255, 255, 255, 180), 18)
                 if preview:
                     if item["thumbnail"]:
@@ -77,11 +92,21 @@ class PickOneBackend:
 
     def render_pages(self, model):
         items = model["items"]
-        size = 8 if model.get("preview") else 12
-        return tuple(
-            PixieBackend(self.draw).render({**model, "items": items[start : start + size]})
-            for start in range(0, len(items), size)
-        )
+        pages, offset = [], 0
+        while offset < len(items):
+            size = len(items) - offset
+            while True:
+                page = {**model, "items": items[offset : offset + size]}
+                try:
+                    self.layout(page)
+                    break
+                except ValueError:
+                    if size == 1:
+                        raise
+                    size -= 1
+            pages.append(PixieBackend(self.draw).render(page))
+            offset += size
+        return tuple(pages)
 
     def render(self, model):
         return self.render_pages(model)[0]

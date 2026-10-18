@@ -238,7 +238,9 @@ async def test_cf_actual_requests_are_spaced_and_http_does_not_retry():
         with pytest.raises(UpstreamError):
             await client._api("user.info", handles="first")
         assert len(times) == 1
-        await asyncio.gather(client._api("user.info", handles="second"), client._api("user.info", handles="third"))
+        await asyncio.gather(
+            client._api("user.info", handles="second"), client._api("user.info", handles="third")
+        )
         assert len(times) == 3
         assert all(b - a >= 0.025 for a, b in zip(times, times[1:], strict=False))
     finally:
@@ -332,4 +334,5 @@ def test_real_card_render_has_bounded_png_and_measured_height(profile):
     image = ProfilePixieBackend().render(asdict(profile))
     assert image.mime == "image/png" and image.data.startswith(b"\x89PNG")
     assert struct.unpack(">II", image.data[16:24]) == (image.width, image.height)
-    assert image.width == 1472 and 450 < image.height < 8192
+    assert 1216 <= image.width <= 8192 and 450 < image.height < 8192
+    assert image.width * image.height <= 24_000_000

@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 from ..clients.renderer import PixieBackend
 from ..profiles import clean
+from .layout import aspect_error
 
 CF_RANKS = (
     (1200, "#808080"),
@@ -81,7 +82,19 @@ class ProfilePixieBackend:
             ],
             warnings=[clean(value) for value in model.get("warnings", ())],
         )
-        return UserCardRenderer(info).render()
+        # Reflow at a few readable column widths; font sizes and all fields stay
+        # unchanged. This bridges discrete column counts for the target ratio.
+        candidates = []
+        for width in (832, 960, 1088, 1216):
+            renderer = UserCardRenderer(info, width)
+            try:
+                layout = renderer.layout()
+            except ValueError:
+                continue
+            candidates.append((aspect_error(*layout[:2]), renderer))
+        if not candidates:
+            raise ValueError("Profile exceeds image size limit")
+        return min(candidates, key=lambda item: item[0])[1].render()
 
     def render(self, model):
         import pixie

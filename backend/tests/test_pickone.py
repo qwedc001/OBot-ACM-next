@@ -240,6 +240,7 @@ def test_native_qq_dispatch():
 
 async def test_render_category_pages_and_preview(web):
     pytest.importorskip("pixie")
+    from framework.views.layout import aspect_error
     from framework.views.pickone import PickOneBackend
 
     services, _ = web
@@ -255,7 +256,7 @@ async def test_render_category_pages_and_preview(web):
             "items": [dict(categories[0], id="很长的类别名称" * 10, keys=["别名" * 60])] * 13,
         },
     )
-    assert len(pages) == 2 and all(page.width == 1200 for page in pages)
+    assert len(pages) == 1 and aspect_error(pages[0].width, pages[0].height) < 0.25
     result = await asyncio.to_thread(
         backend.render,
         {
@@ -265,7 +266,7 @@ async def test_render_category_pages_and_preview(web):
             "items": items * 8,
         },
     )
-    assert result.width == 1200 and result.height < 2500
+    assert aspect_error(result.width, result.height) < 0.25 and result.height < 2500
     assert result.data.startswith(b"\x89PNG")
 
 
