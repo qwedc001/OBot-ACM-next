@@ -10,7 +10,7 @@ OBot ACM 是面向算法竞赛学习、训练与社区交流的聊天机器人�
 
 本项目为 [OBot-ACM](https://github.com/Floating-Ocean/OBot-ACM) 的 Nonebot 版迁移项目，由于重写工作量比较大并且进行了一些二次 framework revise 所以不保证与原项目 behavior 完全相同，但是大概应该是差不多的。
 
-目前已接入训练榜单、一言、竞赛账号资料卡与 PickOne 表情包，其他功能持续迁移中。
+目前已接入训练榜单、比赛查询、一言、竞赛账号资料卡与 PickOne 表情包，其他功能持续迁移中。
 
 目标是做能够承受高并发，提供优质服务的 bot。
 
@@ -29,6 +29,8 @@ OBot ACM 是面向算法竞赛学习、训练与社区交流的聊天机器人�
 希望每一次提交、每一段进步都能被看见，让个人训练与团队备赛更有方向。
 
 使用 `/cf user handle`、`/atc user handle`、`/nk user uid` 查询三个平台的公开资料卡；`/help cp` 查看竞赛功能。字段与开发说明见 [账号资料卡](docs/profiles.md)。
+
+使用 `/contest` 查看近日比赛图片，`/contest today` 查看今日比赛，`/contest detail 关键词` 查询详情。列表汇总 Codeforces、AtCoder、牛客与工作台已应用的手动比赛，详细用法见 [比赛查询](docs/contests.md)。
 
 ## 更多日常乐趣
 

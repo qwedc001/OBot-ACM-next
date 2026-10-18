@@ -59,6 +59,7 @@ Service 不接收整条指令字符串，不解析 `/help text` 或 `board bind`
 
 ## 当前模块
 
+- contests：近日列表、recent、today、detail 各有独立 handler；中文今日比赛别名入口复用同一个列表发送流程。
 - board：bind、confirm、unbind、list、version、push.on、push.off、push.status、push.test、starred、today、yesterday、history、verdict、user.id、user.name 各有独立 handler。
 - debug：根帮助、markdown、button 独立。
 - help：默认图片、text、render 独立；显示参数不再在 HelpService 中解析。

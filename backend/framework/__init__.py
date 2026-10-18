@@ -1,3 +1,3 @@
 """Application framework and thin integrations with the NoneBot ecosystem."""
 
-__version__ = "0.14.7"
+__version__ = "0.15.0"
