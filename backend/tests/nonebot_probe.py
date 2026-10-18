@@ -127,14 +127,15 @@ async def main():
         )
         replies, images, models, deliveries = [], [], [], []
         services.get("help")
-        backend = services.clients.renderer._views["help"]
-        native = backend.render_pages
+        renderer = services.clients.renderer
+        native = renderer.render_pages
 
-        def draw(model):
+        async def draw(actor, view, model):
             models.append(model)
-            return native(model)
+            return await native(actor, view, model)
 
-        backend.render_pages = draw
+        # Observe the parent-side request; worker backends must stay importable.
+        renderer.render_pages = draw
 
         async def send(**kwargs):
             content = kwargs["message"]

@@ -90,4 +90,4 @@ class PeeperClient(Client):
                     "榜单生成器执行失败，请稍后重试；若持续失败，请管理员检查上游 CLI 的站点兼容性。"
                 ) from None
 
-        return await (await self.jobs.submit("render:peeper", execute, key="render:peeper"))
+        return await (await self.jobs.submit("render:peeper", execute))

@@ -15,7 +15,6 @@ from framework.clients.codeforces import CodeforcesClient
 from framework.clients.http import HttpClient, UpstreamError
 from framework.clients.jobs import QueueClosed, QueueFull
 from framework.clients.nowcoder import NowcoderClient
-from framework.clients.renderer import RenderedImage
 from framework.config import Settings
 from framework.contracts import RequestContext, SceneKind, SceneRef
 from framework.messages import Image, Message
@@ -290,8 +289,9 @@ async def test_service_discovery_portable_image_and_text_errors(tmp_path, databa
                 )
             # Test the jobs/artifacts pipeline even without optional pixie;
             # real PNG rendering has separate, optional tests below.
-            rendered = RenderedImage(b"\x89PNG\r\n\x1a\nsynthetic", "image/png", 1040, 800)
-            with patch.object(service.renderer._views["profile"], "render", return_value=rendered):
+            from .render_backends import ProbeBackend
+
+            with patch.dict(service.renderer._views, {"profile": ProbeBackend()}):
                 result = await service.reply(context, "codeforces", "example")
             assert isinstance(result, Message)
             assert any(isinstance(segment, Image) for segment in result.parts)

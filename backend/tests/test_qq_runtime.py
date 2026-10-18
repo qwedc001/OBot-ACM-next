@@ -10,7 +10,6 @@ from nonebot.adapters.qq.event import (
 )
 
 from framework.catalog import CommandCatalog, CommandSpec
-from framework.clients.renderer import PixieBackend
 from framework.config import Settings
 from framework.contracts import ExternalIdentity, RequestContext, Role, SceneKind, SceneRef
 from framework.integration.api import build_internal_router
@@ -19,6 +18,7 @@ from framework.runtime import Services
 from framework.services.identities import IdentityService
 
 from .conftest import USER
+from .render_backends import ProbeBackend
 
 
 def event(model, **kwargs):
@@ -120,13 +120,10 @@ async def test_internal_api_requires_token_and_local_transport(
 
 
 async def test_pixie_render_service_produces_png_with_authorized_lease(tmp_path, database):
-    pixie = pytest.importorskip("pixie")
     services = Services(Settings(obot_data_dir=tmp_path), CommandCatalog(), session_factory=database)
     await services.start()
     try:
-        services.clients.renderer.register(
-            "test", PixieBackend(lambda model: pixie.Image(model["width"], 12))
-        )
+        services.clients.renderer.register("test", ProbeBackend())
         context = RequestContext(USER, SceneRef("qq", "app", SceneKind.C2C, "a"), "event-1")
         artifact = await services.clients.renderer.render(context.actor, "test", {"width": 24})
         assert artifact.width == 24 and artifact.height == 12 and artifact.mime == "image/png"

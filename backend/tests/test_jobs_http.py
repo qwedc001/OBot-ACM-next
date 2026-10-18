@@ -71,6 +71,60 @@ async def test_timeout_does_not_kill_worker():
     assert queue.failed == 1
 
 
+async def test_cancelled_waiter_releases_slot_and_worker_survives():
+    queue = JobQueue(1, 1)
+    await queue.start()
+    started, stopped = asyncio.Event(), asyncio.Event()
+
+    async def block():
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            stopped.set()
+
+    try:
+        running = await queue.submit("running", block)
+        await started.wait()
+        cancelled = await queue.submit("cancelled", block)
+        cancelled.cancel()
+        next_job = await queue.submit("next", lambda: asyncio.sleep(0, result="ok"))
+        running.cancel()
+        await asyncio.wait_for(stopped.wait(), 1)
+        assert await asyncio.wait_for(next_job, 1) == "ok"
+    finally:
+        await queue.close()
+
+
+async def test_factory_error_does_not_lose_worker_or_serial_key():
+    queue = JobQueue(1, 2)
+    await queue.start()
+
+    def failed_factory():
+        raise ValueError("failed before returning coroutine")
+
+    try:
+        first = await queue.submit("first", failed_factory, key="same")
+        second = await queue.submit("second", lambda: asyncio.sleep(0, result="ok"), key="same")
+        with pytest.raises(ValueError):
+            await first
+        assert await asyncio.wait_for(second, 1) == "ok"
+    finally:
+        await queue.close()
+
+
+async def test_job_factory_may_return_a_future():
+    queue = JobQueue(1, 1)
+    await queue.start()
+    value = asyncio.get_running_loop().create_future()
+    try:
+        result = await queue.submit("future", lambda: value)
+        value.set_result("ok")
+        assert await result == "ok"
+    finally:
+        await queue.close()
+
+
 async def test_http_retries_get_but_never_repeats_post():
     calls = []
 

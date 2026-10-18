@@ -1,6 +1,6 @@
 [project]
 name = "obot-acm-nonebot"
-version = "0.16.3"
+version = "0.17.0"
 description = "NoneBot2 bot for Competitive Programming and more"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -16,6 +16,7 @@ dependencies = [
     "nonebot-plugin-orm[aiosqlite]>=0.8.3,<0.9",
     "nonebot2[fastapi,httpx,websockets]>=2.5.0",
     "pillow>=12.0.0",
+    "psutil>=7,<8 ; sys_platform == 'win32'",
     "python-dateutil>=2.9.0.post0",
     "requests>=2.34.2",
     "sqlalchemy>=2.0,<3",
@@ -37,6 +38,7 @@ plugin_dirs = ["backend/plugins"]
 
 [dependency-groups]
 dev = [
+    "psutil>=7,<8",
     "pytest>=8.3",
     "pytest-asyncio>=1.0",
     "ruff>=0.14",
