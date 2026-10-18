@@ -1,5 +1,6 @@
 """Official QQ event identities, native roles and message delivery."""
 
+import re
 from urllib.parse import urlsplit
 
 from nonebot.adapters import Bot, Event
@@ -29,8 +30,8 @@ class QQPlatform(Platform):
         urls = []
         attachments = getattr(event, "attachments", None) or ()
         for index, item in enumerate(attachments, 1):
-            # Only fixed classifications reach logs: URLs can contain signed
-            # credentials, and even an untrusted hostname/MIME can contain data.
+            # Never log the full URL, userinfo, path, query or raw MIME. Unknown
+            # CDN hosts need diagnosis, so expose only a bounded DNS hostname.
             if not (item.content_type or "").startswith("image/"):
                 logger.info("QQ upload attachment: index={} result=non_image", index)
                 continue
@@ -57,10 +58,11 @@ class QQPlatform(Platform):
                 if rejected
             ]
             logger.info(
-                "QQ upload attachment: index={} type=image scheme={} domain={} port={} result={}",
+                "QQ upload attachment: index={} type=image scheme={} domain={} host={} port={} result={}",
                 index,
                 parts.scheme if parts.scheme in {"http", "https"} else "other",
                 domain,
+                host if re.fullmatch(r"[a-zA-Z0-9.-]{1,253}", host) else "invalid_or_missing",
                 "default" if port is None else "443" if port == 443 else "other",
                 ",".join(reasons) or "accepted",
             )

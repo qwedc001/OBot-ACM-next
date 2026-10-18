@@ -172,12 +172,13 @@ def test_attachment_diagnostics_classify_rejections_without_logging_private_data
     samples = [
         ("image/png", "https://gchat.qpic.cn/private-path?key=private-signature", "accepted"),
         ("image/png", "http://gchat.qpic.cn/private-path", "scheme"),
-        ("image/png", "https://private-host.test/private-path", "host"),
+        ("image/png", "https://cdn.example.test/private-path", "host"),
         ("image/png", "https://private-user:YOUR_PASSWORD@gchat.qpic.cn/a", "userinfo"),
         ("image/png", "https://gchat.qpic.cn:8443/a", "port"),
         ("image/png", "https://gchat.qpic.cn:private-port/a", "invalid_url_or_port"),
         ("private-mime", "https://gchat.qpic.cn/a", "non_image"),
-        ("image/png", "http://private-host.test:8080/a", "scheme,port,host"),
+        ("image/png", "http://cdn.example.test:8080/a", "scheme,port,host"),
+        ("image/png", "https://bad%20host.test/private-path", "host"),
     ]
     event = SimpleNamespace(
         attachments=[SimpleNamespace(content_type=mime, url=url) for mime, url, _ in samples]
@@ -186,10 +187,12 @@ def test_attachment_diagnostics_classify_rejections_without_logging_private_data
     for record, (_, _, reason) in zip(records, samples, strict=False):
         assert f"result={reason}" in record
     assert len(records) == len(samples) + 1
-    assert records[-1] == "QQ upload attachments: total=8 accepted=1"
+    assert records[-1] == "QQ upload attachments: total=9 accepted=1"
     assert "private-" not in "\n".join(records)
     assert "YOUR_PASSWORD" not in "\n".join(records)
     assert "scheme=http domain=qpic.cn" in records[1]
+    assert "host=cdn.example.test" in records[2]
+    assert "host=invalid_or_missing" in records[-2]
     assert qq.QQPlatform().image_attachments(SimpleNamespace()) == ()
     assert records[-1] == "QQ upload attachments: total=0 accepted=0"
 
