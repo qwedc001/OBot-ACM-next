@@ -4,6 +4,7 @@ import asyncio
 from dataclasses import replace
 
 from ..profiles import Profile, ProfileNotFound, ProfileSection, clean, number
+from ._contests import nowcoder_contests
 from ._profiles import ProfileClient, content, document, elements, optional
 from .http import UpstreamError
 
@@ -11,6 +12,18 @@ from .http import UpstreamError
 class NowcoderClient(ProfileClient):
     pattern = r"[1-9][0-9]{0,19}"
     hint = "牛客暂不支持昵称检索，请使用数字 UID，例如 /nk user 123456。"
+
+    async def contests(self):
+        async def category(identifier, label):
+            response = await self.http.request(
+                "GET",
+                "https://ac.nowcoder.com/acm/contest/vip-index",
+                params={"topCategoryFilter": identifier},
+            )
+            return await asyncio.to_thread(nowcoder_contests, response.text, label)
+
+        groups = await asyncio.gather(category(13, "牛客系列赛"), category(14, "高校比赛"))
+        return tuple({c.key: c for group in groups for c in group}.values())
 
     async def _fetch(self, handle: str) -> Profile:
         profile = await self._basic(handle)

@@ -5,6 +5,7 @@ import re
 from dataclasses import replace
 
 from ..profiles import Profile, ProfileNotFound, ProfileSection, clean, number
+from ._contests import atcoder_contests
 from ._profiles import ProfileClient, content, document, elements, optional
 from .http import UpstreamError
 
@@ -12,6 +13,10 @@ from .http import UpstreamError
 class AtcoderClient(ProfileClient):
     pattern = r"[A-Za-z0-9_]{1,32}"
     hint = "AtCoder 账号应为不超过 32 位的英文字母、数字或下划线。"
+
+    async def contests(self):
+        response = await self.http.request("GET", "https://atcoder.jp/contests/", params={"lang": "en"})
+        return await asyncio.to_thread(atcoder_contests, response.text)
 
     async def _fetch(self, handle: str) -> Profile:
         response = await self.http.request(

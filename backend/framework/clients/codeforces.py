@@ -7,6 +7,7 @@ from time import monotonic, time
 from urllib.parse import quote
 
 from ..profiles import PROFILE_TIMEZONE, Profile, ProfileNotFound, ProfileSection, clean, date_text
+from ._contests import codeforces_contests
 from ._profiles import ProfileClient, optional
 from .http import UpstreamError
 
@@ -26,6 +27,10 @@ VERDICTS = {
 class CodeforcesClient(ProfileClient):
     pattern = r"[A-Za-z0-9_.-]{1,24}"
     hint = "CF 账号应为不超过 24 位的英文字母、数字、下划线、点或短横线。"
+
+    async def contests(self):
+        rows = await self._api("contest.list", gym="false")
+        return await asyncio.to_thread(codeforces_contests, rows)
 
     def __init__(self, *args, interval=2.1, **kwargs):
         super().__init__(*args, **kwargs)
