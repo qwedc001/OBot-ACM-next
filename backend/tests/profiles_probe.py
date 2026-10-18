@@ -105,6 +105,8 @@ async def main():
                             before = query.await_count
                             failure = await request(invocation + suffix, role)
                             assert f"指令匹配失败 {invocation}，请检查指令语法后重试。" in failure
+                            assert failure.rstrip().endswith(f"使用 {invocation[0]}help cf 查看可用指令。")
+                            assert failure.count("查看可用指令。") == 1
                             if suffix == " inf":
                                 assert f"你可能想用：\n{invocation} info 账号标识" in failure
                                 assert "用法：/cf user" not in failure
@@ -120,6 +122,7 @@ async def main():
                     unknown = await request("/hel", role)
                     assert "指令匹配失败 /hel，请检查指令语法后重试。" in unknown
                     assert "/help —" in unknown
+                    assert unknown.rstrip().endswith("使用 /help 查看可用指令。")
                 assert services.telemetry.counts.get("failed", 0) == 0
                 print(json.dumps({"ok": True, "everyone": True, "aliases": True, "help": True}))
         finally:

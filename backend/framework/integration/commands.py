@@ -1,6 +1,6 @@
 """Register help metadata and return a native NoneBot matcher."""
 
-from nonebot import on_command, on_fullmatch
+from nonebot import get_driver, on_command, on_fullmatch
 from nonebot.adapters import Bot, Event
 from nonebot.matcher import Matcher
 from nonebot.rule import Rule
@@ -72,16 +72,22 @@ def template_command(spec: CommandSpec, *patterns, compact_aliases=(), **kwargs)
     @matcher.handle()
     async def invalid_arguments(event: Event, result: CommandResult, reply: Reply):
         if not result.result.matched:
-            suggestion = suggest_subcommand(
-                matcher.command(), result.result, event.get_plaintext(), spec, catalog.separator
+            text = event.get_plaintext()
+            suggestion = suggest_subcommand(matcher.command(), result.result, text, spec, catalog.separator)
+            prefix = next(
+                (
+                    p
+                    for p in sorted(get_driver().config.command_start, key=len, reverse=True)
+                    if p and text.lstrip().startswith(p)
+                ),
+                "/",
             )
             await reply.finish(
-                command_failure(event.get_plaintext())
-                + (
-                    "\n你可能想用：\n" + suggestion
-                    if suggestion
-                    else "\n用法："
-                    + spec.expand_example(spec.display_usage(catalog.separator), catalog.separator)
+                command_failure(
+                    text,
+                    usage=spec.expand_example(spec.display_usage(catalog.separator), catalog.separator),
+                    suggestions=(suggestion,) if suggestion else (),
+                    help_command=f"{prefix}help {spec.example_alias or spec.qualified_name(catalog.separator)}",
                 )
             )
 

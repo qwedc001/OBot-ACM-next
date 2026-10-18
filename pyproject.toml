@@ -1,6 +1,6 @@
 [project]
 name = "obot-acm-nonebot"
-version = "0.14.3"
+version = "0.14.4"
 description = "NoneBot2 bot for Competitive Programming and more"
 readme = "README.md"
 requires-python = ">=3.12"

@@ -112,6 +112,7 @@ async def main():
                 for role in ("private", "member", "admin", "owner"):
                     for command in (
                         "/来只 猫 before",
+                        "/pickone 猫 before",
                         "/fun.pickone.take cats before",
                         "/随机来只",
                         "/随便来只",
@@ -207,6 +208,12 @@ async def main():
                 assert "/建图库" in await request("/建图裤", "admin")
                 assert "类别不存在" in await request("/添加missing", "member")
                 assert "公共图库「猫」" in await request("/添加cats")
+                assert "类别不存在" in await request("/pickone missing")
+                unknown = await request("/pickup")
+                assert "指令匹配失败 /pickup" in unknown
+                assert unknown.rstrip().endswith("使用 /help 查看可用指令。")
+                malformed = await request("/添加")
+                assert malformed.rstrip().endswith("使用 /help 添加来只 查看可用指令。")
                 assert "没有这个图库" in await request("/来只 group:local")
                 assert "权限" in await request("/审核群图库", "member")
                 assert "本群已通过" in await request("/审核群图库", "owner")

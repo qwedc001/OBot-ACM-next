@@ -45,10 +45,7 @@ class HelpService(Service):
             suggestions.append(f"{prefix}{display} — {spec.summary}")
             if len(suggestions) == 3:
                 break
-        text = command_failure(prefix + query)
-        if suggestions:
-            text += "\n你可能想用：\n" + "\n".join(suggestions)
-        return text + f"\n使用 {prefix}help 查看可用指令。"
+        return command_failure(prefix + query, suggestions=suggestions, help_command=prefix + "help")
 
     async def reply(
         self, context: RequestContext, query: str = "", *, draw: bool = True, image_available: bool = True
