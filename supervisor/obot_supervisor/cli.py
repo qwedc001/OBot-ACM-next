@@ -77,7 +77,7 @@ async def control(config, args):
                 raise ValueError("Already bootstrapped")
             commit = await engine.fetch()
             release = await engine.prepare(commit, uuid4().hex)
-            engine.state.update(good=release, commit=commit)
+            engine.state.update(good=release, commit=commit, branch=config.branch)
             engine.save()
             print("Prepared initial release:", commit)
             print("First startup must be verified before removing the previous service backup.")
@@ -88,7 +88,12 @@ async def control(config, args):
             lock.close()
         return
     action = "status" if args.action == "plog" else args.action
-    result = await request(config.socket, {"action": action}, timeout=60)
+    if action == "update" and args.mode:
+        action = args.mode
+    payload = {"action": action}
+    if action == "test":
+        payload["branch"] = args.branch
+    result = await request(config.socket, payload, timeout=60)
     if args.action in {"update", "restart"} and args.wait:
         operation_id = result
         while True:
@@ -113,13 +118,24 @@ def parser():
     return result
 
 
-def main():
+def control_parser():
     arguments = parser()
-    arguments.add_argument(
-        "action", choices=("bootstrap", "status", "update", "restart", "fetch", "log", "plog")
-    )
-    arguments.add_argument("--wait", action="store_true")
-    args = arguments.parse_args()
+    actions = arguments.add_subparsers(dest="action", required=True)
+    for action in ("bootstrap", "status", "update", "restart", "fetch", "log", "plog"):
+        command = actions.add_parser(action)
+        command.add_argument("--wait", action="store_true")
+        if action == "update":
+            modes = command.add_subparsers(dest="mode")
+            test = modes.add_parser("test", help="Deploy a remote feature branch with a stable backup")
+            test.add_argument("branch")
+            restore = modes.add_parser("restore", help="Restore pre-test stable code and data")
+            for mode in (test, restore):
+                mode.add_argument("--wait", action="store_true", default=argparse.SUPPRESS)
+    return arguments
+
+
+def main():
+    args = control_parser().parse_args()
     os.umask(0o077)
     asyncio.run(control(Config.load(args.config), args))
 

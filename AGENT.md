@@ -8,4 +8,4 @@ OBot ACM 算法竞赛与群聊机器人；Python 3.12/uv/NoneBot2，Vue3/Element
 - 迁移期 0.x.y：功能升 x、修复升 y；完成迁移才 1.0.0，可有 alpha/beta。
 - 公开文件仅示例 endpoint。不读、输出或提交 .env.dev，允许运行时加载。未经授权不提交；.codex 必须忽略，详细笔记放其 reference-docs。
 
-说明见 docs/。独立 supervisor 负责更新／重启／失败恢复，见 docs/updating.md。环境、数据、密钥不入 Git；测试隔离，真实 QQ 另行验收。
+新功能在 codex/ 分支开发，测试后合并 master；稳定基线及分支更新见 docs/updating.md。环境、数据、密钥不入 Git；测试隔离。

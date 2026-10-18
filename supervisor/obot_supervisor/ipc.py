@@ -35,6 +35,8 @@ async def serve(engine):
             elif action == "status":
                 result = {
                     "commit": engine.state.get("commit"),
+                    "branch": engine.state.get("branch", engine.config.branch),
+                    "baseline": engine.state.get("baseline"),
                     "running": engine.child is not None and engine.child.returncode is None,
                     "healthy": engine.ready.is_set() and time.monotonic() - engine.ready_at < 4,
                     "operation": engine.state.get("operation"),
@@ -42,7 +44,7 @@ async def serve(engine):
                 # Destination metadata is local-only and unnecessary in chat/CLI status output.
                 if result["operation"]:
                     result["operation"] = {k: v for k, v in result["operation"].items() if k != "target"}
-            elif action in {"update", "restart"}:
+            elif action in {"update", "restart", "test", "restore"}:
                 target = payload.get("target")
                 if target is not None:
                     allowed = {"adapter", "kind", "id", "bot_id", "reply_id", "reply_sequence"}
@@ -59,7 +61,7 @@ async def serve(engine):
                     sequence = target.get("reply_sequence")
                     if sequence is not None and (type(sequence) is not int or not 1 <= sequence <= 100):
                         raise ValueError("Invalid reply sequence")
-                result = engine.submit(action, target)
+                result = engine.submit(action, target, branch=payload.get("branch"))
             elif action in {"fetch", "log"}:
                 if engine.lock.locked() or engine.task and not engine.task.done():
                     raise ValueError("Another operation is running")

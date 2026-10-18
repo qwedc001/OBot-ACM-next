@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from uuid import uuid4
 
+from .config import validate_branch
 from .state import Store, Tail
 
 
@@ -111,14 +112,13 @@ class Engine:
             "git", "--git-dir", self.config.state_dir / "repository.git", *args, capture=capture
         )
 
-    async def fetch(self):
+    async def fetch(self, branch=None):
+        branch = validate_branch(branch or self.config.branch)
         repository = self.config.state_dir / "repository.git"
         if not repository.exists():
             await self.command("git", "init", "--bare", repository)
             await self.git("remote", "add", "origin", self.config.repository)
-        await self.git(
-            "fetch", "--no-tags", "origin", f"+refs/heads/{self.config.branch}:refs/remotes/origin/deploy"
-        )
+        await self.git("fetch", "--no-tags", "origin", f"+refs/heads/{branch}:refs/remotes/origin/deploy")
         return await self.git("rev-parse", "refs/remotes/origin/deploy", capture=True)
 
     async def prepare(self, commit, operation_id):
@@ -216,12 +216,17 @@ class Engine:
 
     def finish(self, operation, outcome, error=None, log=None):
         operation.update(outcome=outcome, phase="finished", error=error, log=log or self.tail.text())
+        operation.update(
+            running_branch=self.state.get("branch", self.config.branch), running_commit=self.state["commit"]
+        )
         self.state["operation"] = operation
         if operation.get("target"):
             self.state.setdefault("reports", []).append(dict(operation))
         self.save()
 
     async def recover(self):
+        if self.state.get("recovery"):
+            await self.restore_release(self.state["recovery"])
         if self.state.get("restore_required"):
             await asyncio.to_thread(self.restore, self.state["restore_required"])
             del self.state["restore_required"]
@@ -229,18 +234,52 @@ class Engine:
         operation = self.state.get("operation")
         if operation and operation.get("phase") != "finished":
             if operation.get("phase") == "mutating":
-                await asyncio.to_thread(self.restore, operation["snapshot"])
+                if operation.get("rollback"):
+                    await self.restore_release(operation["rollback"])
+                else:
+                    await asyncio.to_thread(self.restore, operation["snapshot"])
             self.finish(operation, "interrupted", "Supervisor interrupted; restored last known good release")
 
+    def current_release(self):
+        return {
+            "good": self.state["good"],
+            "commit": self.state["commit"],
+            "branch": self.state.get("branch", self.config.branch),
+        }
+
+    async def restore_release(self, backup):
+        """Persist recovery intent before replacing data; safe to repeat after power loss."""
+        self.state["recovery"] = backup
+        self.save()
+        await asyncio.to_thread(self.restore, backup["snapshot"])
+        self.state.update({key: backup[key] for key in ("good", "commit", "branch")})
+        if backup["branch"] == self.config.branch:
+            self.state.pop("baseline", None)
+        del self.state["recovery"]
+        self.save()
+
     async def update(self, operation):
-        previous = self.state["good"]
+        previous = self.current_release()
         snapshot = None
         stopped = False
         try:
-            commit = await self.fetch() if operation["action"] == "update" else self.state["commit"]
-            candidate = (
-                await self.prepare(commit, operation["id"]) if operation["action"] == "update" else previous
-            )
+            action = operation["action"]
+            branch = operation.get("branch", previous["branch"])
+            baseline = self.state.get("baseline")
+            if action in {"update", "test"}:
+                commit = await self.fetch(branch) if action == "test" else await self.fetch()
+                if action == "update" and baseline:
+                    # Returning with live test data is only safe after the tested code is merged.
+                    ancestor = await self.git("merge-base", previous["commit"], commit, capture=True)
+                    if ancestor != previous["commit"]:
+                        raise ValueError(
+                            "Merge the tested commit into the stable branch first, or use update restore"
+                        )
+                candidate = await self.prepare(commit, operation["id"])
+            elif action == "restore":
+                candidate, commit, branch = baseline["good"], baseline["commit"], baseline["branch"]
+            else:
+                candidate, commit = previous["good"], previous["commit"]
             operation.update(candidate=candidate, commit=commit)
             self.save()
             await self.stop()
@@ -248,8 +287,17 @@ class Engine:
             operation["phase"] = "stopped"
             self.save()
             snapshot = await asyncio.to_thread(self.snapshot, operation["id"])
-            operation.update(snapshot=snapshot, phase="mutating")
+            if action == "test" and not baseline:
+                # A baseline is a matched code/data pair from the running stable release,
+                # not an unverified newer remote commit. Never overwrite it during a test cycle.
+                baseline = {**previous, "snapshot": snapshot}
+                self.state["baseline"] = baseline
+                self.state.setdefault("baselines", []).append(baseline)
+            rollback = baseline if baseline and action != "restore" else {**previous, "snapshot": snapshot}
+            operation.update(snapshot=snapshot, rollback=rollback, phase="mutating")
             self.save()
+            if action == "restore":
+                await asyncio.to_thread(self.restore, baseline["snapshot"])
             path = self.release(candidate)
             await self.command(
                 path / ".venv/bin/python",
@@ -260,7 +308,9 @@ class Engine:
             )
             self.tail = Tail()
             await self.boot(candidate)
-            self.state.update(good=candidate, commit=commit)
+            self.state.update(good=candidate, commit=commit, branch=branch)
+            if branch == self.config.branch:
+                self.state.pop("baseline", None)
             self.finish(operation, "success")
         except Exception as error:
             self.tail.add(f"{type(error).__name__}: {error}")
@@ -269,12 +319,10 @@ class Engine:
                 await self.stop()
                 try:
                     if snapshot:
-                        self.state["restore_required"] = snapshot
-                        self.save()
-                        await asyncio.to_thread(self.restore, snapshot)
-                        del self.state["restore_required"]
-                        self.save()
-                    await self.boot(previous)
+                        await self.restore_release(
+                            operation.get("rollback") or {**previous, "snapshot": snapshot}
+                        )
+                    await self.boot(self.state["good"])
                 except Exception as recovery_error:
                     self.tail.add(f"Recovery failed: {type(recovery_error).__name__}")
                     self.finish(operation, "recovery_failed", "Manual intervention required", failure_log)
@@ -283,10 +331,26 @@ class Engine:
                 operation, "rolled_back" if stopped else "rejected", type(error).__name__, failure_log
             )
 
-    def submit(self, action, target=None):
+    def submit(self, action, target=None, branch=None):
         if self.lock.locked() or self.task and not self.task.done():
             raise ValueError("Another operation is running")
+        if self.state.get("recovery") or self.state.get("restore_required"):
+            raise ValueError("Data recovery is pending; restart the supervisor first")
+        if action == "test":
+            validate_branch(branch)
+            if branch == self.config.branch:
+                raise ValueError("Use update for the stable branch")
+            if self.state.get("branch", self.config.branch) != self.config.branch and not self.state.get(
+                "baseline"
+            ):
+                raise ValueError("No stable baseline is available")
+        elif branch is not None or action not in {"update", "restart", "restore"}:
+            raise ValueError("Invalid update action or branch")
+        if action == "restore" and not self.state.get("baseline"):
+            raise ValueError("No active test baseline to restore")
         operation = {"id": uuid4().hex, "action": action, "phase": "preparing", "target": target}
+        if action in {"update", "test"}:
+            operation["branch"] = branch or self.config.branch
         self.state["operation"] = operation
         self.tail = Tail()
         self.save()

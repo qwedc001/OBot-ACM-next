@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from contextlib import closing
 
@@ -8,7 +9,10 @@ from obot_supervisor.engine import Engine
 
 
 @pytest.fixture
-def engine(tmp_path):
+def engine(tmp_path, monkeypatch):
+    # Synthetic repositories must not invoke personal signing keys or global hooks.
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     data = tmp_path / "data"
     data.mkdir()
     with closing(sqlite3.connect(data / "bot.sqlite3")) as db, db:
