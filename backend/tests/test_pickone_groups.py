@@ -52,6 +52,16 @@ async def test_same_names_are_isolated_and_group_admin_cannot_manage_public(web)
     _, other_stat, other_data = await pick.select(other, "猫")
     assert own_data != other_data and own_cat.img_key == "group:cats"
     assert (await pick.select(own, "public:cats"))[0].img_key == "public:cats"
+    display = {item["img_key"]: item for item in await pick.in_scene(own, chat.categories)}
+    assert display["group:cats"]["command_key"] == "cats"
+    assert display["group:cats"]["label"] == "本群图库「猫」"
+    assert display["public:cats"]["command_key"] == "public:cats"
+    assert display["public:cats"]["label"] == "公共图库「猫」"
+    for keyword, label in (("cats", "本群"), ("public:cats", "公共")):
+        with pytest.raises(chat.StoreError, match=label + "图库「猫」"):
+            await pick.upload(own, keyword, [])
+    with pytest.raises(chat.StoreError, match="类别不存在"):
+        await pick.upload(own, "missing", [])
     for ctx in (other, context()):
         with pytest.raises(chat.StoreError):
             await pick.select(ctx, "group:cats", prefix=own_stat.hash_id)
@@ -75,7 +85,8 @@ async def test_same_names_are_isolated_and_group_admin_cannot_manage_public(web)
     assert (await pick.approve(own, "group"))["approved"] == 0
     assert public.audit_count() == 1
     # Normal group uploads wait for that group's administrators, not another group's.
-    assert (await pick.upload(member, "group:cats", ["https://gchat.qpic.cn/test"]))["pending"] == 1
+    pending = await pick.upload(member, "cats", ["https://gchat.qpic.cn/test"])
+    assert pending["pending"] == 1 and pending["category"] == "本群图库「猫」"
     assert (await pick.approve(other, "group"))["approved"] == 0
     assert (await pick.approve(own, "group"))["approved"] == 1
     private = context()
@@ -84,6 +95,7 @@ async def test_same_names_are_isolated_and_group_admin_cannot_manage_public(web)
     assert all(
         item["img_key"].startswith("public:") for item in await pick.in_scene(private, chat.categories)
     )
+    assert (await pick.in_scene(private, chat.categories))[0]["command_key"] == "cats"
 
 
 async def test_dashboard_group_crud_media_and_role_revocation(web):

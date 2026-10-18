@@ -35,6 +35,8 @@ async def handle_board_bind(context: CommandContext, services: BotServices, repl
 
 根命令的无子命令入口用 `assign("$main")`，如 `/board` 展示用法。嵌套语法用嵌套 `Subcommand`，如 `user -> name` 配合 `assign("user.name")`。没有参数和子命令的指令也用同一入口和 `$main`，如 ping、whoami、status、一言。
 
+需要沿用中文无空格写法的别名，用 `template_command(..., compact_aliases=("添加", "添加来只"))` 显式声明，由 Alconna 原生 shortcut 处理。标准指令和未声明的别名仍要求参数边界，不全局开启 compact。同一指令内先注册长别名；不同指令有前缀重叠时，用 NoneBot 优先级让具体指令先匹配（如「评论来只」先于「评论」），并测试正常和缺参输入都只进入对应 handler。
+
 参数默认值应同时体现在模板与 handler 签名里。枚举取值使用 `Literal`；带空格的名字用引号，如 `/board user name "Alice Smith" xxxOJ`。不将原始参数全文或解析异常直接回复、写日志，统一返回安全用法提示。模板匹配不能代替业务校验：日期合法性、配置存在性、管理范围等仍由 Service 验证。
 
 ## 职责与共享

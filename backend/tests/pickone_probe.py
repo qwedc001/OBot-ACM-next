@@ -44,7 +44,7 @@ async def main():
         async def send(content, **kwargs):
             calls.append(content)
 
-        async def request(command, role="private", user="user", attachments=None):
+        async def request(command, role="private", user="user", attachments=None, expect_reply=True):
             nonlocal counter
             counter += 1
             payload = dict(
@@ -67,7 +67,10 @@ async def main():
             before = len(calls)
             await handle_event(bot, event)
             result = calls[before:]
-            assert result, (command, role)
+            if not expect_reply:
+                assert not result, (command, result)
+                return ""
+            assert len(result) == 1, (command, role, result)
             return "\n".join(
                 part.content
                 for value in result
@@ -147,6 +150,39 @@ async def main():
                     ],
                 )
                 assert "ID:" in await request("/来只 group:local", "member")
+                # Compact Chinese aliases preserve old OBot usage; explicit
+                # namespaces remain optional. Longer aliases must not be eaten
+                # by /添加, /预览, /评论 or /回复.
+                attachment = [dict(content_type="image/gif", url="https://gchat.qpic.cn/synthetic")]
+                for alias in ("添加", "添加来只"):
+                    for key in ("local", "group:local"):
+                        for separator in ("", " "):
+                            command = f"/{alias}{separator}{key}"
+                            missing = await request(command, "member")
+                            assert "本群图库「本群图片」" in missing and "未识别到图片" in missing
+                            assert "/添加 local" in missing
+                            uploaded = await request(command, "member", attachments=attachment)
+                            assert "本群图库「本群图片」" in uploaded and "重复 1" in uploaded
+                for alias in ("来只", "预览", "预览来只"):
+                    command = f"/{alias}local" + (f" {stat.hash_id}" if alias != "来只" else "")
+                    assert "本群图库「本群图片」" in await request(command, "member")
+                for alias in ("点赞来只", "喜欢来只", "爱来只"):
+                    assert "点赞成功" in await request(f"/{alias}local {stat.hash_id}", "member")
+                for alias in ("评论来只", "回复来只"):
+                    assert "评论成功" in await request(f"/{alias}local {stat.hash_id} {alias}", "member")
+                    assert "用法" in await request(f"/{alias}local", "member")
+                assert "评论成功" in await request("/评论紧凑评论", "member")
+                assert "评论成功" in await request("/回复紧凑回复", "member")
+                for command in (
+                    "/pickonecats",
+                    "/previewcats",
+                    "/commenthello",
+                    "/fun.pickone.addcats",
+                    "/点赞猫",
+                ):
+                    await request(command, expect_reply=False)
+                assert "类别不存在" in await request("/添加missing", "member")
+                assert "公共图库「猫」" in await request("/添加cats")
                 assert "没有这个图库" in await request("/来只 group:local")
                 assert "权限" in await request("/审核群图库", "member")
                 assert "本群已通过" in await request("/审核群图库", "owner")

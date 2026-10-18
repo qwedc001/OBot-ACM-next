@@ -125,16 +125,29 @@ class PickOneService(Service):
         )
 
     async def upload(self, context, keyword, urls):
+        # Resolve before checking attachments so missing/ambiguous categories
+        # receive useful feedback even when the user hasn't attached an image.
+        cat = await self.in_scene(context, lambda repo, store: chat.category(store, keyword, fuzzy=False))
+        display = await self.in_scene(context, chat.describe_category, cat)
         if not urls:
-            raise chat.StoreError("未识别到图片，请将图片和 /添加来只 类别 放在同一条消息中。")
+            raise chat.StoreError(
+                f"准备上传到{display['label']}，但未识别到图片。\n"
+                f"请将图片和 /添加 {display['command_key']} 放在同一条消息中。"
+            )
         if len(urls) > 4:
-            raise chat.StoreError("每次最多上传 4 张图片。")
+            raise chat.StoreError(f"{display['label']}：每次最多上传 4 张图片，请分批发送。")
         admin = await self.is_admin(context)
         # Resolve once before fetching attachments. Group managers may only
         # bypass review in their own group's library, never the public one.
-        cat = await self.in_scene(context, lambda repo, store: chat.category(store, keyword, fuzzy=False))
         admin = admin or (cat.img_key.startswith("group:") and await self.manages_group(context))
-        results = {"added": 0, "pending": 0, "duplicate": 0, "failed": 0}
+        results = {
+            "added": 0,
+            "pending": 0,
+            "duplicate": 0,
+            "failed": 0,
+            "category": display["label"],
+            "errors": [],
+        }
         from ..clients.http import UpstreamError
 
         for url in urls:
@@ -144,8 +157,13 @@ class PickOneService(Service):
                     context, chat.upload, cat.img_key, data, context.actor.id, admin
                 )
                 results[status] += 1
-            except (chat.StoreError, UpstreamError, ValueError):
+            except (chat.StoreError, UpstreamError, ValueError) as error:
                 results["failed"] += 1
+                reason = (
+                    str(error) if isinstance(error, chat.StoreError) else "图片下载失败，请重新附图发送。"
+                )
+                if reason not in results["errors"]:
+                    results["errors"].append(reason)
         await self.enqueue_ocr()
         return results
 

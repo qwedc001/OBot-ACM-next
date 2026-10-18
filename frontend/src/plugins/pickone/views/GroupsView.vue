@@ -252,7 +252,7 @@ onMounted(refresh);
           >编辑类别</el-button
         >
         <span v-if="category"
-          >上传：<code>/添加来只 group:{{ category }}</code
+          >在对应群上传：<code>/添加 {{ category }}</code
           >，同条消息附带图片。</span
         >
       </div>

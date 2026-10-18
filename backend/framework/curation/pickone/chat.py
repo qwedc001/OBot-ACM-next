@@ -30,11 +30,28 @@ def create_category(repo, store, key, title, actor, aliases=None):
 
 
 def categories(repo, store):
-    return [asdict(category) for category in store.list_categories()]
-
-
-def category(store, keyword, *, fuzzy=True):
     choices = store.list_categories()
+    return [{**asdict(cat), **describe_category(repo, store, cat, choices)} for cat in choices]
+
+
+def category_label(cat):
+    scope = "本群" if cat.img_key.startswith("group:") else "公共"
+    return f"{scope}图库「{cat.id}」"
+
+
+def describe_category(repo, store, cat, choices=None):
+    key = cat.img_key.split(":", 1)[-1]
+    # Keep public: only when the short name would select a different category.
+    try:
+        if category(store, key, fuzzy=False, choices=choices).img_key != cat.img_key:
+            key = cat.img_key
+    except StoreError:
+        key = cat.img_key
+    return {"label": category_label(cat), "command_key": key}
+
+
+def category(store, keyword, *, fuzzy=True, choices=None):
+    choices = store.list_categories() if choices is None else choices
     if keyword is None or keyword.casefold() in {"rand", "随机", "随便"}:
         populated = [item for item in choices if item.image_count]
         if not populated:

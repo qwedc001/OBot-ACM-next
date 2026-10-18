@@ -69,8 +69,8 @@ class PickOneBackend:
                 else:
                     ink = pixie.parse_color(accent_of(item["img_key"])["ink"])
                     color = tuple(round(channel * 255) for channel in (ink.r, ink.g, ink.b))
-                    text(item["id"][:24], x + 20, y + 16, 30, color)
-                    text(f"{item['image_count']} 张 · {item['img_key'][:32]}", x + 20, y + 65, 23)
+                    text(item["label"], x + 20, y + 16, 30, color)
+                    text(f"{item['image_count']} 张 · /来只 {item['command_key']}", x + 20, y + 65, 23)
                     text("别名：" + "、".join(item["keys"])[:42], x + 20, y + 105, 21)
         footer.draw(image, 64, bottom + 10)
         return image

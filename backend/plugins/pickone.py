@@ -25,7 +25,9 @@ __plugin_meta__ = PluginMetadata(
 catalog.register_directory(CommandDirectory(("fun", "pickone"), "PickOne 表情包"))
 
 
-def command(name, summary, aliases, *args, usage="", permission=Role.EVERYONE):
+def command(
+    name, summary, aliases, *args, usage="", permission=Role.EVERYONE, compact_aliases=(), priority=10
+):
     return template_command(
         CommandSpec(
             f"fun.pickone.{name}",
@@ -41,7 +43,8 @@ def command(name, summary, aliases, *args, usage="", permission=Role.EVERYONE):
             scopes=frozenset({SceneKind.GROUP}) if permission == Role.GROUP_ADMIN else frozenset(SceneKind),
         ),
         *args,
-        priority=10,
+        compact_aliases=compact_aliases,
+        priority=priority,
         block=True,
     )
 
@@ -52,6 +55,7 @@ take = command(
     ("来只", "pickone"),
     Args["category", str, None]["query", MultiVar(str), ()],
     usage="[类别] [文字]",
+    compact_aliases=("来只",),
 )
 preview = command(
     "preview",
@@ -59,6 +63,7 @@ preview = command(
     ("预览来只", "预览", "preview"),
     Args["category", str, None]["prefix", str, None],
     usage="[类别] [ID前缀]",
+    compact_aliases=("预览来只", "预览"),
 )
 random = command("random", "从有图片的类别随机取图", ("随机来只", "随便来只"))
 capoo = command("capoo", "取一只咖波", ("capoo", "咖波"))
@@ -68,6 +73,7 @@ upload = command(
     ("添加来只", "添加"),
     Args["category", str],
     usage="<类别>（附图片）",
+    compact_aliases=("添加来只", "添加"),
 )
 like = command("like", "点赞本会话一天内最后发出的图片", ("点赞", "喜欢", "爱", "love", "like"))
 like_id = command(
@@ -76,6 +82,7 @@ like_id = command(
     ("点赞来只", "喜欢来只", "爱来只"),
     Args["category", str]["prefix", str],
     usage="<类别> <ID前缀>",
+    compact_aliases=("点赞来只", "喜欢来只", "爱来只"),
 )
 comment = command(
     "comment",
@@ -83,6 +90,7 @@ comment = command(
     ("评论", "回复", "comment", "say", "reply"),
     Args["content", MultiVar(str)],
     usage="<内容>",
+    compact_aliases=("评论", "回复"),
 )
 comment_id = command(
     "comment-id",
@@ -90,6 +98,9 @@ comment_id = command(
     ("评论来只", "回复来只"),
     Args["category", str]["prefix", str]["content", MultiVar(str)],
     usage="<类别> <ID前缀> <内容>",
+    compact_aliases=("评论来只", "回复来只"),
+    # This longer command must win over /评论<内容>, including malformed args.
+    priority=9,
 )
 audit = command(
     "audit",
@@ -136,7 +147,7 @@ async def sheet(context, services, reply, model):
 
 async def send_image(context, services, reply, category, query="", prefix=None):
     cat, stat, data = await services.pickone.select(context, category, query, prefix)
-    info = f"[PickOne] {cat.id}\nID: {stat.hash_id}\n点赞: {stat.likes} · 提起: {stat.pickup_times + 1}"
+    info = f"[PickOne] {chat.category_label(cat)}\nID: {stat.hash_id}\n点赞: {stat.likes} · 提起: {stat.pickup_times + 1}"
     if stat.comments:
         info += "\n评论：\n" + "\n".join(f"{index}. {value}" for index, value in enumerate(stat.comments, 1))
     chunks = text_chunks(info)
@@ -182,13 +193,14 @@ async def handle_preview(
         await send_image(context, services, reply, category, prefix=prefix)
         return
     cat, images = await services.pickone.preview(context, category)
+    display = await services.pickone.in_scene(context, chat.describe_category, cat)
     await sheet(
         context,
         services,
         reply,
         {
-            "title": cat.id + " · 预览",
-            "hint": f"/预览来只 {cat.img_key} ID前缀 · 获取原图",
+            "title": display["label"] + " · 预览",
+            "hint": f"/预览来只 {display['command_key']} ID前缀 · 获取原图",
             "preview": True,
             "items": images,
         },
@@ -215,7 +227,10 @@ async def handle_upload(
 ):
     counts = await services.pickone.upload(context, category, get_platform(bot).image_attachments(event))
     await reply.finish(
+        f"{counts['category']}：\n"
         f"已添加 {counts['added']} 张；待审核 {counts['pending']} 张；重复 {counts['duplicate']} 张；失败 {counts['failed']} 张。"
+        + ("\n普通用户上传需由该图库管理员审核后使用。" if counts["pending"] else "")
+        + ("\n" + "；".join(counts["errors"]) if counts["errors"] else "")
     )
 
 
@@ -271,7 +286,9 @@ async def handle_group_create(
     context: CommandContext, services: BotServices, reply: Reply, key: str, title: str
 ):
     await services.pickone.create_category(context, key, title)
-    await reply.finish(f"已创建本群图库 {title}，使用 /添加来只 group:{key} 上传、/来只 group:{key} 取图。")
+    await reply.finish(
+        f"已创建本群图库「{title}」，发送 /添加{key} 并在同一条消息附图片即可上传，使用 /来只{key} 取图。"
+    )
 
 
 @group_audit.assign("$main")

@@ -28,7 +28,7 @@ def command(spec: CommandSpec, **kwargs) -> type[Matcher]:
     return matcher
 
 
-def template_command(spec: CommandSpec, *patterns, **kwargs):
+def template_command(spec: CommandSpec, *patterns, compact_aliases=(), **kwargs):
     """Use Alconna's declarative grammar, assignments and native injection."""
     from nonebot import require
 
@@ -41,6 +41,8 @@ def template_command(spec: CommandSpec, *patterns, **kwargs):
 
     if spec.mode != MatchMode.COMMAND:
         raise ValueError("Template commands require ordinary command mode")
+    if not set(compact_aliases) <= set(spec.aliases):
+        raise ValueError("Compact aliases must be declared in the command spec")
     catalog.register(spec)
     namespace = Namespace(f"OBot_{spec.id}", disable_builtin_options={"help", "shortcut", "completion"})
     config.namespaces[namespace.name] = namespace
@@ -51,7 +53,6 @@ def template_command(spec: CommandSpec, *patterns, **kwargs):
             meta=CommandMeta(description=spec.summary, compact=False),
             namespace=namespace,
         ),
-        aliases=set(spec.aliases),
         extensions=[TextCommandSource],
         use_cmd_start=True,
         use_cmd_sep=False,
@@ -62,6 +63,10 @@ def template_command(spec: CommandSpec, *patterns, **kwargs):
         _depth=1,
         **kwargs,
     )
+    # Only opted-in shortcuts accept attached arguments; canonical commands and
+    # English aliases retain word boundaries. Register longer aliases first.
+    for alias in sorted(spec.aliases, key=len, reverse=True):
+        matcher.shortcut(alias, prefix=True, compact=alias in compact_aliases)
 
     @matcher.handle()
     async def invalid_arguments(result: CommandResult, reply: Reply):

@@ -83,7 +83,9 @@ async def test_upload_pending_admin_approve_and_duplicate(web):
     result = await services.pickone.upload(admin, "cats", ["https://gchat.qpic.cn/synthetic"])
     assert result["duplicate"] == 1
     services.clients.http.download.return_value = b"not an image"
-    assert (await services.pickone.upload(ctx, "cats", ["https://gchat.qpic.cn/synthetic"]))["failed"] == 1
+    result = await services.pickone.upload(ctx, "cats", ["https://gchat.qpic.cn/synthetic"])
+    assert result["failed"] == 1 and result["category"] == "公共图库「猫」"
+    assert result["errors"] == ["无法解码图片，或图片像素数超过限制。"]
     assert len(store.list_images("cats")) == 2
     with pytest.raises(chat.StoreError, match="最多"):
         await services.pickone.upload(ctx, "cats", ["https://gchat.qpic.cn/synthetic"] * 5)
