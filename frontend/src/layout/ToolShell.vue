@@ -24,7 +24,9 @@ const localNavigation = computed(() =>
   [
     ...(active.value?.manifest.nav ?? []),
     ...(session.isAdmin.value ? (active.value?.manifest.adminNav ?? []) : []),
-  ].flatMap((item) => item.children ?? [item]),
+  ]
+    .filter((item) => !item.personal || !session.state.user?.tools)
+    .flatMap((item) => item.children ?? [item]),
 );
 onMounted(async () => {
   try {

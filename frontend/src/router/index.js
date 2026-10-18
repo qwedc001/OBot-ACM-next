@@ -57,6 +57,12 @@ router.beforeEach(async (to) => {
   if (!session.isLoggedIn.value) return { name: "login" };
   if (
     session.state.user?.tools &&
+    to.meta.plugin === "pickone" &&
+    to.name !== "pickone-groups"
+  )
+    return { name: "pickone-groups" };
+  if (
+    session.state.user?.tools &&
     to.meta.plugin &&
     !session.state.user.tools.includes(to.meta.plugin)
   )

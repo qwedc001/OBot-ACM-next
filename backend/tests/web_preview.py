@@ -136,6 +136,12 @@ def main():
             )
             await services.scene_access.observe(group_actor, group_scene, True)
             ctx = await group_context()
+            await services.pickone.create_category(ctx, "cats", "本群猫猫")
+            from framework.curation.pickone import chat
+            from framework.services.scene_access import scene_scope
+
+            group_store = services.curation.group_pickone(scene_scope(group_scene))
+            await services.curation.run(chat.upload, group_store, "cats", data, group_actor.id, False)
             raw = (await services.boards.issue(ctx, "team-oj")).split("#")[1]
             await services.boards.submit(raw, "https://oj.example.com", "fixture-admin", "synthetic")
             await services.boards.confirm(ctx, "team-oj")

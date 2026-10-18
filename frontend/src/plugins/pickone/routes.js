@@ -6,6 +6,12 @@
  */
 export default [
   {
+    path: "/pickone/groups",
+    name: "pickone-groups",
+    component: () => import("./views/GroupsView.vue"),
+    meta: { title: "群图库" },
+  },
+  {
     path: "/pickone",
     name: "pickone-home",
     component: () => import("./views/CategoriesView.vue"),

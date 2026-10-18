@@ -56,6 +56,10 @@ class Platform(ABC):
         """Return an authenticated native reply author when the platform supplies one."""
         return None
 
+    def image_attachments(self, event: Event) -> tuple[str, ...]:
+        """Native image attachments on trusted platform CDNs, never URLs from message text."""
+        return ()
+
     def private_target(self, bot: Bot, identity: ExternalIdentity) -> SendTarget:
         """Route a previously verified private identity, without inventing an ID."""
         raise NotImplementedError("Platform has no private message route")

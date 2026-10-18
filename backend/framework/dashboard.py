@@ -17,11 +17,11 @@ class WebAccount:
     group_scope: str | None = None
 
     def permits_tool(self, slug: str) -> bool:
-        return self.group_scope is None or slug == "board"
+        return self.group_scope is None or slug in {"board", "pickone"}
 
     def profile(self) -> dict:
         return {
-            "label": "群榜单管理员" if self.group_scope else "超级管理员" if self.superuser else "QQ 用户",
+            "label": "群管理员" if self.group_scope else "超级管理员" if self.superuser else "QQ 用户",
             "role": "group_admin" if self.group_scope else "superuser" if self.superuser else "everyone",
-            "tools": ["board"] if self.group_scope else None,
+            "tools": ["board", "pickone"] if self.group_scope else None,
         }

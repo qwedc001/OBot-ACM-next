@@ -16,6 +16,21 @@ class User(Model):
     superuser: Mapped[bool] = mapped_column(default=False)
 
 
+class PickOneContext(Model):
+    """Scene-local references, stored by the existing ORM and included in backups."""
+
+    __tablename__ = "bot_pickone_contexts"
+    scene: Mapped[str] = mapped_column(primary_key=True)
+    last: Mapped[dict | None] = mapped_column(JSON)
+    preview: Mapped[dict | None] = mapped_column(JSON)
+
+
+class PickOneLibrary(Model):
+    __tablename__ = "bot_pickone_libraries"
+
+    scope: Mapped[str] = mapped_column(primary_key=True)
+
+
 class ContentSubmission(Model):
     """Shared EP review queue; authors are canonical bot identities."""
 

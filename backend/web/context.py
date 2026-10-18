@@ -58,7 +58,7 @@ class WebContext:
         if request.url.path.startswith("/api/plugins/") and not account.permits_tool(
             request.url.path.split("/")[3]
         ):
-            raise HTTPException(403, "本次登录仅允许管理发起登录的群榜单。")
+            raise HTTPException(403, "本次登录仅允许管理发起登录群的榜单和图库。")
         if admin and not account.superuser:
             raise HTTPException(403, "仅机器人超级管理员可以访问。")
         if csrf and not hmac.compare_digest(

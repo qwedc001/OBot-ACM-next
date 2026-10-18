@@ -30,7 +30,7 @@ const icons = {
       <h1>
         {{
           session.state.user?.role === "group_admin"
-            ? "群榜单工作台"
+            ? "群管理工作台"
             : session.isAdmin.value
               ? "超级管理员工作台"
               : "个人工作台"
@@ -39,7 +39,7 @@ const icons = {
       <p>
         {{
           session.state.user?.role === "group_admin"
-            ? "查看本群训练榜单，调整榜单设置。"
+            ? "管理本群训练榜单和专属图库。"
             : "查看训练榜单、维护表情包和比赛信息，或查找机器人指令。"
         }}
       </p>

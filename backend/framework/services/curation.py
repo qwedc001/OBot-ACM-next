@@ -6,6 +6,7 @@ The lock covers compare/write/review together, rather than individual JSON write
 """
 
 import asyncio
+import hashlib
 from contextlib import asynccontextmanager
 from functools import partial
 
@@ -25,11 +26,21 @@ class CurationService(Service):
     def __init__(self, sessions, data_dir):
         self.sessions = sessions
         self.pickone = PickOneStore(data_dir / "curation" / "Pick-One")
+        self._group_root = data_dir / "curation" / "Pick-One-Groups"
+        self._group_stores = {}
         self.contestlist = ContestStore(
             data_dir / "curation" / "Contest-List-Renderer" / "manual_contests.json"
         )
         self._lock = asyncio.Lock()
         self._ready = False
+
+    def group_pickone(self, scope):
+        """Use the existing store format; untrusted scope text never becomes a path."""
+        if scope not in self._group_stores:
+            self._group_stores[scope] = PickOneStore(
+                self._group_root / hashlib.sha256(scope.encode()).hexdigest()
+            )
+        return self._group_stores[scope]
 
     def _prepare(self):
         self.pickone.lib_dir.mkdir(parents=True, exist_ok=True)

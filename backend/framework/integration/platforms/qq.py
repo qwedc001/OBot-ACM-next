@@ -1,5 +1,7 @@
 """Official QQ event identities, native roles and message delivery."""
 
+from urllib.parse import urlsplit
+
 from nonebot.adapters import Bot, Event
 from nonebot.adapters.qq.event import (
     C2CMessageCreateEvent,
@@ -21,6 +23,28 @@ class QQPlatform(Platform):
     adapter_type = QQAdapter
     supported_segments = frozenset({Text, Image, Markdown, Keyboard})
     private_identity_kinds = frozenset({"c2c_user"})
+
+    def image_attachments(self, event: Event) -> tuple[str, ...]:
+        urls = []
+        for item in getattr(event, "attachments", None) or ():
+            if not (item.content_type or "").startswith("image/"):
+                continue
+            url = "https:" + item.url if item.url.startswith("//") else item.url
+            try:
+                parts = urlsplit(url)
+                port = parts.port
+            except ValueError:
+                continue
+            host = parts.hostname or ""
+            if (
+                parts.scheme == "https"
+                and not parts.username
+                and not parts.password
+                and port in {None, 443}
+                and any(host == domain or host.endswith("." + domain) for domain in ("qpic.cn", "qq.com"))
+            ):
+                urls.append(url)
+        return tuple(urls)
 
     def private_target(self, bot: Bot, identity: ExternalIdentity) -> SendTarget:
         if identity.provider != "qq" or identity.app_id != bot.self_id or identity.kind != "c2c_user":

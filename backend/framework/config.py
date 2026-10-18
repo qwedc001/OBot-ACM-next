@@ -28,3 +28,5 @@ class Settings(BaseModel):
     obot_web_login_ttl: int = Field(default=300, ge=60, le=900)
     obot_web_session_ttl: int = Field(default=43200, ge=300, le=604800)
     obot_web_group_ttl: int = Field(default=900, ge=60, le=3600)
+    obot_ocr_enabled: bool = False
+    obot_ocr_gpu: bool = False

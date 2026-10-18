@@ -49,7 +49,7 @@ async def handle_dashboard(bot: Bot, context: CommandContext, services: BotServi
     except DashboardError as error:
         await reply.finish(str(error))
     text = (
-        f"点击链接登录{'本群榜单管理' if target else '网页'}（{services.settings.obot_web_login_ttl} 秒内有效，仅可使用一次，请勿转发）：\n"
+        f"点击链接登录{'本群管理工作台' if target else '网页'}（{services.settings.obot_web_login_ttl} 秒内有效，仅可使用一次，请勿转发）：\n"
         + link
     )
     if target:
@@ -61,7 +61,7 @@ async def handle_dashboard(bot: Bot, context: CommandContext, services: BotServi
             await reply.finish(
                 f"私聊发送失败{detail}。请先添加机器人并允许私聊主动消息，再重试；登录链接不会发送到群内。"
             )
-        await reply.finish("本群榜单管理链接已私聊发送，请查看与机器人的私聊。")
+        await reply.finish("本群管理链接已私聊发送，请查看与机器人的私聊。")
     await reply.finish(text)
 
 

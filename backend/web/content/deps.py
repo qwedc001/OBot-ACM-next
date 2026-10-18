@@ -24,7 +24,7 @@ async def current_user(request: Request):
     mutation = request.method not in {"GET", "HEAD", "OPTIONS"}
     account = await web.account(request, csrf=mutation)
     if account.group_scope:
-        raise HTTPException(403, "本次登录仅允许管理发起登录的群榜单。")
+        raise HTTPException(403, "本次登录仅允许管理本群内容，请进入群图库页面。")
     if mutation:
         if request.headers.get("origin") != web.origin() or request.headers.get(
             "sec-fetch-site", "same-origin"

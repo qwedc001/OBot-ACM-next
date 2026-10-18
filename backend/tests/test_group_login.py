@@ -36,12 +36,12 @@ async def test_group_session_only_lists_and_edits_issuing_group(web, database):
     await bind(services.boards, name="personal")
     response, headers = await scoped_login(services, client, own)
     assert response.json()["user"]["role"] == "group_admin"
-    assert response.json()["user"]["tools"] == ["board"]
+    assert response.json()["user"]["tools"] == ["board", "pickone"]
     selector, other_selector = scope_id(scene_scope(own.scene)), scope_id(scene_scope(other.scene))
     assert (await client.get("/api/plugins/board/scopes")).json()["scopes"] == [
         {"id": selector, "label": "本群榜单"}
     ]
-    assert [p["slug"] for p in (await client.get("/api/plugins")).json()["plugins"]] == ["board"]
+    assert [p["slug"] for p in (await client.get("/api/plugins")).json()["plugins"]] == ["board", "pickone"]
     assert (await client.get("/api/plugins/board/configs")).status_code == 200
     configs = await client.get("/api/plugins/board/configs", params={"scope": selector})
     assert configs.status_code == 200 and configs.json()["configs"][0]["name"] == "shared"

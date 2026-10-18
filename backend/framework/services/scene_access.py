@@ -12,7 +12,7 @@ from sqlalchemy.dialects.sqlite import insert
 from ..catalog import CommandSpec
 from ..contracts import AccessDenied, Actor, RequestContext, Role, SceneKind, SceneRef
 from ..dashboard import DashboardError
-from ..models import BoardConfig, Identity, SceneAuthority, WebGroupCheck, WebSceneGrant
+from ..models import BoardConfig, Identity, PickOneLibrary, SceneAuthority, WebGroupCheck, WebSceneGrant
 from .base import Service
 
 MANAGE = CommandSpec("dashboard.group", "dashboard", "group", "验证群管理权限", permission=Role.GROUP_ADMIN)
@@ -91,7 +91,7 @@ class SceneAccessService(Service):
                 return True
         return False
 
-    async def scopes(self, actor):
+    async def scopes(self, actor, *, resource="board"):
         superuser = await self.identities.is_superuser(actor)
         allowed = set()
         verified = {}
@@ -104,6 +104,15 @@ class SceneAccessService(Service):
                 if authority.is_admin or verified.get(authority.identity_key):
                     allowed.add(authority.scope)
         async with self.sessions() as session:
+            if resource == "pickone":
+                if superuser:
+                    allowed.update(await session.scalars(select(PickOneLibrary.scope)))
+                    allowed.update(await session.scalars(select(SceneAuthority.scope)))
+                return [
+                    {"id": scope_id(scope), "label": "群聊 " + scope_id(scope)[:6], "scene": scene}
+                    for scope in sorted(allowed)
+                    if (scene := parse_scene(scope)) is not None
+                ]
             query = select(BoardConfig.scope, BoardConfig.name).where(BoardConfig.scope.startswith("scene:"))
             if not superuser:
                 query = query.where(BoardConfig.scope.in_(allowed))
@@ -124,7 +133,7 @@ class SceneAccessService(Service):
                 )
         return result
 
-    async def context(self, account, selector=None):
+    async def context(self, account, selector=None, *, resource="board"):
         if account.group_scope:
             scene = parse_scene(account.group_scope)
             if (
@@ -154,7 +163,7 @@ class SceneAccessService(Service):
             )
         if not isinstance(selector, str):
             raise AccessDenied("Group access denied")
-        for group in await self.scopes(account.actor):
+        for group in await self.scopes(account.actor, resource=resource):
             if group["id"] == selector:
                 scene = group["scene"]
 
@@ -216,4 +225,4 @@ class SceneAccessService(Service):
                     set_={"identity_key": context.actor.identity_key},
                 )
             )
-        return "群管理身份已验证，请返回网页刷新群榜单。授权随群管理权限更新并定期过期。"
+        return "群管理身份已验证，请返回网页刷新群榜单或群图库。授权随群管理权限更新并定期过期。"

@@ -20,8 +20,14 @@ export default {
   },
   /** 进入本工具后，导航栏左边这几个入口 */
   nav: [
-    { path: "/pickone", label: "所有表情", icon: "Grid" },
-    { path: "/pickone/submissions", label: "我的提交", icon: "Tickets" },
+    { path: "/pickone", label: "公共图库", icon: "Grid", personal: true },
+    { path: "/pickone/groups", label: "群图库", icon: "Grid" },
+    {
+      path: "/pickone/submissions",
+      label: "我的提交",
+      icon: "Tickets",
+      personal: true,
+    },
   ],
   /**
    * 管理员在本工具内额外看到的入口。
