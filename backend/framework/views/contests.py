@@ -8,7 +8,7 @@ except Pixie's output, which runs under the existing serialized render worker.
 from ..clients.renderer import PixieBackend
 from ..contests import PHASES, Contest, format_duration, format_time
 from .footer import CardFooter
-from .layout import aspect_error, fits, max_columns
+from .layout import fits, split_columns
 from .palette import DECENT, INK, MUTED, paint_card
 
 MARGIN, COLUMN, GAP, MAX_HEIGHT = 80, 760, 56, 3600
@@ -24,17 +24,13 @@ class ContestBackend:
     def layout(self, model):
         if model.get("detail"):
             return self.detail_layout(model)
-        # Measure every supported column count instead of using a row-count
-        # cutoff. Prefer a desktop-shaped sheet without shrinking any text.
-        layouts = [
-            self.list_layout(model, count)
-            for count in range(1, min(max_columns(COLUMN, GAP, MARGIN), len(model["items"])) + 1)
-        ]
-        return min(
-            layouts, key=lambda size: (size[1] > MAX_HEIGHT or not fits(*size[:2]), aspect_error(*size[:2]))
-        )
+        items = [Contest(**item) for item in model["items"]]
+        largest = max(sum(c.phase(model["now"]) == phase for c in items) for phase in PHASES)
+        # Original ContestListRenderer chooses columns by the largest phase.
+        count = 3 if largest > 12 else 2 if largest > 5 else 1
+        return self.list_layout(model, count)
 
-    def list_layout(self, model, count):
+    def list_layout(self, model, count, column_width=COLUMN):
         items = [Contest(**item) for item in model["items"]]
         placements = []
 
@@ -42,9 +38,8 @@ class ContestBackend:
             placements.append((block, x, y))
             return y + block.height
 
-        # Read down each column, then across. Repeat a phase heading when its
-        # rows continue in the next column instead of reserving a full-width
-        # horizontal band for a phase containing only one contest.
+        # Phase headings span the sheet. Each phase balances its own rows,
+        # preserving source order, before the following phase starts below it.
         rows = []
         headings = {phase: self.text(label, 30, weight="H") for phase, label in PHASES.items()}
         for phase in PHASES:
@@ -52,16 +47,18 @@ class ContestBackend:
                 index = model.get("offset", 0) + items.index(contest) + 1
                 number = self.text(f"{index:02d}", 34, color=MUTED, width=62, weight="H")
                 blocks = (
-                    self.text(f"{contest.platform} · {contest.abbr}", 21, color=MUTED, width=COLUMN - 80),
-                    self.text(contest.name, 36, weight="H", width=COLUMN - 80),
+                    self.text(
+                        f"{contest.platform} · {contest.abbr}", 21, color=MUTED, width=column_width - 80
+                    ),
+                    self.text(contest.name, 36, weight="H", width=column_width - 80),
                     self.text(
                         f"{format_time(contest.start)} · {contest.status(model['now'])}",
                         23,
-                        width=COLUMN - 80,
+                        width=column_width - 80,
                     ),
-                    self.text("持续 " + format_duration(contest.duration), 23, width=COLUMN - 80),
-                    self.text(contest.supplement, 23, color=MUTED, width=COLUMN - 80),
-                    self.text("查询 " + contest.key, 20, color=MUTED, width=COLUMN - 80),
+                    self.text("持续 " + format_duration(contest.duration), 23, width=column_width - 80),
+                    self.text(contest.supplement, 23, color=MUTED, width=column_width - 80),
+                    self.text("查询 " + contest.key, 20, color=MUTED, width=column_width - 80),
                 )
                 ratio = (
                     min(1, max(0, (model["now"] - contest.start) / contest.duration))
@@ -71,52 +68,32 @@ class ContestBackend:
                 height = sum(block.height + 10 for block in blocks) + (20 if ratio is not None else 0) + 32
                 rows.append((phase, number, blocks, ratio, height))
 
-        def pack(capacity):
-            columns, height, previous = [[]], 0, None
-            for row in rows:
-                phase, _, _, _, row_height = row
-                heading_height = headings[phase].height + 28
-                needed = row_height + (heading_height if previous != phase else 0)
-                if columns[-1] and height + needed > capacity:
-                    columns.append([])
-                    height, previous = 0, None
-                    needed = row_height + heading_height
-                columns[-1].append(row)
-                height += needed
-                previous = phase
-            return columns
-
-        low = max(row[-1] + headings[row[0]].height + 28 for row in rows)
-        high = sum(row[-1] + headings[row[0]].height + 28 for row in rows)
-        while low < high:
-            middle = (low + high) // 2
-            if len(pack(middle)) <= count:
-                high = middle
-            else:
-                low = middle + 1
-        columns = pack(high)
-        width = 2 * MARGIN + len(columns) * COLUMN + (len(columns) - 1) * GAP
+        width = 2 * MARGIN + count * column_width + (count - 1) * GAP
         top = place(self.text(model["title"], 52, weight="H", width=width - 2 * MARGIN), MARGIN, 72)
         top = (
             place(self.text(f"{format_time(model['now'])} · 北京时间", 23, color=MUTED), MARGIN, top + 14)
             + 44
         )
-        bars, bottoms = [], []
-        for column, entries in enumerate(columns):
-            x, y, previous = MARGIN + column * (COLUMN + GAP), top, None
-            for phase, number, blocks, ratio, _ in entries:
-                if previous != phase:
-                    y = place(headings[phase], x, y) + 28
-                place(number, x, y)
-                for block in blocks:
-                    y = place(block, x + 80, y) + 10
-                if ratio is not None:
-                    bars.append((x + 80, y, COLUMN - 80, ratio))
-                    y += 20
-                y += 32
-                previous = phase
-            bottoms.append(y)
-        top = max(bottoms) + 30
+        bars = []
+        for phase in PHASES:
+            entries = [row for row in rows if row[0] == phase]
+            if not entries:
+                continue
+            top = place(headings[phase], MARGIN, top) + 28
+            columns = split_columns(entries, count, lambda row: row[-1])
+            bottoms = []
+            for column, entries in enumerate(columns):
+                x, y = MARGIN + column * (column_width + GAP), top
+                for _, number, blocks, ratio, _ in entries:
+                    place(number, x, y)
+                    for block in blocks:
+                        y = place(block, x + 80, y) + 10
+                    if ratio is not None:
+                        bars.append((x + 80, y, column_width - 80, ratio))
+                        y += 20
+                    y += 32
+                bottoms.append(y)
+            top = max(bottoms) + 30
         for warning in model.get("warnings", ()):
             top = place(self.text(warning, 23, color=MUTED, width=width - 2 * MARGIN), MARGIN, top) + 10
         top = (
@@ -131,8 +108,8 @@ class ContestBackend:
         return width, top + footer.height + 70, placements, bars, footer, top
 
     def detail_layout(self, model):
-        layouts = [self._detail_layout(model, width) for width in range(1440, 3201, 160)]
-        return min(layouts, key=lambda size: (not fits(*size[:2]), aspect_error(*size[:2])))
+        # A detail card is a single sheet, like the original profile cards.
+        return self._detail_layout(model, 1472)
 
     def _detail_layout(self, model, width):
         contest = Contest(**model["items"][0])
@@ -146,16 +123,17 @@ class ContestBackend:
 
         top = place(f"{contest.platform} · {contest.abbr} · {model['title']}", MARGIN, 72, color=MUTED)
         top = place(contest.name, MARGIN, top + 24, 52, weight="H") + 46
-        cell_width = (content_width - GAP) // 2
+        field_columns = 1 if content_width < 960 else 2
+        cell_width = (content_width - GAP * (field_columns - 1)) // field_columns
         fields = (
             ("开始时间 · 北京时间", format_time(contest.start)),
             ("结束时间 · 北京时间", format_time(contest.end)),
             ("当前状态", contest.status(model["now"])),
             ("比赛时长", format_duration(contest.duration)),
         )
-        for offset in (0, 2):
+        for offset in range(0, len(fields), field_columns):
             bottoms = []
-            for column, (label, value) in enumerate(fields[offset : offset + 2]):
+            for column, (label, value) in enumerate(fields[offset : offset + field_columns]):
                 x = MARGIN + column * (cell_width + GAP)
                 y = place(label, x, top, 23, color=MUTED, block_width=cell_width)
                 bottoms.append(place(value, x, y + 12, 34, weight="H", block_width=cell_width))

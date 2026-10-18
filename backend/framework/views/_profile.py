@@ -29,7 +29,7 @@ from easy_pixie import (
 )
 
 from .footer import CardFooter
-from .layout import aspect_error, fits, max_columns
+from .layout import fits
 
 _CONTENT_WIDTH = 1216
 _AVATAR_SIZE = 176
@@ -378,25 +378,14 @@ class UserCardRenderer:
             )
 
     def layout(self):
-        # Keep identity and Rating together. Other complete sections flow into
-        # the shortest column; existing fonts, metric cells and rank colours stay.
-        groups = [self.sections[:2]] + [[section] for section in self.sections[2:] if section.get_height()]
-        candidates = []
-        for count in range(1, min(len(groups), max_columns(self._width, 96, 128)) + 1):
-            columns, heights = [[] for _ in range(count)], [0] * count
-            for group in groups:
-                column = min(range(count), key=heights.__getitem__)
-                columns[column].extend(group)
-                heights[column] += sum(section.get_height() + _SECTION_PADDING for section in group)
-            width = 256 + count * self._width + (count - 1) * 96
-            footer = CardFooter(width - 256, detail="配色 " + self.info.accent_color.upper())
-            bottom = 168 + max(heights)
-            height = bottom + footer.height + 112
-            if fits(width, height):
-                candidates.append((width, height, columns, footer, bottom))
-        if not candidates:
+        sections = [section for section in self.sections if section.get_height()]
+        width = 256 + self._width
+        footer = CardFooter(self._width, detail="配色 " + self.info.accent_color.upper())
+        bottom = 168 + sum(section.get_height() + _SECTION_PADDING for section in sections)
+        height = bottom + footer.height + 112
+        if not fits(width, height):
             raise ValueError("Profile exceeds image size limit")
-        return min(candidates, key=lambda layout: aspect_error(*layout[:2]))
+        return width, height, [sections], footer, bottom
 
     def render(self):
         # Match SimpleCardRenderer's outer/container/content paddings without

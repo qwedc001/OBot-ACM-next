@@ -334,5 +334,5 @@ def test_real_card_render_has_bounded_png_and_measured_height(profile):
     image = ProfilePixieBackend().render(asdict(profile))
     assert image.mime == "image/png" and image.data.startswith(b"\x89PNG")
     assert struct.unpack(">II", image.data[16:24]) == (image.width, image.height)
-    assert 1216 <= image.width <= 8192 and 450 < image.height < 8192
+    assert image.width == 1472 and 450 < image.height < 8192
     assert image.width * image.height <= 24_000_000

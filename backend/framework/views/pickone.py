@@ -12,7 +12,7 @@ from pathlib import Path
 from ..clients.renderer import PixieBackend
 from ..curation.pickone.palette import accent_of
 from .footer import CardFooter
-from .layout import aspect_error, fits, max_columns
+from .layout import fits
 from .palette import DECENT, paint_card
 
 
@@ -21,17 +21,15 @@ class PickOneBackend:
     def layout(model):
         count = len(model["items"])
         cell_height = 450 if model.get("preview") else 170
-        candidates = []
-        for columns in range(1, min(max(1, count), max_columns(524, 24, 64)) + 1):
-            width = 128 + columns * 524 + (columns - 1) * 24
-            footer = CardFooter(width - 128, detail="配色 " + DECENT.label)
-            bottom = 215 + math.ceil(count / columns) * (cell_height + 24)
-            height = bottom + footer.height + 80
-            if fits(width, height):
-                candidates.append((width, height, columns, cell_height, footer, bottom))
-        if not candidates:
+        # Original PickOne uses a four-column, row-major contact sheet.
+        columns = 4
+        width = 128 + columns * 524 + (columns - 1) * 24
+        footer = CardFooter(width - 128, detail="配色 " + DECENT.label)
+        bottom = 215 + math.ceil(count / columns) * (cell_height + 24)
+        height = bottom + footer.height + 80
+        if not fits(width, height):
             raise ValueError("PickOne sheet exceeds image size limit")
-        return min(candidates, key=lambda layout: aspect_error(*layout[:2]))
+        return width, height, columns, cell_height, footer, bottom
 
     def draw(self, model):
         import pixie

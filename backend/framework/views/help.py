@@ -11,7 +11,7 @@ from typing import Any
 from framework.clients.renderer import PixieBackend, RenderedImage
 
 from .footer import CardFooter
-from .layout import MAX_PIXELS, aspect_error, max_columns
+from .layout import MAX_PIXELS, split_columns
 from .palette import DECENT, paint_card
 
 WIDTH = 1108
@@ -21,7 +21,7 @@ CONTENT_WIDTH = WIDTH - MARGIN * 2
 HEADER_HEIGHT = 300
 FOOTER_HEIGHT = 300
 COLUMN_GAP = 96
-MAX_COLUMNS = max_columns(CONTENT_WIDTH, COLUMN_GAP, MARGIN)
+MAX_COLUMNS = 4
 # Original help uses a near-black veil and a lightened gradient accent.
 ACCENT = (221, 244, 248)
 INK = (255, 255, 255, 228)
@@ -86,23 +86,7 @@ class HelpPixieBackend:
         return StyledString(text, weight, size, font_color=color, max_width=width, line_multiplier=1.25)
 
     def layout(self, model: dict) -> list[HelpPage]:
-        if not any(group["commands"] for group in model["groups"]):
-            return []
-        candidates = []
-        # A small range of readable text widths bridges the jump between whole
-        # column counts, without shrinking fonts or adding empty canvas space.
-        for width in (832, CONTENT_WIDTH, 1024, 1120):
-            try:
-                candidates.append(self._layout(model, width))
-            except ValueError:
-                continue
-        if not candidates:
-            raise ValueError("Help entry exceeds image size limit; text help remains available")
-        return min(candidates, key=self._score)
-
-    @staticmethod
-    def _score(pages):
-        return len(pages), sum(aspect_error(p.width, p.height) for p in pages) / len(pages)
+        return self._layout(model, CONTENT_WIDTH)
 
     def _layout(self, model: dict, column_width: int) -> list[HelpPage]:
         from functools import partial
@@ -142,63 +126,37 @@ class HelpPixieBackend:
         if not modules:
             return []
 
-        # Measure candidate widths, including four or more columns. Balance each
-        # width at the smallest height that avoids unnecessary pages.
-        # Cards remain intact, and continuation headings count towards the budget.
-        candidates = []
-        minimum = max(m.heading.height + 64 + c.height for m in modules for c in m.cards)
-        for count in range(
-            1, min(MAX_COLUMNS, max_columns(column_width, COLUMN_GAP, MARGIN), model["count"]) + 1
-        ):
-            width = MARGIN * 2 + count * column_width + (count - 1) * COLUMN_GAP
-            limit = min(MAX_HEIGHT, MAX_PIXELS // width) - HEADER_HEIGHT - FOOTER_HEIGHT
-            if limit < minimum:
-                continue
-            best = self._pack(modules, count, limit, column_width)
-            low, high = minimum, limit
-            while low < high:
-                middle = (low + high) // 2
-                trial = self._pack(modules, count, middle, column_width)
-                if len(trial) <= len(best):
-                    high = middle
-                else:
-                    low = middle + 1
-            pages = self._pack(modules, count, high, column_width)
-            candidates.append(pages)
-        if not candidates:
-            raise ValueError("Help entry exceeds image size limit; text help remains available")
-        return min(candidates, key=self._score)
+        # Original help: at most four columns of whole categories, in catalog
+        # order. Split a category only when it exceeds the image safety budget.
+        width = MARGIN * 2 + MAX_COLUMNS * column_width + (MAX_COLUMNS - 1) * COLUMN_GAP
+        capacity = min(MAX_HEIGHT, MAX_PIXELS // width) - HEADER_HEIGHT - FOOTER_HEIGHT
+        chunks = []
+        for module in modules:
+            chunk = HelpModule(module.category, module.heading, [])
+            for card in module.cards:
+                if chunk.height + card.height > capacity:
+                    if not chunk.cards:
+                        raise ValueError("Help entry exceeds image size limit; text help remains available")
+                    chunks.append(chunk)
+                    chunk = HelpModule(module.category, module.heading, [])
+                chunk.cards.append(card)
+            chunks.append(chunk)
+
+        pages, pending = [], []
+        for chunk in chunks:
+            columns = split_columns([*pending, chunk], MAX_COLUMNS, lambda module: module.height)
+            if pending and max(sum(m.height for m in column) for column in columns) > capacity:
+                pages.append(self._page(pending, column_width))
+                pending = []
+            pending.append(chunk)
+        if pending:
+            pages.append(self._page(pending, column_width))
+        return pages
 
     @staticmethod
-    def _pack(modules, column_count, capacity, column_width):
-
-        def new_page():
-            return HelpPage([HelpColumn([]) for _ in range(column_count)], column_width)
-
-        pages = [new_page()]
-        # Longest-first packing avoids leaving a tall module until all columns
-        # already contain short ones. Ties retain the catalog's module order.
-        for module in sorted(modules, key=lambda module: module.height, reverse=True):
-            offset = 0
-            while offset < len(module.cards):
-                column = min(pages[-1].columns, key=lambda column: column.height)
-                chunk = HelpModule(module.category, module.heading, [])
-                if column.height + chunk.height + module.cards[offset].height > capacity:
-                    pages.append(new_page())
-                    column = pages[-1].columns[0]
-                # Keep a module intact if it fits; otherwise fill the available
-                # column at whole-command boundaries before starting a new page.
-                while offset < len(module.cards):
-                    card = module.cards[offset]
-                    if column.height + chunk.height + card.height > capacity:
-                        break
-                    chunk.cards.append(card)
-                    offset += 1
-                column.modules.append(chunk)
-        # Do not reserve blank columns on sparse last pages.
-        for page in pages:
-            page.columns = [column for column in page.columns if column.modules]
-        return pages
+    def _page(modules, column_width):
+        columns = split_columns(modules, MAX_COLUMNS, lambda module: module.height)
+        return HelpPage([HelpColumn(column) for column in columns], column_width)
 
     def _draw_page(self, model: dict, layout: HelpPage, page: int, total: int):
         import pixie

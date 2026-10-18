@@ -22,7 +22,7 @@ from framework.views.help import (
     MAX_HEIGHT,
     HelpPixieBackend,
 )
-from framework.views.layout import aspect_error, fits
+from framework.views.layout import fits
 
 from .conftest import ROOT, USER, access
 
@@ -221,7 +221,7 @@ async def test_many_commands_paginate_without_omission_or_clipping():
     model = await catalog.help_model(access())
     backend = HelpPixieBackend()
     pages = backend.layout(model)
-    assert len(pages) == 1 and len(pages[0].columns) > 3
+    assert pages and all(len(page.columns) <= 4 for page in pages)
     assert [
         card.command_id
         for page in pages
@@ -286,28 +286,19 @@ def test_columns_adapt_to_content_without_empty_reserved_columns(counts):
     assert not HelpPixieBackend().layout(layout_model((0, 0)))
 
 
-def test_whole_modules_use_measured_height_and_always_choose_the_shortest_column():
+def test_whole_modules_keep_catalog_order_and_balance_measured_heights():
     pytest.importorskip("pixie")
     model = layout_model((1, 4, 2, 1, 3, 1))
-    # One command with wrapped text must outweigh several short commands.
     model["groups"][0]["commands"][0]["summary"] = "较长说明用于实际折行测量 " * 90
     backend = HelpPixieBackend()
     pages = backend.layout(model)
     assert len(pages) == 1
     page = pages[0]
-    measured = [(module, index) for index, column in enumerate(page.columns) for module in column.modules]
-    # Replay longest-first assignment, with stable catalog order for ties.
-    catalog_order = {f"module{index} · 模块说明": index for index in range(len(model["groups"]))}
-    measured.sort(key=lambda pair: (-pair[0].height, catalog_order[pair[0].category]))
-    heights = [0] * len(page.columns)
-    for module, actual_column in measured:
-        assert actual_column == min(range(len(heights)), key=lambda index: heights[index])
-        heights[actual_column] += module.height
-        group = model["groups"][catalog_order[module.category]]
-        assert [card.command_id for card in module.cards] == [command["id"] for command in group["commands"]]
-    assert measured[0][0].category.startswith("module0 ")
-    assert heights == [column.height for column in page.columns]
-    assert page.height == HEADER_HEIGHT + FOOTER_HEIGHT + max(heights)
+    modules = [module for column in page.columns for module in column.modules]
+    assert len(page.columns) <= 4
+    assert [m.category for m in modules] == [f"module{i} · 模块说明" for i in range(6)]
+    for module, group in zip(modules, model["groups"], strict=True):
+        assert [card.command_id for card in module.cards] == [c["id"] for c in group["commands"]]
     image = backend.render_pages(model)[0]
     assert struct.unpack(">II", image.data[16:24]) == (page.width, page.height)
 
@@ -353,8 +344,7 @@ def test_help_fills_remaining_columns_before_opening_another_page():
     pytest.importorskip("pixie")
     model = layout_model((20, 5, 5))
     pages = HelpPixieBackend().layout(model)
-    assert len(pages) == 1 and len(pages[0].columns) >= 4
-    assert aspect_error(pages[0].width, pages[0].height) < 0.2
+    assert len(pages) == 1 and len(pages[0].columns) >= 3
     ids = [
         card.command_id for column in pages[0].columns for module in column.modules for card in module.cards
     ]

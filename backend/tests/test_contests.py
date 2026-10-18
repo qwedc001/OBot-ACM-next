@@ -295,7 +295,6 @@ def test_measured_render_pages_are_bounded_and_include_all_contests(monkeypatch)
     backend = ContestBackend()
     # Force overflow with a smaller canvas, without relying on a row-count cap.
     monkeypatch.setattr("framework.views.contests.MAX_HEIGHT", 2000)
-    monkeypatch.setattr("framework.views.contests.max_columns", lambda *_: 2)
     seen = []
     draw = backend.draw
 
@@ -313,7 +312,7 @@ def test_measured_render_pages_are_bounded_and_include_all_contests(monkeypatch)
     assert all(0 <= x < width and y + block.height < height for block, x, y in placements)
 
 
-def test_desktop_lists_prefer_columns_and_do_not_split_at_twelve():
+def test_lists_use_three_columns_without_splitting_at_twelve():
     pytest.importorskip("pixie")
     backend = ContestBackend()
     model = {
@@ -322,15 +321,43 @@ def test_desktop_lists_prefer_columns_and_do_not_split_at_twelve():
         "items": [asdict(replace(SAMPLE, key=f"cf:{i}")) for i in range(17)],
     }
     pages = backend.render_pages(model)
-    from framework.views.layout import aspect_error
+    from framework.views.contests import COLUMN, GAP, MARGIN
 
-    assert len(pages) == 1 and pages[0].width >= 2552 and pages[0].height <= MAX_HEIGHT
-    assert aspect_error(pages[0].width, pages[0].height) < 0.25
-    width, height, *_ = backend.layout({**model, "items": model["items"][:4]})
-    assert width > 920 and width > height  # four contests no longer form a tall narrow sheet
+    assert len(pages) == 1 and pages[0].height <= MAX_HEIGHT
+    assert pages[0].width == 2 * MARGIN + 3 * COLUMN + 2 * GAP
+    width, _, *_ = backend.layout({**model, "items": model["items"][:4]})
+    assert width == 2 * MARGIN + COLUMN
 
 
-def test_detail_layout_long_fields_stay_inside_landscape_card():
+@pytest.mark.parametrize("count,columns", [(1, 1), (5, 1), (6, 2), (12, 2), (13, 3)])
+def test_contest_column_count_follows_original_phase_thresholds(count, columns):
+    pytest.importorskip("pixie")
+    from framework.views.contests import COLUMN, GAP, MARGIN
+
+    model = {"title": "比赛", "now": NOW, "items": [asdict(SAMPLE)] * count}
+    width, *_ = ContestBackend().layout(model)
+    assert width == 2 * MARGIN + columns * COLUMN + (columns - 1) * GAP
+
+
+def test_contest_phases_stack_and_use_largest_group_not_total_count():
+    pytest.importorskip("pixie")
+    from framework.views.contests import COLUMN, MARGIN
+
+    items = [
+        asdict(replace(SAMPLE, start=start, duration=3600))
+        for start in (NOW - 7200, NOW - 60, NOW + 3600)
+        for _ in range(5)
+    ]
+    width, _, blocks, *_ = ContestBackend().layout({"title": "比赛", "now": NOW, "items": items})
+    assert width == 2 * MARGIN + COLUMN
+    from framework.contests import PHASES
+
+    headings = [(block.content, y) for block, _, y in blocks if block.content in PHASES.values()]
+    assert [label for label, _ in headings] == list(PHASES.values())
+    assert [y for _, y in headings] == sorted(y for _, y in headings)
+
+
+def test_detail_layout_long_fields_stay_inside_fixed_width_card():
     pytest.importorskip("pixie")
     backend = ContestBackend()
     contest = replace(SAMPLE, name="跨平台竞赛 " * 20, supplement="比赛说明 " * 30, start=NOW - 60)
@@ -342,13 +369,26 @@ def test_detail_layout_long_fields_stay_inside_landscape_card():
         "warnings": ["牛客暂时无法获取。"],
     }
     width, height, blocks, bars, footer, bottom = backend.layout(model)
-    from framework.views.layout import aspect_error
-
-    assert aspect_error(width, height) < 0.15 and bottom + footer.height < height
+    assert width == 1472 and bottom + footer.height < height
     assert all(x + block.max_width <= width and y + block.height < bottom for block, x, y in blocks)
     assert len(bars) == 1 and 0 < bars[0][-1] < 1
     image = backend.render_pages(model)[0]
     assert image.data.startswith(b"\x89PNG") and image.height == height
+
+
+@pytest.mark.parametrize("width", [960, 1440])
+def test_detail_time_fields_stack_on_narrow_cards_and_align_on_wide_cards(width):
+    pytest.importorskip("pixie")
+    model = {"title": "比赛详情", "detail": True, "now": NOW, "items": [asdict(SAMPLE)]}
+    _, height, blocks, _, footer, bottom = ContestBackend()._detail_layout(model, width)
+    fields = {block.content: (x, y) for block, x, y in blocks}
+    start, end = fields["开始时间 · 北京时间"], fields["结束时间 · 北京时间"]
+    if width == 960:
+        assert start[0] == end[0] and start[1] < end[1]
+    else:
+        assert start[0] < end[0] and start[1] == end[1]
+    assert all(x + block.max_width <= width and y + block.height <= bottom for block, x, y in blocks)
+    assert bottom + footer.height < height
 
 
 def test_native_contest_commands():

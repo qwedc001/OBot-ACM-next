@@ -284,10 +284,8 @@ def test_complete_card_renders_avatar_and_sections_using_source_layout(tmp_path)
     rendered = backend.render(model)
     model["avatar"] = None
     without = backend.render(model)
-    assert rendered.data != without.data and rendered.width > 1472
-    from framework.views.layout import aspect_error
-
-    assert aspect_error(rendered.width, rendered.height) < 0.25
+    assert rendered.data != without.data and rendered.width < rendered.height
+    assert rendered.width == 1472
     path = tmp_path / "card.png"
     path.write_bytes(rendered.data)
     from PIL import Image

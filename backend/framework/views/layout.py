@@ -1,8 +1,10 @@
-"""Measured desktop layouts shared by OBot's own renderers, never third-party images."""
+"""Ordered column balancing from OBot-ACM's RenderableSection._split_columns.
 
-from math import log
+Views choose the column count; balancing preserves order without a ratio target.
+"""
 
-TARGET_RATIO = 4 / 3
+from collections.abc import Callable, Sequence
+
 MAX_EDGE = 8192
 MAX_PIXELS = 24_000_000
 
@@ -11,10 +13,31 @@ def fits(width: int, height: int) -> bool:
     return 0 < width <= MAX_EDGE and 0 < height <= MAX_EDGE and width * height <= MAX_PIXELS
 
 
-def aspect_error(width: int, height: int) -> float:
-    """Symmetric error: twice too wide and twice too tall have the same cost."""
-    return abs(log(width / height / TARGET_RATIO))
+def split_columns[T](
+    items: Sequence[T], count: int, height: Callable[[T], int], gap: int = 0
+) -> list[list[T]]:
+    """Partition into at most count contiguous columns with minimum max height."""
+    if not items:
+        return []
+    count = max(1, min(count, len(items)))
+    heights = [height(item) for item in items]
 
+    def pack(limit):
+        columns, used = [[]], 0
+        for item, size in zip(items, heights, strict=True):
+            needed = size + (gap if columns[-1] else 0)
+            if columns[-1] and used + needed > limit:
+                columns.append([])
+                used, needed = 0, size
+            columns[-1].append(item)
+            used += needed
+        return columns
 
-def max_columns(cell: int, gap: int, margin: int) -> int:
-    return (MAX_EDGE - margin * 2 + gap) // (cell + gap)
+    low, high = max(heights), sum(heights) + gap * (len(items) - 1)
+    while low < high:
+        middle = (low + high) // 2
+        if len(pack(middle)) <= count:
+            high = middle
+        else:
+            low = middle + 1
+    return pack(high)
