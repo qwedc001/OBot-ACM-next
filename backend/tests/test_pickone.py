@@ -164,6 +164,36 @@ def test_attachment_urls_only_come_from_trusted_native_qq_images():
     assert QQPlatform().image_attachments(event) == (urls[0], "https:" + urls[1])
 
 
+def test_attachment_diagnostics_classify_rejections_without_logging_private_data(monkeypatch):
+    from framework.integration.platforms import qq
+
+    records = []
+    monkeypatch.setattr(qq.logger, "info", lambda template, *args: records.append(template.format(*args)))
+    samples = [
+        ("image/png", "https://gchat.qpic.cn/private-path?key=private-signature", "accepted"),
+        ("image/png", "http://gchat.qpic.cn/private-path", "scheme"),
+        ("image/png", "https://private-host.test/private-path", "host"),
+        ("image/png", "https://private-user:YOUR_PASSWORD@gchat.qpic.cn/a", "userinfo"),
+        ("image/png", "https://gchat.qpic.cn:8443/a", "port"),
+        ("image/png", "https://gchat.qpic.cn:private-port/a", "invalid_url_or_port"),
+        ("private-mime", "https://gchat.qpic.cn/a", "non_image"),
+        ("image/png", "http://private-host.test:8080/a", "scheme,port,host"),
+    ]
+    event = SimpleNamespace(
+        attachments=[SimpleNamespace(content_type=mime, url=url) for mime, url, _ in samples]
+    )
+    assert qq.QQPlatform().image_attachments(event) == (samples[0][1],)
+    for record, (_, _, reason) in zip(records, samples, strict=False):
+        assert f"result={reason}" in record
+    assert len(records) == len(samples) + 1
+    assert records[-1] == "QQ upload attachments: total=8 accepted=1"
+    assert "private-" not in "\n".join(records)
+    assert "YOUR_PASSWORD" not in "\n".join(records)
+    assert "scheme=http domain=qpic.cn" in records[1]
+    assert qq.QQPlatform().image_attachments(SimpleNamespace()) == ()
+    assert records[-1] == "QQ upload attachments: total=0 accepted=0"
+
+
 def test_native_qq_dispatch():
     import os
     import subprocess

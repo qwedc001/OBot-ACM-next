@@ -11,6 +11,7 @@ from nonebot.adapters.qq.event import (
 )
 from nonebot.adapters.qq.models import GroupMentionUser
 from nonebot.adapters.qq.permission import GROUP_ADMIN, GROUP_OWNER, GUILD_ADMIN, GUILD_OWNER
+from nonebot.log import logger
 
 from ...contracts import ExternalIdentity, MentionedUser, SceneKind, SceneRef
 from ...messages import Image, Keyboard, Markdown, Message, SendTarget, Text
@@ -26,24 +27,46 @@ class QQPlatform(Platform):
 
     def image_attachments(self, event: Event) -> tuple[str, ...]:
         urls = []
-        for item in getattr(event, "attachments", None) or ():
+        attachments = getattr(event, "attachments", None) or ()
+        for index, item in enumerate(attachments, 1):
+            # Only fixed classifications reach logs: URLs can contain signed
+            # credentials, and even an untrusted hostname/MIME can contain data.
             if not (item.content_type or "").startswith("image/"):
+                logger.info("QQ upload attachment: index={} result=non_image", index)
                 continue
             url = "https:" + item.url if item.url.startswith("//") else item.url
             try:
                 parts = urlsplit(url)
                 port = parts.port
             except ValueError:
+                logger.info("QQ upload attachment: index={} result=invalid_url_or_port", index)
                 continue
             host = parts.hostname or ""
-            if (
-                parts.scheme == "https"
-                and not parts.username
-                and not parts.password
-                and port in {None, 443}
-                and any(host == domain or host.endswith("." + domain) for domain in ("qpic.cn", "qq.com"))
-            ):
+            domain = next(
+                (domain for domain in ("qpic.cn", "qq.com") if host == domain or host.endswith("." + domain)),
+                "other" if host else "missing",
+            )
+            reasons = [
+                reason
+                for rejected, reason in (
+                    (parts.scheme != "https", "scheme"),
+                    (bool(parts.username or parts.password), "userinfo"),
+                    (port not in {None, 443}, "port"),
+                    (domain in {"other", "missing"}, "host"),
+                )
+                if rejected
+            ]
+            logger.info(
+                "QQ upload attachment: index={} type=image scheme={} domain={} port={} result={}",
+                index,
+                parts.scheme if parts.scheme in {"http", "https"} else "other",
+                domain,
+                "default" if port is None else "443" if port == 443 else "other",
+                ",".join(reasons) or "accepted",
+            )
+            if not reasons:
                 urls.append(url)
+        logger.info("QQ upload attachments: total={} accepted={}", len(attachments), len(urls))
         return tuple(urls)
 
     def private_target(self, bot: Bot, identity: ExternalIdentity) -> SendTarget:
