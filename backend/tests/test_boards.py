@@ -292,6 +292,21 @@ async def test_starred_toggle_is_persistent_and_reuses_existing_snapshots(databa
     assert (await boards.choose(context())).options["show_unrated"] is True
 
 
+async def test_today_delegates_live_collection_to_cli_with_yesterday_baseline(database, tmp_path):
+    boards = service(database, tmp_path)
+    await bind(boards)
+    await boards.image(context(), "now", verdict="WA")
+    model = boards.peeper.render.await_args.args[1]
+    yesterday = (datetime.now(ZoneInfo("Asia/Shanghai")).date() - timedelta(days=1)).isoformat()
+    assert [snapshot["day"] for snapshot in model["snapshots"]] == [yesterday]
+    assert boards.hydro.daily.await_count == 1
+    assert boards.hydro.daily.await_args.args[2] == yesterday
+    assert model["verdict"] == "WA" and model["host"] == "https://oj.example.com/d/team/"
+    assert model["credentials"] == {"uname": "test-admin", "password": "test-secret"}
+    await boards.image(context(), "full")
+    assert "credentials" not in boards.peeper.render.await_args.args[1]
+
+
 async def test_starred_changes_only_selected_scope_and_requires_group_management(database, tmp_path):
     boards = service(database, tmp_path)
     await bind(boards)

@@ -347,7 +347,10 @@ class BoardService(Service):
         if verdict not in ALIASES:
             raise BoardError("评测类型可选：" + "、".join(ALIASES))
         historical = target < (now.date() - timedelta(days=1)).isoformat()
-        snapshots = [await self.snapshot(config, target, historical=historical)]
+        # --now owns today's login/collection. Seed yesterday's cache so the
+        # official CLI can calculate ranks without re-fetching a fixed baseline.
+        baseline = (now.date() - timedelta(days=1)).isoformat() if mode == "now" else target
+        snapshots = [await self.snapshot(config, baseline, historical=historical)]
         if mode == "full":
             next_day = (datetime.fromisoformat(target).date() + timedelta(days=1)).isoformat()
             snapshots.append(await self.snapshot(config, next_day, historical=historical))
@@ -355,11 +358,18 @@ class BoardService(Service):
             "name": config.name,
             "mode": mode,
             "day": target,
-            "verdict": ALIASES[verdict],
+            "verdict": verdict,
             "snapshots": snapshots,
             "timezone": self.settings.obot_board_timezone,
             "show_unrated": config.options.get("show_unrated", True),
         }
+        if mode == "now":
+            model.update(
+                host=config.host,
+                credentials=await self.credentials.decrypt(config.credentials),
+                exclude_uid=config.options.get("exclude_uid", []),
+                exclude_before=config.options.get("exclude_before", "1970-01-01"),
+            )
         return await self.peeper.render(actor, model)
 
     async def user(self, context, kind, value, name=None):

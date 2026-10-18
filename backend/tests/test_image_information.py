@@ -1,14 +1,12 @@
 """Information areas remain visible on light/dark cards and Peeper output."""
 
 from importlib import import_module
-from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
 from framework import __version__
-from framework.integration.peeper_worker import add_information_section
+from framework.integration.image_footer_worker import append_footer
 from framework.views.footer import COPYRIGHT, PROJECT_URL, CardFooter
 from framework.views.help import HelpPixieBackend
 from framework.views.profile import ProfilePixieBackend
@@ -76,29 +74,35 @@ def test_profile_keeps_information_below_all_content():
     assert final[3] + final[1].height < image.height - 32
 
 
-def test_peeper_adapter_preserves_upstream_credit_and_uses_measured_bottom(monkeypatch):
-    pixie = pytest.importorskip("pixie")
+def test_external_png_keeps_every_original_pixel_and_appends_information(tmp_path):
+    pytest.importorskip("pixie")
     from easy_pixie import draw_text
+    from PIL import Image, ImageChops
 
-    monkeypatch.syspath_prepend(
-        str(Path(__file__).resolve().parents[2] / "third-party/peeper-board-generator")
-    )
-    # Upstream returns a point before its final lines. This used to make a naive
-    # wrapper overwrite credits; our extension starts after the measured area.
-    original = SimpleNamespace(get_columns=lambda: 1, get_height=lambda: 280, render=Mock(return_value=40))
-    generator = SimpleNamespace(
-        section_copyright=original, _gradient_color=SimpleNamespace(name="#187 Decent")
-    )
-    add_information_section(generator)
-    wrapped = generator.section_copyright
-    height = wrapped.get_height()
-    image = pixie.Image(1312, height + 64)
+    source, target = tmp_path / "source.png", tmp_path / "output.png"
+    original = Image.new("RGB", (1312, 500), "#556677")
+    original.save(source)
     with patch("easy_pixie.draw_text", wraps=draw_text) as drawing:
-        bottom = wrapped.render(image, 96, 32)
-    original.render.assert_called_once_with(image, 96, 32)
-    assert bottom == 32 + height and wrapped.get_columns() == 1
-    assert drawing.call_args_list[0].args[3] >= 32 + 280 + 64
+        append_footer(source, target)
+    with Image.open(target) as result:
+        assert result.height > 500 and result.width == 1312
+        assert (
+            ImageChops.difference(original, result.crop((0, 0, 1312, 500)).convert("RGB")).getbbox() is None
+        )
     assert PROJECT_URL in [call.args[1].content for call in drawing.call_args_list]
+    assert min(call.args[3] for call in drawing.call_args_list) > 500
+
+
+def test_external_png_size_guard_runs_before_native_decode(tmp_path, monkeypatch):
+    from PIL import Image
+
+    import framework.integration.image_footer_worker as worker
+
+    source = tmp_path / "source.png"
+    Image.new("RGB", (128, 128)).save(source)
+    monkeypatch.setattr(worker, "MAX_RENDER_PIXELS", 1000)
+    with pytest.raises(ValueError, match="oversized"):
+        append_footer(source, tmp_path / "output.png")
 
 
 def test_help_parameter_notation_matches_current_metadata_and_wraps():
