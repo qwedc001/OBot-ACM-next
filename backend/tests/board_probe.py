@@ -155,7 +155,9 @@ async def main():
                         "/board today a b",
                         "/board push invalid",
                     ):
-                        assert "参数格式" in str((await request(malformed))[0])
+                        response = await request(malformed)
+                        assert len(response) == 1 and "指令匹配失败 /board" in str(response[0])
+                        assert "用法：" in str(response[0])
                     assert image.await_count == before
                 with patch.object(services.boards, "user", AsyncMock(return_value="profile")) as user:
                     assert "profile" in str((await request('/board user name "Alice Smith" privateOJ'))[0])

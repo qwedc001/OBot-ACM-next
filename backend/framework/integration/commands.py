@@ -6,6 +6,7 @@ from nonebot.matcher import Matcher
 from nonebot.rule import Rule
 
 from ..catalog import CommandSpec, MatchMode, catalog
+from ..responses import command_failure
 from .command_context import _SPEC
 from .platforms import supports_bot
 
@@ -69,10 +70,12 @@ def template_command(spec: CommandSpec, *patterns, compact_aliases=(), **kwargs)
         matcher.shortcut(alias, prefix=True, compact=alias in compact_aliases)
 
     @matcher.handle()
-    async def invalid_arguments(result: CommandResult, reply: Reply):
+    async def invalid_arguments(event: Event, result: CommandResult, reply: Reply):
         if not result.result.matched:
             await reply.finish(
-                "未知子指令或参数格式不正确，请使用以下用法。\n" + spec.display_usage(catalog.separator)
+                command_failure(event.get_plaintext())
+                + "\n用法："
+                + spec.expand_example(spec.display_usage(catalog.separator), catalog.separator)
             )
 
     return matcher

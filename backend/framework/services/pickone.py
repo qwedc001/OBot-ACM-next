@@ -133,6 +133,7 @@ class PickOneService(Service):
             raise chat.StoreError(
                 f"准备上传到{display['label']}，但未识别到图片。\n"
                 f"请将图片和 /添加 {display['command_key']} 放在同一条消息中。"
+                "\n移动端可长按编辑框进入全屏输入模式以附加图片喵"
             )
         if len(urls) > 4:
             raise chat.StoreError(f"{display['label']}：每次最多上传 4 张图片，请分批发送。")

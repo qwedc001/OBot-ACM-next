@@ -9,6 +9,7 @@ from framework.views.help import HelpPixieBackend
 
 from ..clients.renderer import RenderClient
 from ..messages import Image, Message, Text
+from ..responses import command_failure
 from .base import Service
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ class HelpService(Service):
             suggestions.append(f"{prefix}{display} — {spec.summary}")
             if len(suggestions) == 3:
                 break
-        text = f"指令匹配失败 {prefix}{query}，请检查指令语法后重试。"
+        text = command_failure(prefix + query)
         if suggestions:
             text += "\n你可能想用：\n" + "\n".join(suggestions)
         return text + f"\n使用 {prefix}help 查看可用指令。"

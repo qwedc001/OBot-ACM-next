@@ -39,6 +39,8 @@ async def handle_board_bind(context: CommandContext, services: BotServices, repl
 
 参数默认值应同时体现在模板与 handler 签名里。枚举取值使用 `Literal`；带空格的名字用引号，如 `/board user name "Alice Smith" xxxOJ`。不将原始参数全文或解析异常直接回复、写日志，统一返回安全用法提示。模板匹配不能代替业务校验：日期合法性、配置存在性、管理范围等仍由 Service 验证。
 
+主指令未知、子指令未知和参数错误共用 `responses.command_failure` 的「指令匹配失败」提示，均只回显有长度限制的主指令名。已识别主指令时附该指令的正确用法，优先使用声明的示例别名（如 `/cf user 账号标识`）；未知主指令由兜底提供近似候选。参数错误不进入业务 handler，也不再触发第二条兜底回复。
+
 ## 职责与共享
 
 一个 handler 负责一个功能，只获取已解析的参数、调用 Service/Client、显式 await 发送和结束。允许提取公共流程，比如图片生成进度与发送、帮助消息发送、已知业务错误处理；公共函数不重新检查 action 字符串或选择功能，也不自动发送 handler 返回值。

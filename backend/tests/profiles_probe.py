@@ -100,6 +100,16 @@ async def main():
                     detail = await request("/help text cf", role)
                     assert "示例：/cf user tourist" in detail
                     assert "board" not in detail
+                    for invocation in ("/cf", "!cf", "/codeforces", f"/cp{separator}cf"):
+                        for suffix in (" inf", " user", " user example extra"):
+                            before = query.await_count
+                            failure = await request(invocation + suffix, role)
+                            assert f"指令匹配失败 {invocation}，请检查指令语法后重试。" in failure
+                            assert "用法：/cf user 账号标识" in failure
+                            assert "example" not in failure and query.await_count == before
+                    unknown = await request("/hel", role)
+                    assert "指令匹配失败 /hel，请检查指令语法后重试。" in unknown
+                    assert "/help —" in unknown
                 assert services.telemetry.counts.get("failed", 0) == 0
                 print(json.dumps({"ok": True, "everyone": True, "aliases": True, "help": True}))
         finally:

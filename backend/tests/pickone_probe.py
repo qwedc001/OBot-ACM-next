@@ -173,6 +173,7 @@ async def main():
                             missing = await request(command, "member")
                             assert "本群图库「本群图片」" in missing and "未识别到图片" in missing
                             assert "/添加 local" in missing
+                            assert "移动端可长按编辑框进入全屏输入模式以附加图片喵" in missing
                             uploaded = await request(command, "member", attachments=attachment)
                             assert "本群图库「本群图片」" in uploaded and "重复 1" in uploaded
                 for alias in ("来只", "预览", "预览来只"):

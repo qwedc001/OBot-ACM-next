@@ -1,4 +1,11 @@
-"""Optional text pagination, independent of adapters and message delivery."""
+"""Shared response text and pagination, independent of adapters and delivery."""
+
+
+def command_failure(text: str) -> str:
+    """Identify the failed command without echoing arbitrary arguments."""
+    parts = text.split(maxsplit=1)
+    command = "".join(char for char in (parts[0] if parts else "") if char.isprintable())[:80]
+    return f"指令匹配失败 {command}，请检查指令语法后重试。"
 
 
 def text_chunks(text: str, limit: int = 1500) -> tuple[str, ...]:
