@@ -51,9 +51,11 @@ HTTP Client 不知道指令与 matcher。RenderClient 只接收 Actor、view 与
 
 ## 异步与并发
 
-`async def` 本身不能消除同步阻塞。HTTP 使用复用的 `httpx.AsyncClient`，数据库直接使用 ORM 异步会话；JSON 解析、文件读写、摘要计算和 Pixie 绘制交给工作线程。纯内存注册和配置方法保持同步。Plugin 不应直接调用 requests、同步磁盘读取或 Pixie；已有同步业务库必须在 Client 边界转入线程，需要硬性终止的工作改用子进程。
+`async def` 本身不能消除同步阻塞。HTTP 使用复用的 `httpx.AsyncClient`，数据库直接使用 ORM 异步会话；JSON 解析、文件读写和摘要计算交给工作线程，Pixie 绘制使用独立子进程。纯内存注册和配置方法保持同步。Plugin 不应直接调用 requests、同步磁盘读取或 Pixie；已有同步业务库必须在 Client 边界转入线程，需要硬性终止的工作改用子进程。
 
-JobQueue 限制 worker 数、排队容量和任务耗时，同 key 保序，不同 key 可以并行；简单维护指令直接执行，不进入绘图队列。Pixie 在线程内加锁，取消等待无法停止原生绘制，但不会使下一次绘制与尚未结束的调用重叠。它是通用执行 Client，不包装定时调度器。
+JobQueue 默认允许 4 个后台任务同时执行，可用 `OBOT_JOB_WORKERS=8` 调整；这不是整个机器人的请求数上限。同 key 保序，不同 key 可以并行；简单维护指令直接执行，不进入绘图队列。RenderClient 每个任务启动一个干净的 Python 子进程，使用私有临时文件传递模型和 PNG，不共享 Pixie 字体／图像对象。超时、调用者取消和关闭时先终止并回收绘图进程，再释放队列位置。Peeper 也使用独立 CLI 工作目录，无全局绘图串行 key。队列仍保留容量、超时与 OCR 等必要的同 key 限制，不包装定时调度器。
+
+绘制 backend 必须是可导入、可序列化的模块级对象；运行时不传递闭包、数据库会话、凭据或原生绘图对象。内部 pickle 只读取当前任务自己创建的私有文件，不接受用户上传。详细链路与线程／进程实测见 [并发设计与实验](concurrency.md)。
 
 HttpClient 按 origin 限制并发，GET/HEAD 暂时性错误有限重试，POST 不自动重试；错误不包含查询参数、响应正文或凭据。后续各平台 Client 在此之上提供领域数据与缓存。
 
