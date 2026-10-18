@@ -19,14 +19,22 @@ from framework.responses import text_chunks
 __plugin_meta__ = PluginMetadata(
     name="PickOne",
     description="随机表情包、预览、上传与互动",
-    usage="/来只 /预览来只 /添加来只",
+    usage="/来只 [类别] [关键词]；/预览来只 [类别] [图片ID前缀]；/添加来只 <类别>",
     type="application",
 )
 catalog.register_directory(CommandDirectory(("fun", "pickone"), "PickOne 表情包"))
 
 
 def command(
-    name, summary, aliases, *args, usage="", permission=Role.EVERYONE, compact_aliases=(), priority=10
+    name,
+    summary,
+    aliases,
+    *args,
+    usage="",
+    examples=(),
+    permission=Role.EVERYONE,
+    compact_aliases=(),
+    priority=10,
 ):
     return template_command(
         CommandSpec(
@@ -38,7 +46,7 @@ def command(
             aliases=aliases,
             example_alias=aliases[0],
             usage=f"/{name} {usage}".strip(),
-            examples=(f"/{name} {usage}".strip(),),
+            examples=examples or ((f"/{name}",) if not usage else ()),
             permission=permission,
             scopes=frozenset({SceneKind.GROUP}) if permission == Role.GROUP_ADMIN else frozenset(SceneKind),
         ),
@@ -51,37 +59,41 @@ def command(
 
 take = command(
     "take",
-    "按类别随机取图，可用描述搜索",
+    "按类别随机取图，可用关键词搜索图片描述",
     ("来只", "pickone"),
     Args["category", str, None]["query", MultiVar(str), ()],
-    usage="[类别] [文字]",
+    usage="[类别] [关键词]",
+    examples=("/take", "/take capoo 开心"),
     compact_aliases=("来只",),
 )
 preview = command(
     "preview",
-    "预览八张图片，附 ID 前缀可取原图",
+    "预览八张图片，指定图片 ID 前缀可获取原图",
     ("预览来只", "预览", "preview"),
     Args["category", str, None]["prefix", str, None],
-    usage="[类别] [ID前缀]",
+    usage="[类别] [图片ID前缀]",
+    examples=("/preview capoo",),
     compact_aliases=("预览来只", "预览"),
 )
 random = command("random", "从有图片的类别随机取图", ("随机来只", "随便来只"))
-capoo = command("capoo", "取一只咖波", ("capoo", "咖波"))
+capoo = command("capoo", "随机获取咖波图片", ("capoo", "咖波"))
 upload = command(
     "add",
-    "上传图片，普通用户进入 Dashboard 审核队列",
+    "上传图片，需与指令同条发送；普通用户上传需审核",
     ("添加来只", "添加"),
     Args["category", str],
-    usage="<类别>（附图片）",
+    usage="<类别>",
+    examples=("/add capoo",),
     compact_aliases=("添加来只", "添加"),
 )
 like = command("like", "点赞本会话一天内最后发出的图片", ("点赞", "喜欢", "爱", "love", "like"))
 like_id = command(
     "like-id",
-    "按类别和 ID 前缀点赞",
+    "点赞指定图片",
     ("点赞来只", "喜欢来只", "爱来只"),
     Args["category", str]["prefix", str],
-    usage="<类别> <ID前缀>",
+    usage="<类别> <图片ID前缀>",
+    examples=("/like-id capoo abc123",),
     compact_aliases=("点赞来只", "喜欢来只", "爱来只"),
 )
 comment = command(
@@ -90,21 +102,23 @@ comment = command(
     ("评论", "回复", "comment", "say", "reply"),
     Args["content", MultiVar(str)],
     usage="<内容>",
+    examples=("/comment 好可爱",),
     compact_aliases=("评论", "回复"),
 )
 comment_id = command(
     "comment-id",
-    "按类别和 ID 前缀评论",
+    "评论指定图片",
     ("评论来只", "回复来只"),
     Args["category", str]["prefix", str]["content", MultiVar(str)],
-    usage="<类别> <ID前缀> <内容>",
+    usage="<类别> <图片ID前缀> <内容>",
+    examples=("/comment-id capoo abc123 好可爱",),
     compact_aliases=("评论来只", "回复来只"),
     # This longer command must win over /评论<内容>, including malformed args.
     priority=9,
 )
 audit = command(
     "audit",
-    "通过待审核图片（可先在 Dashboard 检查）",
+    "批量通过待审核图片，可先在网页检查",
     ("审核来只", "同意来只", "accept", "audit", "ac"),
     permission=Role.SUPERUSER,
 )
@@ -114,11 +128,12 @@ group_create = command(
     ("建图库",),
     Args["key", str]["title", str],
     usage="<英文标识> <名称>",
+    examples=("/create cat 猫咪",),
     permission=Role.GROUP_ADMIN,
 )
 group_audit = command(
     "group-audit",
-    "通过本群图库的待审核图片",
+    "批量通过本群图库的待审核图片",
     ("审核群图库",),
     permission=Role.GROUP_ADMIN,
 )

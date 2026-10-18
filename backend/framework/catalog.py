@@ -296,6 +296,7 @@ class CommandCatalog:
         sections = [
             model["title"],
             f"当前可用 {model['count']} 条指令。使用 /help 模块名 或 /help 指令 查看详情，/help text 查看文字。",
+            "参数：<必填>，[可选]，a|b 表示任选其一",
         ]
         for group in model["groups"]:
             sections.append(f"{group['name']} — {group['summary']}")

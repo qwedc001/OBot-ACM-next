@@ -12,7 +12,7 @@ from framework.messages import Image
 __plugin_meta__ = PluginMetadata(
     name="竞赛账号",
     description="Codeforces、AtCoder 与牛客公开资料卡",
-    usage="/cf user handle；/atc user handle；/nk user uid",
+    usage="/cf user <账号标识>；/atc user <账号标识>；/nk user <账号标识>",
     type="application",
     supported_adapters=None,
 )
@@ -25,8 +25,8 @@ def profile_command(name, label, aliases, example):
         name=name,
         aliases=aliases,
         example_alias=aliases[0],
-        summary=f"查询 {label} 公开账号资料卡",
-        usage=f"/{name} user 账号标识",
+        summary=f"查询公开账号资料卡（{label}）",
+        usage=f"/{name} user <账号标识>",
         examples=(f"/{name} user {example}",),
     )
     matcher = template_command(

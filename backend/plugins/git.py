@@ -19,7 +19,7 @@ from framework.services.updates import report_pages
 __plugin_meta__ = PluginMetadata(
     name="代码更新",
     description="超管通过独立守护进程更新和重启机器人",
-    usage="/git /update",
+    usage="/git [status|fetch|log|pull|restart|plog]；/update [子指令] [分支名]",
     type="application",
 )
 
@@ -28,9 +28,10 @@ git = template_command(
         "git.manage",
         "git",
         "git",
-        "查看、拉取代码并重启，失败自动回滚",
+        "查看代码与运行状态，更新或重启机器人",
         directory=(),
         permission=Role.SUPERUSER,
+        usage="/git [status|fetch|log|pull|restart|plog]",
         examples=("/git status", "/git pull", "/git plog"),
     ),
     *(Subcommand(name) for name in ("status", "fetch", "log", "pull", "restart", "plog")),
@@ -45,6 +46,7 @@ update = template_command(
         "更新稳定版、测试分支或恢复测试前备份",
         directory=(),
         permission=Role.SUPERUSER,
+        usage="/update [子指令] [分支名]",
         examples=("/update", "/update test codex/feature", "/update restore"),
     ),
     Subcommand("test", Args["branch", str]),
@@ -65,7 +67,16 @@ async def inspect(context, services, reply, action):
 @git.assign("$main")
 async def handle_git_help(reply: Reply):
     await reply.finish(
-        "/git status 查看运行版本\n/git fetch 检查远端\n/git log 查看提交\n/git pull 或 /update 更新稳定版\n/update test <分支名> 测试分支\n/update restore 恢复测试前代码与数据\n/git restart 重启\n/git plog 上次更新报告"
+        "代码更新\n"
+        "参数：<必填>，[可选]，a|b 表示任选其一\n"
+        "/git status — 查看运行版本\n"
+        "/git fetch — 检查远端版本\n"
+        "/git log — 查看提交记录\n"
+        "/git pull — 更新稳定版，与 /update 相同\n"
+        "/update test <分支名> — 部署测试分支\n"
+        "/update restore — 恢复测试前的代码与数据\n"
+        "/git restart — 重启机器人\n"
+        "/git plog — 查看上次更新报告"
     )
 
 

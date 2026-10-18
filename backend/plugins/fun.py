@@ -11,7 +11,7 @@ from framework.responses import text_chunks
 __plugin_meta__ = PluginMetadata(
     name="趣味工具",
     description="一言与日常趣味工具",
-    usage="/hitokoto /一言 /来一句",
+    usage="/hitokoto",
     type="application",
     supported_adapters=None,
 )
@@ -23,7 +23,7 @@ hitokoto = command(
         id="fun.hitokoto",
         plugin_id="fun",
         name="hitokoto",
-        summary="随机获取一句一言，附作者与出处",
+        summary="随机获取一言，附作者与出处",
         menu_label="随机一言",
         permission=Role.EVERYONE,
         aliases=("hitokoto", "一言", "来句", "来一句", "来句话", "来一句话"),

@@ -10,7 +10,7 @@ from framework.integration.platforms import get_platform
 __plugin_meta__ = PluginMetadata(
     name="维护与诊断",
     description="公开身份查询，以及机器人管理员的连通检查与运行状态",
-    usage="/help maintenance /ping /whoami /whoisthis @某人 /status",
+    usage="/ping；/whoami；/whoisthis [@用户]；/status",
     type="application",
     supported_adapters=None,
 )
@@ -69,11 +69,11 @@ lookup_identity = command(
         name="whoisthis",
         aliases=("whoisthis",),
         example_alias="whoisthis",
-        summary="查看提及或引用用户的主体，便于登记管理员身份",
+        summary="查看目标用户的身份，需 @一位用户或引用其消息",
         permission=Role.SUPERUSER,
         scopes=frozenset({SceneKind.GROUP, SceneKind.CHANNEL}),
-        usage="/whoisthis @某人；或引用目标用户的消息发送 /whoisthis",
-        examples=("/whoisthis @某人", "引用目标消息后发送 /whoisthis"),
+        usage="/whoisthis [@用户]",
+        examples=("/whoisthis",),
     ),
     priority=10,
     block=True,
