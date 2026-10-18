@@ -147,7 +147,12 @@ async def test_admin_data_catalogue_registry_and_live_revocation(web, database):
     assert (await client.get("/api/plugins/runtime")).status_code == 401
     await login(services, client)
     assert (await client.get("/api/plugins/runtime")).status_code == 403
-    assert {p["slug"] for p in (await client.get("/api/plugins")).json()["plugins"]} == {"board", "commands"}
+    assert {p["slug"] for p in (await client.get("/api/plugins")).json()["plugins"]} == {
+        "board",
+        "commands",
+        "pickone",
+        "contestlist",
+    }
     assert [c["id"] for c in (await client.get("/api/plugins/commands")).json()["commands"]] == ["help"]
     await login(services, client, ROOT)
     result = await client.get("/api/plugins/runtime")
@@ -281,4 +286,11 @@ def test_public_origin_only_https_or_local_development(value, allowed):
 
 
 def test_web_plugins_are_discovered_without_manual_registration():
-    assert {plugin.slug for plugin in discover_plugins()} == {"board", "commands", "runtime"}
+    assert {plugin.slug for plugin in discover_plugins()} == {
+        "board",
+        "commands",
+        "runtime",
+        "pickone",
+        "contestlist",
+        "curation",
+    }

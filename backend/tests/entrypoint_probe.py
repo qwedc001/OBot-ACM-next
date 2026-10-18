@@ -43,7 +43,7 @@ async def main():
         from sqlalchemy.util import greenlet_spawn
 
         from framework.migrate import upgrade
-        from framework.models import User
+        from framework.models import ContentSubmission, User
 
         async with services.session_factory() as session:
             engine = session.bind
@@ -77,7 +77,8 @@ async def main():
                 assert len(list(await session.scalars(select(User)))) == 1
                 assert (
                     await session.execute(text("SELECT version_num FROM alembic_version"))
-                ).scalar_one() == "0005"
+                ).scalar_one() == "0006"
+                assert not list(await session.scalars(select(ContentSubmission)))
         finally:
             await driver._lifespan.shutdown()
             await engine.dispose()

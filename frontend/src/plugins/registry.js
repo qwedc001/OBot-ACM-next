@@ -12,7 +12,7 @@ export const pluginRoutes = plugins.flatMap((plugin) =>
     meta: {
       ...route.meta,
       plugin: plugin.manifest.slug,
-      admin: plugin.manifest.superuser ?? false,
+      admin: Boolean(plugin.manifest.superuser || route.meta?.admin),
     },
   })),
 );

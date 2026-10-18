@@ -179,7 +179,9 @@ test("personal board settings and real image rendering share the existing servic
     .filter({
       has: page.getByRole("heading", { name: "demo-oj", exact: true }),
     })
-    .getByRole("button", { name: "今日榜单" })
+    // --now collects from the live OJ. Cached yesterday data keeps this fixture offline
+    // while still executing the real third-party CLI renderer and artifact service.
+    .getByRole("button", { name: "昨日榜单" })
     .click();
   const image = page.getByRole("img", { name: "训练榜单图片" });
   await expect(image).toBeVisible({ timeout: 50000 });
@@ -292,7 +294,7 @@ test("group admin verification unlocks only the configured group and demotion re
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByText(/排除 2 个 UID/)).toBeVisible();
   await expect(page.locator(".group-check")).toHaveCount(0);
-  await page.getByRole("button", { name: "今日榜单", exact: true }).click();
+  await page.getByRole("button", { name: "昨日榜单", exact: true }).click();
   await expect(page.getByRole("img", { name: "训练榜单图片" })).toBeVisible({
     timeout: 50000,
   });

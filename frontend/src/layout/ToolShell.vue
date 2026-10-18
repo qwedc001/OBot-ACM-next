@@ -20,6 +20,12 @@ const available = computed(() =>
   ),
 );
 const active = computed(() => currentPlugin(route.path));
+const localNavigation = computed(() =>
+  [
+    ...(active.value?.manifest.nav ?? []),
+    ...(session.isAdmin.value ? (active.value?.manifest.adminNav ?? []) : []),
+  ].flatMap((item) => item.children ?? [item]),
+);
 onMounted(async () => {
   try {
     const [meta, registry] = await Promise.all([api.meta(), api.plugins()]);
@@ -72,6 +78,19 @@ async function logout() {
       :to="plugin.manifest.home"
       :class="{ active: active?.manifest.slug === plugin.manifest.slug }"
       >{{ plugin.manifest.name }}</router-link
+    >
+  </nav>
+  <nav
+    v-if="localNavigation.length"
+    class="shell-nav shell-subnav"
+    aria-label="当前工具导航"
+  >
+    <router-link
+      v-for="item in localNavigation"
+      :key="item.path"
+      :to="item.path"
+      :class="{ active: route.path === item.path }"
+      >{{ item.label }}</router-link
     >
   </nav>
   <main><router-view /></main>

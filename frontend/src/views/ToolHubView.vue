@@ -5,6 +5,9 @@ import {
   Histogram,
   Notebook,
   DataLine,
+  Grid,
+  Calendar,
+  Tickets,
 } from "@element-plus/icons-vue";
 import { plugins } from "@/plugins/registry";
 import { permitted } from "@/plugins/registry-core";
@@ -12,7 +15,14 @@ import { session } from "@/stores/session";
 const available = computed(() =>
   permitted(plugins, session.isAdmin.value, session.state.user?.tools),
 );
-const icons = { board: Histogram, commands: Notebook, runtime: DataLine };
+const icons = {
+  board: Histogram,
+  commands: Notebook,
+  runtime: DataLine,
+  pickone: Grid,
+  contestlist: Calendar,
+  curation: Tickets,
+};
 </script>
 <template>
   <div class="ep-page hub-page">
@@ -26,7 +36,13 @@ const icons = { board: Histogram, commands: Notebook, runtime: DataLine };
               : "个人工作台"
         }}
       </h1>
-      <p>查看训练榜单、调整显示设置，或查找机器人指令。</p>
+      <p>
+        {{
+          session.state.user?.role === "group_admin"
+            ? "查看本群训练榜单，调整榜单设置。"
+            : "查看训练榜单、维护表情包和比赛信息，或查找机器人指令。"
+        }}
+      </p>
     </section>
     <section class="tool-section">
       <div class="section-heading">

@@ -1,6 +1,6 @@
 # 网页工作台
 
-工作台沿用 [OBot-EP](https://github.com/Floating-Ocean/OBot-EP) 的 Vue 3、Element Plus、插件清单与主题体系，与机器人共享 Service、账号和数据库。当前提供个人与群榜单、可用指令目录及超管运行状态。PickOne、比赛列表等工具随对应业务迁移后再接入。
+工作台沿用 [OBot-EP](https://github.com/Floating-Ocean/OBot-EP) 的 Vue 3、Element Plus、插件清单与主题体系，与机器人共享 Service、账号和数据库。当前提供个人与群榜单、可用指令目录、超管运行状态，以及 PickOne、手动比赛列表的提交、审核与应用。内容模块说明见 [内容管理](curation.md)。
 
 ## 目录与启动
 
