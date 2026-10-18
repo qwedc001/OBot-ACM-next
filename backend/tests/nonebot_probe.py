@@ -279,9 +279,11 @@ async def main():
                 _, alternate_start = await request("!ping", user="native-config-root")
                 assert alternate_start == "pong"
                 before = len(replies)
-                for text in ("hello", "/pingpong", f"/probe{separator}manage return"):
+                for text in ("hello", f"/probe{separator}manage return"):
                     await handle_event(bot, event(text, user="native-config-root"))
                 assert len(replies) == before
+                _, unknown = await request("/pingpong", user="native-config-root")
+                assert "指令匹配失败 /pingpong" in unknown and "/ping" in unknown
 
                 waiting, release = asyncio.Event(), asyncio.Future()
 

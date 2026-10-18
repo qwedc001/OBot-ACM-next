@@ -124,7 +124,8 @@ async def main():
                         assert "synthetic" not in responses[1]["content"]
                     responses = await request("/debug markdown extra", group=group)
                     assert len(responses) == 1 and "未知" in responses[0]["content"]
-                    assert await request("/debugging", group=group) == []
+                    responses = await request("/debugging", group=group)
+                    assert len(responses) == 1 and "指令匹配失败 /debugging" in responses[0]["content"]
             assert services.telemetry.counts["delivery_failed"] == 4
             assert services.telemetry.counts.get("failed", 0) == 0
             print(

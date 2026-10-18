@@ -9,8 +9,9 @@ from nonebot.adapters import Bot, Event
 from nonebot.dependencies import Dependent
 from nonebot.log import logger
 from nonebot.matcher import Matcher, current_matcher
-from nonebot.message import run_postprocessor, run_preprocessor
+from nonebot.message import event_preprocessor, run_postprocessor, run_preprocessor
 from nonebot.params import Depends
+from nonebot.typing import T_State
 from nonebot.utils import flatten_exception_group
 
 from ..catalog import CommandSpec
@@ -23,6 +24,7 @@ from .platforms import make_context
 
 _STATE = "_framework_command_execution"
 _SPEC = "_framework_command_spec"
+COMMAND_MATCHES = "_framework_matched_commands"
 
 
 @dataclass
@@ -55,11 +57,19 @@ async def prepare(bot: Bot, event: Event, matcher: Matcher):
 _prepare_handler = Dependent.parse(call=prepare, allow_types=Matcher.HANDLER_PARAM_TYPES)
 
 
+@event_preprocessor
+async def track_commands(state: T_State):
+    # NoneBot shallow-copies event state for matchers. This event-local set lets
+    # the fallback also recognize successful non-blocking commands/continuations.
+    state[COMMAND_MATCHES] = set()
+
+
 @run_preprocessor
-async def attach_context(matcher: Matcher):
+async def attach_context(matcher: Matcher, state: T_State):
     # Session continuations created by pause/reject/got inherit native state.
     # Attach the same first handler each turn so identity/permissions stay current.
     if isinstance(matcher.state.get(_SPEC), CommandSpec):
+        state[COMMAND_MATCHES].add(matcher.state[_SPEC].id)
         matcher.remain_handlers.insert(0, _prepare_handler)
 
 

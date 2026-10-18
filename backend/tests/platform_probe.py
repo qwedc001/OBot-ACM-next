@@ -204,7 +204,8 @@ async def main():
             for group in (None, "room"):
                 for user in ("root", "member"):
                     for entry in ("/fun", "/maintenance", "/maintainence", "/probe"):
-                        await request(entry, user=user, group=group, expect_reply=False)
+                        _, unknown = await request(entry, user=user, group=group)
+                        assert "指令匹配失败" in unknown.extract_plain_text()
                 _, module = await request("/help text fun", group=group)
                 assert "/fun.hitokoto" in module.extract_plain_text()
             qq_user = await services.identities.resolve(

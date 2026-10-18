@@ -1,6 +1,6 @@
 import copy
 import struct
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from sqlalchemy import select
@@ -12,6 +12,7 @@ from framework.contracts import AccessDenied, Actor, RequestContext, Role, Scene
 from framework.models import ImageArtifact
 from framework.responses import text_chunks
 from framework.runtime import Services
+from framework.services.help import HelpService
 from framework.views.help import (
     COLUMN_GAP,
     CONTENT_WIDTH,
@@ -63,6 +64,38 @@ def help_catalog():
 
 def command_ids(model):
     return {command["id"] for group in model["groups"] for command in group["commands"]}
+
+
+async def test_unmatched_suggestions_filter_permissions_scopes_and_hidden_commands():
+    service = HelpService(help_catalog(), Mock())
+    normal = await service.unmatched(access(), "/", "stats")
+    assert "指令匹配失败 /stats，请检查指令语法后重试。" in normal
+    assert "/status" not in normal and "运行状态" not in normal
+    admin = await service.unmatched(access(Role.SUPERUSER), "!", "stats")
+    assert "!status — 运行状态" in admin
+    assert "私聊身份" not in await service.unmatched(access(), "/", "dm.identit")
+    assert "私聊身份" in await service.unmatched(access(scene=SceneKind.C2C), "/", "dm.identit")
+    assert "嵌套功能" not in await service.unmatched(access(), "/", "tools.nested.pin")
+    empty = HelpService(CommandCatalog(), Mock())
+    assert "你可能想用" not in await empty.unmatched(access(), "/", "unknown")
+
+
+async def test_unmatched_suggestions_are_bounded_and_deduplicate_aliases():
+    catalog = CommandCatalog()
+    for index in range(5):
+        catalog.register(
+            CommandSpec(
+                f"test.{index}",
+                "test",
+                f"ping{index}",
+                f"测试{index}",
+                aliases=(f"ping{index}", f"pang{index}"),
+            )
+        )
+    response = await HelpService(catalog, Mock()).unmatched(access(), "/", "ping")
+    suggestions = [line for line in response.splitlines() if " — " in line]
+    assert len(suggestions) == 3
+    assert len({line.split(" — ")[1] for line in suggestions}) == 3
 
 
 async def test_full_help_filters_roles_and_scenes():

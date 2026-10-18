@@ -49,6 +49,8 @@ Service 不接收整条指令字符串，不解析 `/help text` 或 `board bind`
 
 新增功能必须同步更新当前权限可见的用法、CommandSpec 示例与公开文档，并添加实际 Matcher 测试。测试至少覆盖独立 handler 分派、可选参数、缺失与多余参数、引号、别名、权限拒绝、共享流程的有序发送。不得重新启用自动目录命令、QQ 面板或菜单发布。
 
+帮助插件提供最后执行的原生 `on_message` 兜底（priority=1000）。仅处理发给机器人的、带非空配置前缀的未识别指令，返回「指令匹配失败 <指令>，请检查指令语法后重试。」并建议最多三个近似名称或别名；候选由同一权限检查过滤、按指令去重，不执行候选、不自动注册模块入口。普通聊天、未指向机器人的群消息不触发。回显只保留最多 80 字符的指令名，不回显参数。事件状态中的共享匹配集合记录已执行的框架 Matcher，因此非阻断指令或会话续接也不会误触发兜底；已有参数错误、权限拒绝、执行异常保持原来的反馈。
+
 ## 当前模块
 
 - board：bind、confirm、unbind、list、version、push.on、push.off、push.status、push.test、starred、today、yesterday、history、verdict、user.id、user.name 各有独立 handler。

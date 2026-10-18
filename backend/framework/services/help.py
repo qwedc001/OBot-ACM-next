@@ -1,8 +1,9 @@
 """Help defaults to images and uses the command's native permission checks."""
 
+import difflib
 import logging
 
-from framework.catalog import CommandCatalog
+from framework.catalog import CommandCatalog, MatchMode
 from framework.contracts import RequestContext
 from framework.views.help import HelpPixieBackend
 
@@ -23,6 +24,30 @@ class HelpService(Service):
     def __init__(self, catalog: CommandCatalog, renderer: RenderClient):
         self.catalog, self.renderer = catalog, renderer
         renderer.register("help", HelpPixieBackend())
+
+    async def unmatched(self, check, prefix, query):
+        # Match registered names/aliases only, never module names or commands the
+        # current actor cannot execute. Multiple aliases yield one suggestion.
+        commands = await self.catalog.visible(check)
+        choices = {
+            name.casefold(): (name, spec)
+            for spec in commands
+            if spec.mode != MatchMode.KEYWORD
+            for name in spec.invocation_names(self.catalog.separator)
+        }
+        seen, suggestions = set(), []
+        for name in difflib.get_close_matches(query.casefold(), choices, n=max(1, len(choices)), cutoff=0.5):
+            display, spec = choices[name]
+            if spec.id in seen:
+                continue
+            seen.add(spec.id)
+            suggestions.append(f"{prefix}{display} — {spec.summary}")
+            if len(suggestions) == 3:
+                break
+        text = f"指令匹配失败 {prefix}{query}，请检查指令语法后重试。"
+        if suggestions:
+            text += "\n你可能想用：\n" + "\n".join(suggestions)
+        return text + f"\n使用 {prefix}help 查看可用指令。"
 
     async def reply(
         self, context: RequestContext, query: str = "", *, draw: bool = True, image_available: bool = True

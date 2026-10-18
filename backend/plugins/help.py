@@ -1,13 +1,16 @@
 """Independent, permission-filtered help with explicit display templates."""
 
 from arclet.alconna import Args, Subcommand
-from nonebot.adapters import Bot
+from nonebot import get_driver, on_message
+from nonebot.adapters import Bot, Event
 from nonebot.plugin import PluginMetadata
+from nonebot.typing import T_State
 
 from framework.catalog import CommandSpec
 from framework.contracts import Role
-from framework.integration.command_context import BotServices, CommandContext, Reply
-from framework.integration.commands import template_command
+from framework.integration.command_context import COMMAND_MATCHES, BotServices, CommandContext, Reply
+from framework.integration.commands import supported_message, template_command
+from framework.integration.permissions import command_check
 from framework.messages import Image
 from framework.responses import text_chunks
 
@@ -67,3 +70,28 @@ async def handle_help_render(
     bot: Bot, context: CommandContext, services: BotServices, reply: Reply, query: str = ""
 ):
     await send_help(bot, context, services, reply, query, True)
+
+
+async def unmatched_command(bot: Bot, event: Event, state: T_State) -> bool:
+    if not await supported_message(bot, event) or not event.is_tome() or state.get(COMMAND_MATCHES):
+        return False
+    text = event.get_plaintext().lstrip()
+    for prefix in sorted(get_driver().config.command_start, key=len, reverse=True):
+        # An empty configured prefix must not turn normal chat into errors.
+        if prefix and text.startswith(prefix):
+            # Echo only a bounded command token, not arbitrary arguments.
+            head = text[len(prefix) :].split(maxsplit=1)
+            query = "".join(char for char in (head[0] if head else "") if char.isprintable())[:80]
+            state["unmatched_command"] = (prefix, query)
+            return True
+    return False
+
+
+# Existing command errors/permission denials block propagation. This runs last
+# and never auto-executes a fuzzy suggestion or publishes another help command.
+fallback = on_message(rule=unmatched_command, priority=1000, block=True)
+
+
+@fallback.handle()
+async def handle_unmatched(bot: Bot, event: Event, state: T_State, services: BotServices, reply: Reply):
+    await reply.finish(await services.help.unmatched(command_check(bot, event), *state["unmatched_command"]))

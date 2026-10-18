@@ -108,7 +108,7 @@ async def main():
                     detail = await request("/help text 一言", role)
                     assert "来一句话" in detail
                     for entry in ("/fun", "!fun", "/maintenance", "/maintainence"):
-                        await request(entry, role, expect_reply=False)
+                        assert "指令匹配失败" in await request(entry, role)
                 assert upstream.await_count == 1
                 clock[0] += 3
                 upstream.side_effect = UpstreamError("private upstream detail")

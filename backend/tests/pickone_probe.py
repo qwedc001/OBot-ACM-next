@@ -26,6 +26,7 @@ async def main():
             qq_bots=[],
             superusers={"operator"},
             log_level="ERROR",
+            command_start={"/", "!"},
         )
         from framework.config import Settings
         from framework.integration.lifecycle import install_lifecycle
@@ -37,6 +38,15 @@ async def main():
         install_lifecycle(services)
         for plugin in ("plugins.fun", "plugins.pickone", "plugins.help"):
             assert nonebot.load_plugin(plugin)
+        from framework.catalog import CommandSpec
+        from framework.integration.commands import command
+
+        nonblocking = command(CommandSpec("test.observe", "test", "observe", "测试非阻断指令"), block=False)
+
+        @nonblocking.handle()
+        async def observe():
+            return  # A matched command without a reply must not trigger fallback.
+
         driver = nonebot.get_driver()
         bot = Bot(driver._adapters["QQ"], "app", BotInfo(id="app", secret="synthetic"))
         calls, counter = [], 0
@@ -44,13 +54,15 @@ async def main():
         async def send(content, **kwargs):
             calls.append(content)
 
-        async def request(command, role="private", user="user", attachments=None, expect_reply=True):
+        async def request(
+            command, role="private", user="user", attachments=None, expect_reply=True, to_me=True
+        ):
             nonlocal counter
             counter += 1
             payload = dict(
                 id=f"event-{counter}",
                 content=command,
-                to_me=True,
+                to_me=to_me,
                 timestamp="2026-10-18T00:00:00+08:00",
                 attachments=attachments,
             )
@@ -180,7 +192,18 @@ async def main():
                     "/fun.pickone.addcats",
                     "/点赞猫",
                 ):
+                    assert "指令匹配失败" in await request(command)
+                for command in ("hello", "hello /wrong", "/test.observe"):
                     await request(command, expect_reply=False)
+                await request("/unknown", "member", to_me=False, expect_reply=False)
+                unknown = await request("/hepl secret-argument", "member")
+                assert "指令匹配失败 /hepl" in unknown and "/help —" in unknown
+                assert "secret-argument" not in unknown
+                assert "指令匹配失败 !hepl" in await request("!hepl")
+                assert "指令匹配失败 /" in await request("/")
+                typo = await request("/建图裤", "member")
+                assert "/建图库" not in typo
+                assert "/建图库" in await request("/建图裤", "admin")
                 assert "类别不存在" in await request("/添加missing", "member")
                 assert "公共图库「猫」" in await request("/添加cats")
                 assert "没有这个图库" in await request("/来只 group:local")
