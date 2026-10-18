@@ -159,6 +159,10 @@ async def main():
                         assert len(response) == 1 and "指令匹配失败 /board" in str(response[0])
                         assert "用法：" in str(response[0])
                     assert image.await_count == before
+                    failure = await request("/board push statuz private-config")
+                    assert len(failure) == 1 and "你可能想用：" in str(failure[0])
+                    assert "/board push status" in str(failure[0])
+                    assert "private-config" not in str(failure[0])
                 with patch.object(services.boards, "user", AsyncMock(return_value="profile")) as user:
                     assert "profile" in str((await request('/board user name "Alice Smith" privateOJ'))[0])
                     assert user.await_args.args[1:] == ("name", "Alice Smith", "privateOJ")

@@ -105,8 +105,18 @@ async def main():
                             before = query.await_count
                             failure = await request(invocation + suffix, role)
                             assert f"指令匹配失败 {invocation}，请检查指令语法后重试。" in failure
-                            assert "用法：/cf user 账号标识" in failure
+                            if suffix == " inf":
+                                assert f"你可能想用：\n{invocation} info 账号标识" in failure
+                                assert "用法：/cf user" not in failure
+                            else:
+                                assert "用法：/cf user 账号标识" in failure
+                                assert "你可能想用" not in failure
                             assert "example" not in failure and query.await_count == before
+                    for typo, suggested in (("identit", "identity"), ("usr", "user"), ("car", "card")):
+                        before = query.await_count
+                        failure = await request(f"/cf {typo} private-handle", role)
+                        assert f"/cf {suggested} 账号标识" in failure
+                        assert "private-handle" not in failure and query.await_count == before
                     unknown = await request("/hel", role)
                     assert "指令匹配失败 /hel，请检查指令语法后重试。" in unknown
                     assert "/help —" in unknown

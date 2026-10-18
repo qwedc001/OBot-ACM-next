@@ -38,7 +38,7 @@ def template_command(spec: CommandSpec, *patterns, compact_aliases=(), **kwargs)
     from nonebot_plugin_alconna import CommandResult, on_alconna
 
     from .command_context import Reply
-    from .command_templates import TextCommandSource
+    from .command_templates import TextCommandSource, suggest_subcommand
 
     if spec.mode != MatchMode.COMMAND:
         raise ValueError("Template commands require ordinary command mode")
@@ -72,10 +72,17 @@ def template_command(spec: CommandSpec, *patterns, compact_aliases=(), **kwargs)
     @matcher.handle()
     async def invalid_arguments(event: Event, result: CommandResult, reply: Reply):
         if not result.result.matched:
+            suggestion = suggest_subcommand(
+                matcher.command(), result.result, event.get_plaintext(), spec, catalog.separator
+            )
             await reply.finish(
                 command_failure(event.get_plaintext())
-                + "\n用法："
-                + spec.expand_example(spec.display_usage(catalog.separator), catalog.separator)
+                + (
+                    "\n你可能想用：\n" + suggestion
+                    if suggestion
+                    else "\n用法："
+                    + spec.expand_example(spec.display_usage(catalog.separator), catalog.separator)
+                )
             )
 
     return matcher

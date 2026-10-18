@@ -41,6 +41,8 @@ async def handle_board_bind(context: CommandContext, services: BotServices, repl
 
 主指令未知、子指令未知和参数错误共用 `responses.command_failure` 的「指令匹配失败」提示，均只回显有长度限制的主指令名。已识别主指令时附该指令的正确用法，优先使用声明的示例别名（如 `/cf user 账号标识`）；未知主指令由兜底提供近似候选。参数错误不进入业务 handler，也不再触发第二条兜底回复。
 
+子指令拼写错误时，从 Alconna 当前语法节点的名称及别名中选最接近的一项，保留实际匹配到的别名和用户输入的主指令，如 `/cf inf ...` 推荐 `/cf info 账号标识`。只在原生解析报告的失败 token 与该节点一致时建议，遇到参数节点停止；账号和配置名不参加纠错、不回显。参数说明优先复用声明的 usage，其余由 Alconna 格式化。提示不会重新解析执行，不维护第二份子指令表。
+
 ## 职责与共享
 
 一个 handler 负责一个功能，只获取已解析的参数、调用 Service/Client、显式 await 发送和结束。允许提取公共流程，比如图片生成进度与发送、帮助消息发送、已知业务错误处理；公共函数不重新检查 action 字符串或选择功能，也不自动发送 handler 返回值。
