@@ -5,11 +5,11 @@ import pixie
 from easy_pixie import StyledString, calculate_height, draw_text, calculate_width, Loc, draw_img, \
     darken_color, change_alpha, hex_to_color, draw_mask_rect
 
-from src.core.constants import Constants
-from src.core.util.tools import format_timestamp, format_timestamp_diff, format_seconds, \
+from framework import __version__
+from ..runtime import format_timestamp, format_timestamp_diff, format_seconds, \
     coord_x_centralize
-from src.platform.model import Contest
-from src.render.pixie.model import Renderer, RenderableSection, SimpleCardRenderer
+from types import SimpleNamespace as Contest
+from .model import Renderer, RenderableSection, SimpleCardRenderer
 
 _CONTENT_WIDTH = 916
 _COLUMN_PADDING = 192
@@ -23,7 +23,7 @@ class _ContestItem(RenderableSection):
         self._idx = idx + 1
         self._is_running = is_running
 
-        _time_elapsed = int(time.time()) - self._contest.start_time
+        _time_elapsed = int(self._contest.now) - self._contest.start_time
         if _time_elapsed >= 0:
             _status = self._contest.phase  # 用于展示"比赛中"，或者诸如 Codeforces 平台的 "正在重测中"
         else:
@@ -83,9 +83,11 @@ class _ContestItem(RenderableSection):
             current_x = x
             draw_mask_rect(img, Loc(current_x, current_y, self._00_idx_text_width, 14),
                            (0, 0, 0, 16), 7)
-            draw_mask_rect(img, Loc(current_x, current_y,
-                                    int(self._00_idx_text_width * self._elapsed_ratio), 14),
-                           (0, 0, 0, 44), 7)
+            # At 0% elapsed, Pixie cannot allocate a zero-width mask.
+            elapsed_width = int(self._00_idx_text_width * self._elapsed_ratio)
+            if elapsed_width > 0:
+                draw_mask_rect(img, Loc(current_x, current_y, elapsed_width, 14),
+                               (0, 0, 0, 44), 7)
             current_y += 14 + 8
 
             _ratio_width = int(calculate_width(self.str_ratio))
@@ -253,7 +255,7 @@ class _CopyrightSection(RenderableSection):
         )
         self.str_generator_info = StyledString(
             f'Generated at {datetime.now().strftime("%Y/%m/%d %H:%M:%S")}.\n'
-            f'Initiated by OBot\'s ACM {Constants.core_version}.\n'
+            f'Initiated by OBot\'s ACM {__version__}.\n'
             f'{gradient_color_name}.', 'B', 20, line_multiplier=1.32, font_color=mild_text_color
         )
 

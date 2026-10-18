@@ -7,10 +7,10 @@ from easy_pixie import StyledString, calculate_height, calculate_width, change_a
     draw_img, draw_mask_rect, draw_text, tuple_to_color, Loc
 from pypinyin import pinyin, Style
 
-from src.core.constants import Constants
-from src.core.util.tools import img_fit_in_bounds, rgb_luminance
-from src.data.data_pick_one import PickOne, PickOneImgStat, get_img_full_path
-from src.render.pixie.model import Renderer, RenderableSection, SimpleCardRenderer
+from framework import __version__
+from ..runtime import img_fit_in_bounds, rgb_luminance
+from ..runtime import PickOne, PickOneImgStat
+from .model import Renderer, RenderableSection, SimpleCardRenderer
 
 _CONTENT_WIDTH = 640
 _COLUMN_PADDING = 192
@@ -146,7 +146,7 @@ class _StickerItem:
             return available_alpha if available else unavailable_alpha
 
         self.str_id = StyledString(
-            sticker_id, 'H', 44,
+            sticker_id, 'H', 44, max_width=_ITEM_WIDTH - _ITEM_INNER_HORIZONTAL_PADDING * 2,
             font_color=change_alpha(self._text_color, _alpha(255, 118)))
 
         pixie_color = tuple_to_color(_hue_color(spectrum_ratio, _TINT_LUMINANCE_RANGE))
@@ -305,7 +305,7 @@ class _TipsSection(RenderableSection):
             generator, 'H', 36, padding_bottom=16, font_color=(0, 0, 0, 208)
         )
         self.str_generation_info = StyledString(
-            f"A module of OBot's ACM {Constants.core_version}.\n{_SPECTRUM_DESCRIPTION}.",
+            f"A module of OBot's ACM {__version__}.\n{_SPECTRUM_DESCRIPTION}.",
             'B', 20, line_multiplier=1.32, font_color=(0, 0, 0, 136)
         )
 
@@ -380,10 +380,10 @@ class _PreviewCard:
     """单张表情包"""
 
     def __init__(self, text_color: pixie.Color, media_color: pixie.Color,
-                 stat: PickOneImgStat, img_path: str):
+                 stat: PickOneImgStat, img_path: bytes | None):
         self._card_color = media_color
         self.img_preview = (img_fit_in_bounds(img_path, _PREVIEW_MEDIA_BOX, _PREVIEW_MAX_UPSCALE)
-                            if os.path.exists(img_path) else None)
+                            if img_path else None)
 
         self.str_hash_id = StyledString(
             f"ID: {stat.hash_id}", 'H', _PREVIEW_ID_FONT_SIZE, font_color=text_color,
@@ -423,7 +423,7 @@ class _PreviewSection(RenderableSection):
     def __init__(self, text_color: pixie.Color, media_color: pixie.Color,
                  img_key: str, imgs: list[PickOneImgStat]):
         cards = [_PreviewCard(text_color, media_color, stat,
-                              get_img_full_path(img_key, f"{stat.md5}.gif"))
+                              stat.thumbnail)
                  for stat in imgs]
         self._rows = [cards[idx:idx + _COLUMNS]
                       for idx in range(0, len(cards), _COLUMNS)]

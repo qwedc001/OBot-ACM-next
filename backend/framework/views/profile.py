@@ -1,7 +1,5 @@
 """Rating-aware profile view; native drawing stays in the render worker."""
 
-from types import SimpleNamespace
-
 from ..clients.renderer import PixieBackend
 from ..profiles import clean
 
@@ -47,7 +45,8 @@ def profile_accent(platform: str, rating: int | None, rank: str) -> str:
 class ProfilePixieBackend:
     @staticmethod
     def draw(model):
-        from ._profile import UserCardRenderer
+        from .renderer.bindings import InformationSection
+        from .renderer.pixie.render_user_card import UserCardInfo, UserCardRenderer, UserCardSection
 
         platform = model["platform"]
         rank = model["rank"]
@@ -61,7 +60,7 @@ class ProfilePixieBackend:
                 )
                 if (model["rating"] or 0) < ceiling
             )
-        info = SimpleNamespace(
+        info = UserCardInfo(
             platform_name="NowCoder" if platform == "牛客" else platform,
             handle=clean(model["handle"], 64),
             accent_color=profile_accent(platform, model["rating"], model["rank"]),
@@ -73,15 +72,19 @@ class ProfilePixieBackend:
             timeline=[clean(value) for value in model.get("timeline", ())[:4]],
             metrics=[(clean(label, 32), clean(value, 60)) for label, value in model["metrics"][:8]],
             sections=[
-                SimpleNamespace(
+                UserCardSection(
                     title=clean(section["title"], 32),
                     lines=[clean(line, 140) for line in section["lines"][:5]],
                 )
-                for section in model.get("sections", ())[:6]
+                for section in [
+                    *model.get("sections", ())[:6],
+                    *([{"title": "数据提示", "lines": model["warnings"]}] if model.get("warnings") else []),
+                ]
             ],
-            warnings=[clean(value) for value in model.get("warnings", ())],
         )
-        return UserCardRenderer(info).render()
+        renderer = UserCardRenderer(info)
+        renderer.sections[-1] = InformationSection(width=1216, detail="配色 " + info.accent_color.upper())
+        return renderer.render()
 
     def render(self, model):
         import pixie

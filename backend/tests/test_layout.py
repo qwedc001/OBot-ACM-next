@@ -2,7 +2,26 @@ from itertools import combinations
 
 import pytest
 
-from framework.views.layout import split_columns
+
+def split_columns(items, count, height, gap=0):
+    pytest.importorskip("pixie")
+    from framework.views.renderer.pixie.model import RenderableSection
+
+    class Section(RenderableSection):
+        def __init__(self, item):
+            self.item = item
+
+        def get_height(self):
+            return height(self.item)
+
+        def get_columns(self):
+            return count
+
+        def render(self, *_):
+            raise NotImplementedError
+
+    columns, _ = Section(None)._split_columns([Section(item) for item in items], gap)
+    return [[section.item for section in column] for column in columns if column]
 
 
 @pytest.mark.parametrize(

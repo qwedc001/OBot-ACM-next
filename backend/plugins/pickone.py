@@ -202,6 +202,8 @@ async def handle_preview(
             "title": display["label"] + " · 预览",
             "hint": f"/预览来只 {display['command_key']} ID前缀 · 获取原图",
             "preview": True,
+            "category_key": display["command_key"],
+            "categories": await services.pickone.in_scene(context, chat.categories),
             "items": images,
         },
     )

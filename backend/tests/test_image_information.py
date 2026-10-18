@@ -35,9 +35,8 @@ def test_help_every_page_has_readable_information_and_page_number(monkeypatch):
     pytest.importorskip("pixie")
     from easy_pixie import draw_text
 
-    monkeypatch.setattr("framework.views.help.MAX_COLUMNS", 2)
     monkeypatch.setattr("framework.views.help.MAX_HEIGHT", 2200)
-    model = layout_model((10, 2, 1))
+    model = layout_model((24, 2, 1))
     backend = HelpPixieBackend()
     backend.layout(model)  # Load native syntax helpers before instrumenting.
     with patch("easy_pixie.draw_text", wraps=draw_text) as drawing:
@@ -53,7 +52,7 @@ def test_profile_keeps_information_below_all_content():
     pytest.importorskip("pixie")
     from easy_pixie import draw_text
 
-    import_module("framework.views._profile")
+    import_module("framework.views.renderer.pixie.render_user_card")
     with patch("easy_pixie.draw_text", wraps=draw_text) as drawing:
         image = ProfilePixieBackend().render(
             dict(
@@ -77,13 +76,16 @@ def test_profile_keeps_information_below_all_content():
 
 def test_help_parameter_notation_matches_current_metadata_and_wraps():
     pytest.importorskip("pixie")
-    from framework.views._help import UsageBlock
+    from types import SimpleNamespace
 
-    block = UsageBlock("/board history <日期> [配置名]", 260, (221, 244, 248))
-    assert len(block.lines) > 1
-    spans = [span for line in block.lines for span in line]
-    assert [(text.content, required) for text, _, required in spans if required is not None] == [
+    from framework.views.renderer.pixie.render_help import _HelpItem
+
+    block = _HelpItem(
+        SimpleNamespace(command="/board history <日期> [配置名]", help="说明", restriction=None), "#4CA1AF"
+    )
+    spans = [span for line in block._lines for span in line]
+    assert [(text.content, required) for text, _, _, required in spans if required is not None] == [
         ("日期", True),
         ("配置名", False),
     ]
-    assert all(sum(width for _, width, _ in line) <= 260 for line in block.lines)
+    assert all(sum(width for _, width, _, _ in line) <= 916 for line in block._lines)

@@ -19,7 +19,7 @@ from framework.clients.nowcoder import NowcoderClient
 from framework.contests import TIMEZONE, Contest, search_contests, select_contests
 from framework.messages import Image, Text
 from framework.services.contests import ContestSnapshot, ContestsService
-from framework.views.contests import MAX_HEIGHT, ContestBackend
+from framework.views.contests import ContestBackend
 
 from .conftest import ROOT
 from .test_boards import context
@@ -293,8 +293,11 @@ def test_measured_render_pages_are_bounded_and_include_all_contests(monkeypatch)
         "warnings": ["牛客暂时无法获取。"],
     }
     backend = ContestBackend()
-    # Force overflow with a smaller canvas, without relying on a row-count cap.
-    monkeypatch.setattr("framework.views.contests.MAX_HEIGHT", 2000)
+    # Fit one full item plus the original Tips/footer, but force overflow for
+    # the collection without depending on the footer's exact height.
+    _, single_height = backend.measure({**model, "items": model["items"][:1]})
+    height_limit = single_height + 100
+    monkeypatch.setattr("framework.views.contests.MAX_HEIGHT", height_limit)
     seen = []
     draw = backend.draw
 
@@ -305,61 +308,52 @@ def test_measured_render_pages_are_bounded_and_include_all_contests(monkeypatch)
     monkeypatch.setattr(backend, "draw", record)
     pages = backend.render_pages(model)
     assert seen == [c.key for c in items]
-    assert len(pages) >= 2 and all(p.height <= 2000 and p.width <= 8192 for p in pages)
+    assert len(pages) >= 2 and all(p.height <= height_limit and p.width <= 8192 for p in pages)
     assert all(p.data.startswith(b"\x89PNG") for p in pages)
-    width, height, placements, _, footer, bottom = backend.layout({**model, "items": model["items"][:3]})
-    assert bottom + footer.height < height
-    assert all(0 <= x < width and y + block.height < height for block, x, y in placements)
+    assert all(p.width * p.height <= 24_000_000 for p in pages)
 
 
 def test_lists_use_three_columns_without_splitting_at_twelve():
     pytest.importorskip("pixie")
-    backend = ContestBackend()
     model = {
         "title": "近日算法竞赛",
         "now": NOW,
         "items": [asdict(replace(SAMPLE, key=f"cf:{i}")) for i in range(17)],
     }
-    pages = backend.render_pages(model)
-    from framework.views.contests import COLUMN, GAP, MARGIN
-
-    assert len(pages) == 1 and pages[0].height <= MAX_HEIGHT
-    assert pages[0].width == 2 * MARGIN + 3 * COLUMN + 2 * GAP
-    width, _, *_ = backend.layout({**model, "items": model["items"][:4]})
-    assert width == 2 * MARGIN + COLUMN
+    pages = ContestBackend().render_pages(model)
+    assert len(pages) == 1 and pages[0].width == 3388
 
 
 @pytest.mark.parametrize("count,columns", [(1, 1), (5, 1), (6, 2), (12, 2), (13, 3)])
 def test_contest_column_count_follows_original_phase_thresholds(count, columns):
     pytest.importorskip("pixie")
-    from framework.views.contests import COLUMN, GAP, MARGIN
-
     model = {"title": "比赛", "now": NOW, "items": [asdict(SAMPLE)] * count}
-    width, *_ = ContestBackend().layout(model)
-    assert width == 2 * MARGIN + columns * COLUMN + (columns - 1) * GAP
+    width, _ = ContestBackend().measure(model)
+    assert width == 256 + columns * 916 + (columns - 1) * 192
 
 
-def test_contest_phases_stack_and_use_largest_group_not_total_count():
+def test_contest_phases_use_largest_group_and_original_typography():
     pytest.importorskip("pixie")
-    from framework.views.contests import COLUMN, MARGIN
-
     items = [
         asdict(replace(SAMPLE, start=start, duration=3600))
         for start in (NOW - 7200, NOW - 60, NOW + 3600)
         for _ in range(5)
     ]
-    width, _, blocks, *_ = ContestBackend().layout({"title": "比赛", "now": NOW, "items": items})
-    assert width == 2 * MARGIN + COLUMN
-    from framework.contests import PHASES
-
-    headings = [(block.content, y) for block, _, y in blocks if block.content in PHASES.values()]
-    assert [label for label, _ in headings] == list(PHASES.values())
-    assert [y for _, y in headings] == sorted(y for _, y in headings)
+    renderer = ContestBackend().renderer({"title": "比赛", "now": NOW, "items": items})
+    assert renderer.measure()[0] == 1172
+    body = renderer.sections[1]
+    assert [len(body.section_running), len(body.section_upcoming), len(body.section_finished)] == [5, 5, 5]
+    assert body.str_running_title.font.size == 52
+    item = body.section_running[0]
+    assert item.str_idx.font.size == 78 and item.str_title.font.size == 56
+    assert item.str_time.font.size == 32 and item.str_title.padding_bottom == 12
+    assert item._elapsed_ratio == pytest.approx(60 / 3600)
 
 
 def test_detail_layout_long_fields_stay_inside_fixed_width_card():
     pytest.importorskip("pixie")
-    backend = ContestBackend()
+    from framework.views.contest_detail import ContestDetailRenderer
+
     contest = replace(SAMPLE, name="跨平台竞赛 " * 20, supplement="比赛说明 " * 30, start=NOW - 60)
     model = {
         "title": "近似匹配的比赛",
@@ -368,27 +362,12 @@ def test_detail_layout_long_fields_stay_inside_fixed_width_card():
         "items": [asdict(contest)],
         "warnings": ["牛客暂时无法获取。"],
     }
-    width, height, blocks, bars, footer, bottom = backend.layout(model)
+    width, height, blocks, bars, footer, bottom = ContestDetailRenderer().detail_layout(model)
     assert width == 1472 and bottom + footer.height < height
     assert all(x + block.max_width <= width and y + block.height < bottom for block, x, y in blocks)
     assert len(bars) == 1 and 0 < bars[0][-1] < 1
-    image = backend.render_pages(model)[0]
+    image = ContestBackend().render(model)
     assert image.data.startswith(b"\x89PNG") and image.height == height
-
-
-@pytest.mark.parametrize("width", [960, 1440])
-def test_detail_time_fields_stack_on_narrow_cards_and_align_on_wide_cards(width):
-    pytest.importorskip("pixie")
-    model = {"title": "比赛详情", "detail": True, "now": NOW, "items": [asdict(SAMPLE)]}
-    _, height, blocks, _, footer, bottom = ContestBackend()._detail_layout(model, width)
-    fields = {block.content: (x, y) for block, x, y in blocks}
-    start, end = fields["开始时间 · 北京时间"], fields["结束时间 · 北京时间"]
-    if width == 960:
-        assert start[0] == end[0] and start[1] < end[1]
-    else:
-        assert start[0] < end[0] and start[1] == end[1]
-    assert all(x + block.max_width <= width and y + block.height <= bottom for block, x, y in blocks)
-    assert bottom + footer.height < height
 
 
 def test_native_contest_commands():

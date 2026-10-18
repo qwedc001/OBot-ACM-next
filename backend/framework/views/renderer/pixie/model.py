@@ -6,9 +6,14 @@ import pixie
 from easy_pixie import load_img, apply_tint, change_img_alpha, draw_img, Loc, tuple_to_color, \
     pick_gradient_color, GradientDirection, draw_gradient_rect, draw_mask_rect
 
-from src.core.constants import Constants
+from pathlib import Path
+from functools import cached_property
+import logging
+from ...layout import fits
+from ...palette import DECENT
+from easy_pixie import GradientColor
 
-_lib_path = Constants.modules_conf.get_lib_path("Render-Images")
+_lib_path = str(Path(__file__).parents[2] / "assets")
 _img_load_cache: dict[str, tuple[float, pixie.Image]] = {}
 
 _CONTENT_WIDTH = 916
@@ -151,8 +156,8 @@ class RenderableSvgSection(RenderableSection, abc.ABC):
             try:
                 os.remove(svg_ts_path)
             except OSError as e:
-                Constants.log.warning("Remove temp svg file failed")
-                Constants.log.error(e)
+                logging.getLogger("framework").warning("Remove temp svg file failed")
+                logging.getLogger("framework").error(e)
 
         # 计算目标尺寸和居中偏移
         self._calculate_dimensions(width, height)
@@ -201,7 +206,7 @@ class SimpleCardRenderer(Renderer, abc.ABC):
     """简单的卡片渲染"""
 
     def __init__(self):
-        self._gradient_color = pick_gradient_color()
+        self._gradient_color = GradientColor(list(DECENT.colors), [0.0, 1.0], DECENT.label)
 
     @abc.abstractmethod
     def _get_render_sections(self) -> list[RenderableSection]:
@@ -229,8 +234,22 @@ class SimpleCardRenderer(Renderer, abc.ABC):
                            GradientDirection.DIAGONAL_RIGHT_TO_LEFT, 96)
         draw_mask_rect(img, background_loc, self._get_mask_color(), 96)
 
+    @cached_property
+    def sections(self):
+        return self._get_render_sections()
+
+    def measure(self):
+        sections = self.sections
+        columns = max(section.get_columns() for section in sections)
+        width = ((_CONTAINER_PADDING + _SIDE_PADDING) * 2 +
+                 self._get_content_width() * columns + self._get_column_padding() * (columns - 1))
+        height = (_CONTAINER_PADDING * 2 + _TOP_PADDING + _BOTTOM_PADDING +
+                  sum(section.get_height() for section in sections) +
+                  _SECTION_PADDING * max(0, len(sections) - 1))
+        return width, height
+
     def render(self) -> pixie.Image:
-        render_sections = self._get_render_sections()
+        render_sections = self.sections
         if not render_sections:
             raise ValueError('Nothing to render')
 
@@ -243,6 +262,8 @@ class SimpleCardRenderer(Renderer, abc.ABC):
                   sum(section.get_height() for section in render_sections) +
                   _SECTION_PADDING * max(0, len(render_sections) - 1))
 
+        if not fits(width, height):
+            raise ValueError("Card exceeds image size limit")
         img = pixie.Image(width, height)
         img.fill(self._get_background_color())
 

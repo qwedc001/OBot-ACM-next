@@ -7,10 +7,10 @@ from easy_pixie import StyledString, calculate_height, calculate_width, draw_tex
     draw_mask_rect, draw_gradient_rect, GradientColor, GradientDirection, darken_color, \
     lighten_color, change_alpha, hex_to_color
 
-from src.core.constants import Constants
-from src.core.util.output_cache import get_cached_prefix
-from src.core.util.tools import download_img
-from src.render.pixie.model import Renderer, RenderableSection, SimpleCardRenderer
+from framework import __version__
+from pathlib import Path
+import tempfile
+from .model import Renderer, RenderableSection, SimpleCardRenderer
 
 _CONTENT_WIDTH = 1216
 _AVATAR_SIZE = 176
@@ -60,47 +60,30 @@ class UserCardInfo:
     rating: str
     rank: str
     rating_note: str = ""
-    avatar_url: str | None = None
+    avatar_data: bytes | None = None
     social: list[str] = field(default_factory=list)
     timeline: list[str] = field(default_factory=list)
     metrics: list[tuple[str, str]] = field(default_factory=list)
     sections: list[UserCardSection] = field(default_factory=list)
 
 
-def _load_avatar(url: str | None, size: int = _AVATAR_SIZE) -> pixie.Image | None:
-    """下载头像并裁为圆角正方形，失败时返回 None（名片不因头像缺失而无法渲染）"""
-    if not url:
+def _load_avatar(data):
+    if not data:
         return None
-
     try:
-        raw_path = f"{get_cached_prefix('User-Card-Avatar')}.png"
-        squared_path = f"{get_cached_prefix('User-Card-Avatar')}.png"
-        if not download_img(url, raw_path):
-            return None
-
-        with Image.open(raw_path) as raw:
-            raw.seek(0)  # 动图一律取首帧
-            frame = raw.convert("RGBA")
-            side = min(frame.width, frame.height)
-            frame = frame.crop(((frame.width - side) // 2, (frame.height - side) // 2,
-                                (frame.width - side) // 2 + side,
-                                (frame.height - side) // 2 + side))
-            if side != size:
-                frame = frame.resize((size, size), Image.Resampling.LANCZOS)
-            frame.save(squared_path, format="PNG")
-
-        avatar = pixie.read_image(squared_path)
-        mask = pixie.Mask(size, size)
+        with tempfile.TemporaryDirectory(prefix="obot-avatar-") as directory:
+            path = Path(directory) / "avatar.png"
+            path.write_bytes(data)
+            avatar = pixie.read_image(str(path))
+        mask = pixie.Mask(_AVATAR_SIZE, _AVATAR_SIZE)
         path = pixie.Path()
-        path.rounded_rect(0, 0, size, size,
-                          _AVATAR_RADIUS, _AVATAR_RADIUS, _AVATAR_RADIUS, _AVATAR_RADIUS)
+        path.rounded_rect(
+            0, 0, _AVATAR_SIZE, _AVATAR_SIZE, _AVATAR_RADIUS, _AVATAR_RADIUS, _AVATAR_RADIUS, _AVATAR_RADIUS
+        )
         mask.fill_path(path)
         avatar.mask_draw(mask)
         return avatar
-
-    except Exception as e:
-        Constants.log.warning("[render] 加载用户头像失败")
-        Constants.log.exception(f"[render] {e}")
+    except (pixie.PixieError, OSError):
         return None
 
 
@@ -126,7 +109,7 @@ class _IdentitySection(RenderableSection):
     def __init__(self, info: UserCardInfo, text_color: pixie.Color):
         self.img_platform = Renderer.load_img_resource(info.platform_name, text_color,
                                                        size=(36, 36))
-        self._avatar = _load_avatar(info.avatar_url)
+        self._avatar = _load_avatar(info.avatar_data)
         self._ring_color = change_alpha(hex_to_color(info.accent_color), alpha=88)
 
         head_width = _CONTENT_WIDTH
@@ -344,7 +327,7 @@ class _FooterSection(RenderableSection):
         self.str_note = StyledString(
             f'Generated at {datetime.now().strftime("%Y/%m/%d %H:%M:%S")} · '
             f"Data from {platform_name} · "
-            f"Initiated by OBot's ACM {Constants.core_version}.",
+            f"Initiated by OBot's ACM {__version__}.",
             'B', 24, font_color=_MUTED_COLOR, line_multiplier=1.3, max_width=_CONTENT_WIDTH
         )
 

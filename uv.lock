@@ -1651,7 +1651,7 @@ wheels = [
 
 [[package]]
 name = "obot-acm-nonebot"
-version = "0.16.0"
+version = "0.16.1"
 source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
@@ -1677,6 +1677,7 @@ ocr = [
 render = [
     { name = "easy-pixie" },
     { name = "pixie-python" },
+    { name = "pypinyin" },
 ]
 
 [package.dev-dependencies]
@@ -1702,6 +1703,7 @@ requires-dist = [
     { name = "nonebot2", extras = ["fastapi", "httpx", "websockets"], specifier = ">=2.5.0" },
     { name = "pillow", specifier = ">=12.0.0" },
     { name = "pixie-python", marker = "extra == 'render'", specifier = ">=4.3.0" },
+    { name = "pypinyin", marker = "extra == 'render'", specifier = ">=0.50,<1" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "sqlalchemy", specifier = ">=2.0,<3" },
@@ -2133,6 +2135,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/ff/06/31cf0821ada10cb65be108388ddf08d6c6990af90369db26b86776c3e86c/pygtrie-2.6.2.tar.gz", hash = "sha256:879264597743ef52bf80f2dff085364088c0848ae22544db95dad2bf52e06471", size = 60620, upload-time = "2026-09-14T15:02:38.474Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/70/98/c3e488257ffe7f9caa90c56f0e79e6a2860cf5af763da7b4e7eadc008228/pygtrie-2.6.2-py3-none-any.whl", hash = "sha256:51dcc50ecb8291238e261b4e9f8ecca7313b763da258dd320d208ca2bc86b5f4", size = 33434, upload-time = "2026-09-14T15:02:37.047Z" },
+]
+
+[[package]]
+name = "pypinyin"
+version = "0.55.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b4/a4/784cf98c09e0dc22776b0d7d8a4a5b761218bcae4608c2416ce1e167c8af/pypinyin-0.55.0.tar.gz", hash = "sha256:b5711b3a0c6f76e67408ec6b2e3c4987a3a806b7c528076e7c7b86fcf0eaa66b", size = 839836, upload-time = "2025-07-20T12:01:50.657Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b9/7b/4cabc76fcc21c3c7d5c671d8783984d30ac9d3bb387c4ba784fca3cdfa3a/pypinyin-0.55.0-py2.py3-none-any.whl", hash = "sha256:d53b1e8ad2cdb815fb2cb604ed3123372f5a28c6f447571244aca36fc62a286f", size = 840203, upload-time = "2025-07-20T12:01:48.535Z" },
 ]
 
 [[package]]

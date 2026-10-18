@@ -1,6 +1,6 @@
 [project]
 name = "obot-acm-nonebot"
-version = "0.16.0"
+version = "0.16.1"
 description = "NoneBot2 bot for Competitive Programming and more"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -26,6 +26,7 @@ ocr = ["easyocr>=1.7.2,<2"]
 render = [
     "easy-pixie>=0.0.10",
     "pixie-python>=4.3.0",
+    "pypinyin>=0.50,<1",
 ]
 
 [tool.nonebot]
@@ -52,7 +53,10 @@ target-version = "py312"
 src = ["backend", "supervisor"]
 line-length = 110
 exclude = ["docs/research", "third-party", "frontend/node_modules", "frontend/dist"]
+extend-exclude = ["backend/framework/views/renderer/pixie", "backend/framework/views/renderer/html", "backend/framework/views/renderer/svg"]
 
+# Preserve the upstream renderer source formatting and dormant modules verbatim.
+# Our input bindings/runtime remain linted; only the copied source tree is excluded.
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 ignore = ["E501"]

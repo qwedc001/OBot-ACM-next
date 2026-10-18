@@ -255,7 +255,7 @@ async def test_render_category_pages_and_preview(web):
             "items": [dict(categories[0], id="很长的类别名称" * 10, keys=["别名" * 60])] * 13,
         },
     )
-    assert len(pages) == 1 and pages[0].width == 2296
+    assert len(pages) == 1 and pages[0].width == 3392
     result = await asyncio.to_thread(
         backend.render,
         {
@@ -265,7 +265,7 @@ async def test_render_category_pages_and_preview(web):
             "items": items * 8,
         },
     )
-    assert result.width == 2296 and result.height < 2500
+    assert result.width == 3392 and result.height < 2500
     assert result.data.startswith(b"\x89PNG")
 
 

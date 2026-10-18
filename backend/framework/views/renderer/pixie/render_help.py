@@ -4,9 +4,10 @@ import pixie
 from easy_pixie import StyledString, calculate_height, draw_text, calculate_width, Loc, draw_img, \
     tuple_to_color, change_alpha, hex_to_color, lighten_color, draw_mask_rect, pick_gradient_color
 
-from src.core.constants import Constants, Help
-from src.core.util.tools import rgb_luminance
-from src.render.pixie.model import Renderer, RenderableSection, SimpleCardRenderer
+from framework import __version__
+from ..runtime import Help
+from ..runtime import rgb_luminance
+from .model import Renderer, RenderableSection, SimpleCardRenderer
 
 _CONTENT_WIDTH = 916
 _COLUMN_PADDING = 192
@@ -52,8 +53,8 @@ _RESTRICTION_PATTERNS = [
     (r"，仅限私聊", "仅私聊"),
 ]
 
-# 参数的正则：中括号为必填，小括号为选填
-_PARAM_PATTERN = re.compile(r"(\[[^]]*]|\([^)]*\))")
+# 当前指令语法：尖括号为必填，中括号为选填。
+_PARAM_PATTERN = re.compile(r"(<[^<>\n]+>|\[[^\[\]\n]+\])")
 
 
 class _HelpItem(RenderableSection):
@@ -64,13 +65,9 @@ class _HelpItem(RenderableSection):
         # 参数下划线：实线必填，虚线选填
         self._underline_color = change_alpha(accent_light_color, 230)
 
-        # 拆出限制短语，剩余内容作为描述展示
-        self._restriction_text = None
+        # Permission labels come from the filtered command metadata.
+        self._restriction_text = single_help.restriction
         self._help_content = single_help.help
-        for pattern, tag in _RESTRICTION_PATTERNS:
-            if re.search(pattern, self._help_content):
-                self._restriction_text = tag
-                self._help_content = self._help_content.replace(pattern, "").strip("，。 ,")
 
         # 限制标签，绘制在命令行的右侧
         self.str_restriction = (StyledString(self._restriction_text, 'B', 26,
@@ -85,21 +82,23 @@ class _HelpItem(RenderableSection):
 
         # 命令拆分为"命令本体 + 参数"分段，参数用强调色渲染并以下划线标记必填/选填
         # 参数段宽度包含下划线左右内边距与段间隙，文字在段内居中，保证相邻下划线不会相连
+        command_max_width = _CONTENT_WIDTH - self._restriction_chip_width - 28
         self._segments = []
         for raw_segment in _PARAM_PATTERN.split(single_help.command):
             if not raw_segment:
                 continue
             is_param = _PARAM_PATTERN.fullmatch(raw_segment) is not None
             if is_param:
-                is_required = raw_segment.startswith('[')
-                str_segment = StyledString(raw_segment.strip('[]()'), 'H', 40,
-                                           font_color=accent_light_color)
+                is_required = raw_segment.startswith('<')
+                str_segment = StyledString(raw_segment[1:-1], 'H', 40,
+                                           font_color=accent_light_color, max_width=command_max_width - 20)
                 segment_width = (int(calculate_width(str_segment)) +
                                  _UNDERLINE_PADDING_HORIZONTAL * 2 + _PARAM_GAP)
             else:
                 is_required = None
-                str_segment = StyledString(raw_segment, 'H', 52, font_color=(255, 255, 255))
+                str_segment = StyledString(raw_segment, 'H', 52, font_color=(255, 255, 255), max_width=command_max_width)
                 segment_width = int(calculate_width(str_segment))
+            segment_width = min(command_max_width, segment_width)
             self._segments.append((str_segment, segment_width,
                                    str_segment.height, is_required))
 
@@ -179,7 +178,7 @@ class _HelpCategory(RenderableSection):
         accent_light_color = lighten_color(hex_to_color(accent_color), _ACCENT_LIGHT_RATIO)
         accent_light_color_tran = change_alpha(accent_light_color, 48)
 
-        self.str_title = StyledString(category_name, 'H', 36, font_color=accent_light_color)
+        self.str_title = StyledString(category_name, 'H', 36, font_color=accent_light_color, max_width=_CONTENT_WIDTH - 68)
         self._chip_height = self.str_title.height + _CATEGORY_CHIP_PADDING_VERTICAL * 2
         self._chip_width = (int(calculate_width(self.str_title)) +
                             _CATEGORY_CHIP_PADDING_HORIZONTAL * 2)
@@ -295,7 +294,7 @@ class _CopyrightSection(RenderableSection):
             font_color=(255, 255, 255, 228)
         )
         self.str_generation_info = StyledString(
-            f"Compatible to OBot's ACM {Constants.core_version}.\n{gradient_color_name}.",
+            f"Compatible to OBot's ACM {__version__}.\n{gradient_color_name}.",
             'B', 20, line_multiplier=1.32, font_color=mild_text_color
         )
 
@@ -319,9 +318,9 @@ class _CopyrightSection(RenderableSection):
 class HelpRenderer(SimpleCardRenderer):
     """帮助信息"""
 
-    def __init__(self):
+    def __init__(self, helps):
         super().__init__()
-        self._gradient_color = self._pick_coordinated_gradient()
+        self._helps = helps
 
     @classmethod
     def _pick_coordinated_gradient(cls):
@@ -345,7 +344,7 @@ class HelpRenderer(SimpleCardRenderer):
 
     def _get_render_sections(self) -> list[RenderableSection]:
         section_title = _TitleSection(self._gradient_color.color_list[-1])
-        section_help = _HelpSection(Constants.help_contents, self._gradient_color.color_list[-1])
+        section_help = _HelpSection(self._helps, self._gradient_color.color_list[-1])
         section_copyright = _CopyrightSection(self._gradient_color.name)
 
         return [section_title, section_help, section_copyright]

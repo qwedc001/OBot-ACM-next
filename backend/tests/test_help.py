@@ -13,15 +13,7 @@ from framework.models import ImageArtifact
 from framework.responses import text_chunks
 from framework.runtime import Services
 from framework.services.help import HelpService
-from framework.views.help import (
-    COLUMN_GAP,
-    FOOTER_HEIGHT,
-    HEADER_HEIGHT,
-    MARGIN,
-    MAX_COLUMNS,
-    MAX_HEIGHT,
-    HelpPixieBackend,
-)
+from framework.views.help import MAX_HEIGHT, HelpPixieBackend
 from framework.views.layout import fits
 
 from .conftest import ROOT, USER, access
@@ -221,21 +213,17 @@ async def test_many_commands_paginate_without_omission_or_clipping():
     model = await catalog.help_model(access())
     backend = HelpPixieBackend()
     pages = backend.layout(model)
-    assert pages and all(len(page.columns) <= 4 for page in pages)
+    assert pages and all(page.sections[1].get_columns() == 4 for page in pages)
     assert [
-        card.command_id
-        for page in pages
-        for column in page.columns
-        for module in column.modules
-        for card in module.cards
+        item._help.id for page in pages for category in page.categories for item in category.section_items
     ] == [spec.id for spec in catalog.commands]
     for page in pages:
-        assert page.height <= MAX_HEIGHT
-        assert HEADER_HEIGHT + FOOTER_HEIGHT + max(column.height for column in page.columns) == page.height
+        assert page.measure()[1] <= MAX_HEIGHT
+        assert fits(*page.measure())
     images = backend.render_pages(model)
     assert len(images) == len(pages)
     assert all(
-        struct.unpack(">II", image.data[16:24]) == (page.width, page.height)
+        struct.unpack(">II", image.data[16:24]) == page.measure()
         for page, image in zip(pages, images, strict=True)
     )
     # Excessively long authored metadata falls back to full text rather than truncation.
@@ -272,83 +260,54 @@ def layout_model(counts):
 
 
 @pytest.mark.parametrize("counts", [(4,), (2, 1), (2, 1, 1), (1,) * 7, (0, 1, 0)])
-def test_columns_adapt_to_content_without_empty_reserved_columns(counts):
+def test_help_uses_original_four_column_canvas_and_keeps_all_categories(counts):
     pytest.importorskip("pixie")
-    pages = HelpPixieBackend().layout(layout_model(counts))
-    assert all(1 <= len(page.columns) <= MAX_COLUMNS for page in pages)
-    assert all(
-        page.width
-        == MARGIN * 2 + page.column_width * len(page.columns) + COLUMN_GAP * (len(page.columns) - 1)
-        and all(column.modules for column in page.columns)
-        and fits(page.width, page.height)
-        for page in pages
-    )
+    model = layout_model(counts)
+    pages = HelpPixieBackend().layout(model)
+    assert all(page.measure()[0] == 4496 and fits(*page.measure()) for page in pages)
+    assert [
+        item._help.id for page in pages for category in page.categories for item in category.section_items
+    ] == [command["id"] for group in model["groups"] for command in group["commands"]]
     assert not HelpPixieBackend().layout(layout_model((0, 0)))
 
 
-def test_whole_modules_keep_catalog_order_and_balance_measured_heights():
+def test_whole_categories_keep_original_order_and_geometry():
     pytest.importorskip("pixie")
+    from framework.views.renderer.pixie.render_help import _HELP_CATEGORY_PADDING
+
     model = layout_model((1, 4, 2, 1, 3, 1))
-    model["groups"][0]["commands"][0]["summary"] = "较长说明用于实际折行测量 " * 90
-    backend = HelpPixieBackend()
-    pages = backend.layout(model)
+    pages = HelpPixieBackend().layout(model)
     assert len(pages) == 1
     page = pages[0]
-    modules = [module for column in page.columns for module in column.modules]
-    assert len(page.columns) <= 4
-    assert [m.category for m in modules] == [f"module{i} · 模块说明" for i in range(6)]
-    for module, group in zip(modules, model["groups"], strict=True):
-        assert [card.command_id for card in module.cards] == [c["id"] for c in group["commands"]]
-    image = backend.render_pages(model)[0]
-    assert struct.unpack(">II", image.data[16:24]) == (page.width, page.height)
+    assert [category.str_title.content for category in page.categories] == [
+        f"module{i} · 模块说明" for i in range(6)
+    ]
+    columns, height = page.sections[1]._split_columns(page.categories, _HELP_CATEGORY_PADDING)
+    assert len(columns) <= 4
+    assert [c for column in columns for c in column] == page.categories
+    assert height == max(sum(c.get_height() for c in column) + 136 * (len(column) - 1) for column in columns)
+    assert struct.unpack(">II", HelpPixieBackend().render(model).data[16:24]) == page.measure()
 
 
-def test_multicolumn_continuations_preserve_every_command_and_heading():
+def test_overflow_preserves_every_command_in_order_and_repeats_category_heading():
     pytest.importorskip("pixie")
     model = layout_model((140, 3, 2, 1))
     model["groups"][0]["summary"] = "多行模块标题 " * 20
     pages = HelpPixieBackend().layout(model)
     assert len(pages) > 1
-    ids = []
-    continuation = []
-    for page in pages:
-        assert len(page.columns) <= MAX_COLUMNS and page.height <= MAX_HEIGHT
-        assert fits(page.width, page.height)
-        for column in page.columns:
-            assert column.height <= MAX_HEIGHT - HEADER_HEIGHT - FOOTER_HEIGHT
-            for module in column.modules:
-                ids.extend(card.command_id for card in module.cards)
-                assert module.cards and module.heading.height > 0
-                if module.category.startswith("module0 "):
-                    continuation.append(module)
-    assert len(continuation) > 1
-    assert len(ids) == len(set(ids)) == model["count"]
-    assert set(ids) == command_ids(model)
-    assert [card.command_id for module in continuation for card in module.cards] == [
-        command["id"] for command in model["groups"][0]["commands"]
+    assert all(fits(*page.measure()) for page in pages)
+    categories = [category for page in pages for category in page.categories]
+    assert [item._help.id for category in categories for item in category.section_items] == [
+        c["id"] for group in model["groups"] for c in group["commands"]
     ]
+    assert sum(c.str_title.content.startswith("module0 ") for c in categories) > 1
 
 
 def test_long_single_module_uses_columns_before_pages():
     pytest.importorskip("pixie")
-    model = layout_model((20,))
-    pages = HelpPixieBackend().layout(model)
-    assert len(pages) == 1 and len(pages[0].columns) > 1
-    ids = [
-        card.command_id for column in pages[0].columns for module in column.modules for card in module.cards
-    ]
-    assert len(ids) == len(set(ids)) == model["count"] and set(ids) == command_ids(model)
-
-
-def test_help_fills_remaining_columns_before_opening_another_page():
-    pytest.importorskip("pixie")
-    model = layout_model((20, 5, 5))
-    pages = HelpPixieBackend().layout(model)
-    assert len(pages) == 1 and len(pages[0].columns) >= 3
-    ids = [
-        card.command_id for column in pages[0].columns for module in column.modules for card in module.cards
-    ]
-    assert len(ids) == len(set(ids)) == model["count"] and set(ids) == command_ids(model)
+    pages = HelpPixieBackend().layout(layout_model((20,)))
+    assert len(pages) == 1
+    assert sum(len(c.section_items) for c in pages[0].categories) == 20
 
 
 def test_long_text_help_splits_losslessly():
