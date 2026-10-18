@@ -318,8 +318,8 @@ class _CopyrightSection(RenderableSection):
 class HelpRenderer(SimpleCardRenderer):
     """帮助信息"""
 
-    def __init__(self, helps):
-        super().__init__()
+    def __init__(self, helps, gradient=None):
+        super().__init__(gradient if gradient is not None else self._pick_coordinated_gradient())
         self._helps = helps
 
     @classmethod

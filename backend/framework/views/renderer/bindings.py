@@ -10,7 +10,6 @@ from easy_pixie import StyledString, calculate_width, draw_text
 
 from ...contests import PHASES, Contest
 from ..footer import CardFooter
-from ..palette import DECENT
 from .pixie.model import RenderableSection
 from .pixie.render_contest_list import ContestListRenderer
 from .pixie.render_help import HelpRenderer
@@ -19,7 +18,7 @@ from .runtime import PickOne, PickOneImgStat
 
 
 class InformationSection(RenderableSection):
-    def __init__(self, *, width=916, detail="配色 " + DECENT.label, dark=False, tips=None):
+    def __init__(self, *, detail, width=916, dark=False, tips=None):
         self.footer = CardFooter(width, detail=detail, dark=dark)
         self.tips = tips
         self.tip_height = max(tips.str_tips_title.height, 8 + tips.str_tips_detail.height) if tips else 0
@@ -39,8 +38,8 @@ class InformationSection(RenderableSection):
 
 
 class HelpPageRenderer(HelpRenderer):
-    def __init__(self, categories, *, page=1, total=1):
-        super().__init__({})
+    def __init__(self, categories, *, gradient=None, page=1, total=1):
+        super().__init__({}, gradient)
         self.categories = categories
         self.page, self.total = page, total
 
@@ -82,9 +81,13 @@ def contest_renderer(model):
                 now=now,
             )
         )
-    renderer = ContestListRenderer(*groups.values(), is_today=model["title"].startswith("今日"))
+    renderer = ContestListRenderer(
+        *groups.values(), is_today=model["title"].startswith("今日"), gradient=model.get("_gradient")
+    )
     renderer.sections[0].str_title.content = model["title"]
-    renderer.sections[-1] = InformationSection(tips=renderer.sections[-1])
+    renderer.sections[-1] = InformationSection(
+        detail="配色 " + renderer._gradient_color.name, tips=renderer.sections[-1]
+    )
     renderer.sections[2:2] = [NoticeSection(text) for text in model.get("warnings", ())]
     return renderer
 

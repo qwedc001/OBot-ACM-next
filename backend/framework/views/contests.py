@@ -16,17 +16,22 @@ class ContestBackend:
         if model.get("detail"):
             from .contest_detail import ContestDetailRenderer
 
-            return ContestDetailRenderer().detail_layout(model)[:2]
+            return ContestDetailRenderer(model.get("_gradient")).detail_layout(model)[:2]
         return self.renderer(model).measure()
 
     def draw(self, model):
         if model.get("detail"):
             from .contest_detail import ContestDetailRenderer
 
-            return ContestDetailRenderer().draw(model)
+            return ContestDetailRenderer(model.get("_gradient")).draw(model)
         return self.renderer(model).render()
 
     def render_pages(self, model):
+        from easy_pixie import pick_gradient_color
+
+        # Native colour objects stay in the render worker, never in queued data.
+        # Reuse the choice while measuring and drawing all pages of this reply.
+        model = {**model, "_gradient": pick_gradient_color()}
         pages, offset = [], 0
         while offset < len(model["items"]):
             size = len(model["items"]) - offset

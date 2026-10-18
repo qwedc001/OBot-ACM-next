@@ -2,12 +2,17 @@
 
 from ..contests import Contest, format_duration, format_time
 from .footer import CardFooter
-from .palette import DECENT, INK, MUTED, paint_card
+from .palette import INK, MUTED, paint_card
 
 MARGIN, COLUMN, GAP = 80, 760, 56
 
 
 class ContestDetailRenderer:
+    def __init__(self, gradient=None):
+        from easy_pixie import pick_gradient_color
+
+        self.gradient = gradient if gradient is not None else pick_gradient_color()
+
     @staticmethod
     def text(value, size=24, *, width=COLUMN, weight="M", color=INK):
         from easy_pixie import StyledString
@@ -57,7 +62,7 @@ class ContestDetailRenderer:
         top = place("更新于 " + format_time(model["now"]) + " · 北京时间", MARGIN, top, 23, color=MUTED) + 24
         for warning in model.get("warnings", ()):
             top = place(warning, MARGIN, top, 23, color=MUTED) + 12
-        footer = CardFooter(content_width, detail="配色 " + DECENT.label)
+        footer = CardFooter(content_width, detail="配色 " + self.gradient.name)
         return width, top + footer.height + 70, placements, bars, footer, top
 
     def draw(self, model):
@@ -66,7 +71,7 @@ class ContestDetailRenderer:
 
         width, height, placements, bars, footer, bottom = self.detail_layout(model)
         image = pixie.Image(width, height)
-        paint_card(image, DECENT)
+        paint_card(image, self.gradient)
         for block, x, y in placements:
             draw_text(image, block, x, y)
         for x, y, bar_width, ratio in bars:

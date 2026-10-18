@@ -10,8 +10,6 @@ from pathlib import Path
 from functools import cached_property
 import logging
 from ...layout import fits
-from ...palette import DECENT
-from easy_pixie import GradientColor
 
 _lib_path = str(Path(__file__).parents[2] / "assets")
 _img_load_cache: dict[str, tuple[float, pixie.Image]] = {}
@@ -205,8 +203,8 @@ class RenderableSvgSection(RenderableSection, abc.ABC):
 class SimpleCardRenderer(Renderer, abc.ABC):
     """简单的卡片渲染"""
 
-    def __init__(self):
-        self._gradient_color = GradientColor(list(DECENT.colors), [0.0, 1.0], DECENT.label)
+    def __init__(self, gradient=None):
+        self._gradient_color = gradient if gradient is not None else pick_gradient_color()
 
     @abc.abstractmethod
     def _get_render_sections(self) -> list[RenderableSection]:

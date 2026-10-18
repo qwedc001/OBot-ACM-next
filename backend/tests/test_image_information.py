@@ -33,8 +33,12 @@ def test_information_area_measures_wrapping_and_draws_every_line_inside_canvas(d
 
 def test_help_every_page_has_readable_information_and_page_number(monkeypatch):
     pytest.importorskip("pixie")
-    from easy_pixie import draw_text
+    from easy_pixie import GradientColor, draw_text
 
+    from framework.views.renderer.pixie.render_help import HelpRenderer
+
+    gradient = GradientColor(["#4568DC", "#B06AB3"], [0.0, 1.0], "#42 Test gradient")
+    monkeypatch.setattr(HelpRenderer, "_pick_coordinated_gradient", classmethod(lambda cls: gradient))
     monkeypatch.setattr("framework.views.help.MAX_HEIGHT", 2200)
     model = layout_model((24, 2, 1))
     backend = HelpPixieBackend()
@@ -45,7 +49,7 @@ def test_help_every_page_has_readable_information_and_page_number(monkeypatch):
     texts = [call.args[1].content for call in drawing.call_args_list]
     assert texts.count(PROJECT_URL) == len(pages)
     for index in range(1, len(pages) + 1):
-        assert COPYRIGHT + f" · 配色 #187 Decent · 第 {index}/{len(pages)} 页" in texts
+        assert COPYRIGHT + f" · 配色 {gradient.name} · 第 {index}/{len(pages)} 页" in texts
 
 
 def test_profile_keeps_information_below_all_content():

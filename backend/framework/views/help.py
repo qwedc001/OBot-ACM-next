@@ -15,11 +15,15 @@ MAX_HEIGHT = MAX_EDGE
 class HelpPixieBackend:
     def layout(self, model):
         from copy import copy
+        from functools import partial
 
-        from .palette import DECENT
-        from .renderer.bindings import HelpPageRenderer as HelpRenderer
+        from .renderer.bindings import HelpPageRenderer
         from .renderer.pixie.render_help import _HelpCategory
 
+        # Pick once per reply: measurement, category accents, background and
+        # every overflow page must use the same upstream colour and label.
+        gradient = HelpPageRenderer([])._gradient_color
+        HelpRenderer = partial(HelpPageRenderer, gradient=gradient)
         categories = []
         for group in model["groups"]:
             helps = []
@@ -42,7 +46,7 @@ class HelpPixieBackend:
                 )
             if helps:
                 categories.append(
-                    _HelpCategory(f"{group['name']} · {group['summary']}", helps, DECENT.colors[-1])
+                    _HelpCategory(f"{group['name']} · {group['summary']}", helps, gradient.color_list[-1])
                 )
         if not categories:
             return []

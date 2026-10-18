@@ -279,8 +279,8 @@ class ContestListRenderer(SimpleCardRenderer):
     """渲染比赛列表"""
 
     def __init__(self, running_contests: list[Contest], upcoming_contests: list[Contest],
-                 finished_contests: list[Contest], is_today: bool = False):
-        super().__init__()
+                 finished_contests: list[Contest], is_today: bool = False, gradient=None):
+        super().__init__(gradient)
         self._running_contests = running_contests
         self._upcoming_contests = upcoming_contests
         self._finished_contests = finished_contests
