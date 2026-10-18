@@ -64,6 +64,35 @@ def codeforces_contests(rows):
     return tuple(result)
 
 
+def _atcoder_rated_range(value):
+    """Original OBot supplement wording, without the raw 'Rated' prefix."""
+    value = value.replace(" ", "")
+    if value == "-":
+        return "不计分"
+    if value == "All":
+        return "为所有人计分"
+    if not re.fullmatch(r"\d*-\d*", value):
+        raise ValueError("Invalid AtCoder rating range")
+    if value.startswith("-"):
+        value = "0" + value
+    if value.endswith("-"):
+        value += "∞"
+    return f"为 {value} 计分"
+
+
+def _nowcoder_rated(row):
+    """Match old _decode_rated: unrated / everyone / 0 through upper bound."""
+    if not row.xpath(".//span[contains(@class,'tag-rating')]"):
+        return "不计分"
+    limit = content(row.xpath(".//li[@class='icon-nc-flash2']"))
+    if not limit:
+        return "为所有人计分"
+    match = re.search(r"Rating\s*[＞>]\s*(\d+)\s*$", limit, re.IGNORECASE)
+    if not match:
+        raise ValueError("Invalid NowCoder rating range")
+    return f"为 0-{int(match[1])} 计分"
+
+
 def atcoder_contests(source):
     tree = document(source)
     sections = tree.xpath(
@@ -96,7 +125,7 @@ def atcoder_contests(source):
                         content([link]),
                         int(stamp.timestamp()),
                         hours * 3600 + minutes * 60,
-                        "Rated " + content([cells[3]]),
+                        _atcoder_rated_range(content([cells[3]])),
                         "https://atcoder.jp/contests/" + identifier,
                     )
                 )
@@ -131,8 +160,6 @@ def nowcoder_contests(source, category):
                     int(datetime.strptime(t, "%Y-%m-%d %H:%M").replace(tzinfo=TIMEZONE).timestamp())
                     for t in times
                 ]
-                rated = "Rated" if row.xpath(".//span[contains(@class,'tag-rating')]") else "Unrated"
-                limit = content(row.xpath(".//li[@class='icon-nc-flash2']"))
                 identifier = match[1]
                 result.append(
                     contest(
@@ -143,7 +170,7 @@ def nowcoder_contests(source, category):
                         content([link]),
                         start,
                         end - start,
-                        rated + (" · " + limit if limit else ""),
+                        _nowcoder_rated(row),
                         "https://ac.nowcoder.com/acm/contest/" + identifier,
                     )
                 )

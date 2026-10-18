@@ -56,12 +56,40 @@ def test_platform_parsers_times_urls_and_validation():
     atc, recent = atcoder_contests(ATC)
     assert atc.start == stamp("2026-10-18T20:00") and atc.duration == 6000
     assert atc.abbr == "ABC999" and recent.key == "atc:arc999"
+    assert atc.supplement == "为 0-1999 计分" and recent.supplement == "为所有人计分"
+    assert cf.supplement == "CF 赛制"
     nk = nowcoder_contests(NK, "牛客系列赛")[0]
     assert nk.start == stamp("2026-10-18T23:00") and nk.end == stamp("2026-10-19T01:00")
-    assert "1599" in nk.supplement and nk.url.endswith("/999")
+    assert nk.supplement == "为 0-1599 计分" and nk.url.endswith("/999")
     assert codeforces_contests([{"id": 9}]) == ()  # no announced start
     assert atcoder_contests('<div id="contest-table-upcoming"><table><tbody/></table></div>') == ()
     assert nowcoder_contests('<div class="platform-mod js-current"/>', "高校比赛") == ()
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("-", "不计分"),
+        ("All", "为所有人计分"),
+        ("- 1999", "为 0-1999 计分"),
+        ("1600 - 2999", "为 1600-2999 计分"),
+        ("2000 -", "为 2000-∞ 计分"),
+    ],
+)
+def test_atcoder_supplement_uses_original_wording(value, expected):
+    assert atcoder_contests(ATC.replace("- 1999", value))[0].supplement == expected
+
+
+def test_nowcoder_supplement_uses_original_wording_without_extra_conditions():
+    assert (
+        nowcoder_contests(NK.replace('<span class="tag-rating">Rated</span>', ""), "牛客")[0].supplement
+        == "不计分"
+    )
+    no_limit = NK.replace('<li class="icon-nc-flash2">不计Rating的范围：Rating＞1599</li>', "")
+    assert nowcoder_contests(no_limit, "牛客")[0].supplement == "为所有人计分"
+    assert nowcoder_contests(NK.replace("＞", ">"), "牛客")[0].supplement == "为 0-1599 计分"
+    with pytest.raises(UpstreamError):
+        nowcoder_contests(NK.replace("＞", "≥"), "牛客")  # do not invent a different bound
 
 
 @pytest.mark.parametrize(
@@ -298,16 +326,18 @@ def test_measured_render_pages_are_bounded_and_include_all_contests(monkeypatch)
     _, single_height = backend.measure({**model, "items": model["items"][:1]})
     height_limit = single_height + 100
     monkeypatch.setattr("framework.views.contests.MAX_HEIGHT", height_limit)
-    seen = []
+    seen, palettes = [], []
     draw = backend.draw
 
     def record(page):
         seen.extend(c["key"] for c in page["items"])
+        palettes.append(page["_gradient"])
         return draw(page)
 
     monkeypatch.setattr(backend, "draw", record)
     pages = backend.render_pages(model)
     assert seen == [c.key for c in items]
+    assert all(gradient is palettes[0] for gradient in palettes)
     assert len(pages) >= 2 and all(p.height <= height_limit and p.width <= 8192 for p in pages)
     assert all(p.data.startswith(b"\x89PNG") for p in pages)
     assert all(p.width * p.height <= 24_000_000 for p in pages)
