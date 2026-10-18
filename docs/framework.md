@@ -102,7 +102,7 @@ maintenance 包含 ping、whoami、whoisthis、status；其中 whoami 为 everyo
 
 帮助图沿用原版 OBot 的深色 Pixie 样式、模块标题分隔线和参数标记，按实际字体折行测量模块高度，长模块优先放到当前最短栏，最多三栏。整模块尽量同栏；超高模块按完整卡片分页并重复模块标题，不裁剪或遗漏指令。图宽1108/2120/3132、高不超过4096，一个模块仍为一栏。排队期间权限变化时重新生成文字；渲染依赖缺失或渲染失败时回退完整过滤后的文字。
 
-所有生成图片复用 `views.footer.CardFooter`，包含 `OBot's Next ACM Bot`、公共项目地址、`© OBot-Next-Dev-Team`、当前 `framework.__version__` 与配色，分页图每页保留。信息区参与布局测量；深浅画布只调整文字颜色，规范见 [视觉设计](design.md)。Peeper 在独立进程通过 section 外层适配追加，保留上游版权，不改动 submodule。以后新增 View 必须接入同一组件。
+OBot 自行渲染的图片复用 `views.footer.CardFooter`，包含 `OBot's Next ACM Bot`、公共项目地址、`© OBot-Next-Dev-Team`、当前 `framework.__version__` 与配色，分页图每页保留。信息区参与布局测量；深浅画布只调整文字颜色，规范见 [视觉设计](design.md)。第三方工具（如 Peeper）通过官方 CLI 生成图片，保留其原有布局与署名，不追加 OBot 信息区；尺寸合规时原字节交付，只在超限时等比例缩小。新增自绘 View 接入同一信息区组件。
 
 图片随机 ID、大小限制、摘要和 TTL 由 ArtifactClient 管理；只有请求者或真超管能读取。lease 避免清理正在发送的文件，cleanup 删除过期产物。目前没有自动清理定时任务、孤儿文件恢复或跨进程 lease。文件与数据库不是一个原子事务，崩溃可能留下孤儿文件；dashboard 不应公开产物目录。不支持图片的平台直接使用完整的过滤后文字帮助。
 

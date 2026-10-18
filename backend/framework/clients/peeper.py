@@ -72,7 +72,7 @@ class PeeperClient(Client):
                     if not output.is_file():
                         raise PeeperCLIError("missing_image")
                     code = await run_process(
-                        ["-m", "framework.integration.image_footer_worker", str(output), str(final)],
+                        ["-m", "framework.integration.image_output_worker", str(output), str(final)],
                         cwd=PROJECT_ROOT,
                         environment=cli_environment(model["timezone"]),
                     )

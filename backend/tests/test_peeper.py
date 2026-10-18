@@ -7,7 +7,7 @@ import pytest
 from framework.clients.artifacts import ArtifactClient
 from framework.clients.jobs import JobQueue
 from framework.clients.peeper import PeeperClient
-from framework.integration.image_footer_worker import MAX_OUTPUT_EDGE, MAX_OUTPUT_PIXELS
+from framework.integration.image_output_worker import MAX_OUTPUT_EDGE, MAX_OUTPUT_PIXELS
 
 from .conftest import USER
 
