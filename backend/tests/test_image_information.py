@@ -31,11 +31,13 @@ def test_information_area_measures_wrapping_and_draws_every_line_inside_canvas(d
         assert x == 32 and y >= 60 and y + text.height <= image.height - 32
 
 
-def test_help_every_page_has_readable_information_and_page_number():
+def test_help_every_page_has_readable_information_and_page_number(monkeypatch):
     pytest.importorskip("pixie")
     from easy_pixie import draw_text
 
-    model = layout_model((40, 2, 1))
+    monkeypatch.setattr("framework.views.help.MAX_COLUMNS", 2)
+    monkeypatch.setattr("framework.views.help.MAX_HEIGHT", 2200)
+    model = layout_model((10, 2, 1))
     backend = HelpPixieBackend()
     backend.layout(model)  # Load native syntax helpers before instrumenting.
     with patch("easy_pixie.draw_text", wraps=draw_text) as drawing:

@@ -15,15 +15,14 @@ from framework.runtime import Services
 from framework.services.help import HelpService
 from framework.views.help import (
     COLUMN_GAP,
-    CONTENT_WIDTH,
     FOOTER_HEIGHT,
     HEADER_HEIGHT,
     MARGIN,
     MAX_COLUMNS,
     MAX_HEIGHT,
-    WIDTH,
     HelpPixieBackend,
 )
+from framework.views.layout import aspect_error, fits
 
 from .conftest import ROOT, USER, access
 
@@ -145,7 +144,7 @@ async def test_native_png_help_is_private_and_filtered(tmp_path, database):
         assert isinstance(data, bytes) and data.startswith(b"\x89PNG\r\n\x1a\n")
         async with database() as session:
             artifact = (await session.scalars(select(ImageArtifact))).one()
-        assert artifact.width == WIDTH + CONTENT_WIDTH + COLUMN_GAP and artifact.height <= MAX_HEIGHT
+        assert fits(artifact.width, artifact.height) and artifact.height <= MAX_HEIGHT
         async with services.clients.artifacts.lease(USER, artifact.id) as path:
             image = pixie.read_image(str(path))
             assert image.width == artifact.width and image.height == artifact.height
@@ -222,7 +221,7 @@ async def test_many_commands_paginate_without_omission_or_clipping():
     model = await catalog.help_model(access())
     backend = HelpPixieBackend()
     pages = backend.layout(model)
-    assert len(pages) > 1
+    assert len(pages) == 1 and len(pages[0].columns) > 3
     assert [
         card.command_id
         for page in pages
@@ -235,7 +234,10 @@ async def test_many_commands_paginate_without_omission_or_clipping():
         assert HEADER_HEIGHT + FOOTER_HEIGHT + max(column.height for column in page.columns) == page.height
     images = backend.render_pages(model)
     assert len(images) == len(pages)
-    assert all(struct.unpack(">II", image.data[16:24]) == (WIDTH, image.height) for image in images)
+    assert all(
+        struct.unpack(">II", image.data[16:24]) == (page.width, page.height)
+        for page, image in zip(pages, images, strict=True)
+    )
     # Excessively long authored metadata falls back to full text rather than truncation.
     oversized = copy.deepcopy(model)
     oversized["groups"][0]["commands"][0]["summary"] = "长说明" * 5000
@@ -270,13 +272,16 @@ def layout_model(counts):
 
 
 @pytest.mark.parametrize("counts", [(4,), (2, 1), (2, 1, 1), (1,) * 7, (0, 1, 0)])
-def test_column_count_is_based_on_nonempty_modules_and_capped_at_three(counts):
+def test_columns_adapt_to_content_without_empty_reserved_columns(counts):
     pytest.importorskip("pixie")
     pages = HelpPixieBackend().layout(layout_model(counts))
-    columns = min(MAX_COLUMNS, sum(count > 0 for count in counts))
-    assert all(len(page.columns) == columns for page in pages)
+    assert all(1 <= len(page.columns) <= MAX_COLUMNS for page in pages)
     assert all(
-        page.width == MARGIN * 2 + CONTENT_WIDTH * columns + COLUMN_GAP * (columns - 1) for page in pages
+        page.width
+        == MARGIN * 2 + page.column_width * len(page.columns) + COLUMN_GAP * (len(page.columns) - 1)
+        and all(column.modules for column in page.columns)
+        and fits(page.width, page.height)
+        for page in pages
     )
     assert not HelpPixieBackend().layout(layout_model((0, 0)))
 
@@ -294,9 +299,9 @@ def test_whole_modules_use_measured_height_and_always_choose_the_shortest_column
     # Replay longest-first assignment, with stable catalog order for ties.
     catalog_order = {f"module{index} · 模块说明": index for index in range(len(model["groups"]))}
     measured.sort(key=lambda pair: (-pair[0].height, catalog_order[pair[0].category]))
-    heights = [0] * 3
+    heights = [0] * len(page.columns)
     for module, actual_column in measured:
-        assert actual_column == min(range(3), key=lambda index: heights[index])
+        assert actual_column == min(range(len(heights)), key=lambda index: heights[index])
         heights[actual_column] += module.height
         group = model["groups"][catalog_order[module.category]]
         assert [card.command_id for card in module.cards] == [command["id"] for command in group["commands"]]
@@ -309,14 +314,15 @@ def test_whole_modules_use_measured_height_and_always_choose_the_shortest_column
 
 def test_multicolumn_continuations_preserve_every_command_and_heading():
     pytest.importorskip("pixie")
-    model = layout_model((50, 3, 2, 1))
+    model = layout_model((140, 3, 2, 1))
     model["groups"][0]["summary"] = "多行模块标题 " * 20
     pages = HelpPixieBackend().layout(model)
     assert len(pages) > 1
     ids = []
     continuation = []
     for page in pages:
-        assert len(page.columns) == 3 and page.height <= MAX_HEIGHT
+        assert len(page.columns) <= MAX_COLUMNS and page.height <= MAX_HEIGHT
+        assert fits(page.width, page.height)
         for column in page.columns:
             assert column.height <= MAX_HEIGHT - HEADER_HEIGHT - FOOTER_HEIGHT
             for module in column.modules:
@@ -330,6 +336,29 @@ def test_multicolumn_continuations_preserve_every_command_and_heading():
     assert [card.command_id for module in continuation for card in module.cards] == [
         command["id"] for command in model["groups"][0]["commands"]
     ]
+
+
+def test_long_single_module_uses_columns_before_pages():
+    pytest.importorskip("pixie")
+    model = layout_model((20,))
+    pages = HelpPixieBackend().layout(model)
+    assert len(pages) == 1 and len(pages[0].columns) > 1
+    ids = [
+        card.command_id for column in pages[0].columns for module in column.modules for card in module.cards
+    ]
+    assert len(ids) == len(set(ids)) == model["count"] and set(ids) == command_ids(model)
+
+
+def test_help_fills_remaining_columns_before_opening_another_page():
+    pytest.importorskip("pixie")
+    model = layout_model((20, 5, 5))
+    pages = HelpPixieBackend().layout(model)
+    assert len(pages) == 1 and len(pages[0].columns) >= 4
+    assert aspect_error(pages[0].width, pages[0].height) < 0.2
+    ids = [
+        card.command_id for column in pages[0].columns for module in column.modules for card in module.cards
+    ]
+    assert len(ids) == len(set(ids)) == model["count"] and set(ids) == command_ids(model)
 
 
 def test_long_text_help_splits_losslessly():

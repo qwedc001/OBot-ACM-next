@@ -1,4 +1,4 @@
-"""OBot help cards adapted for permission models and bounded mobile pages.
+"""OBot help cards with measured columns and overflow-only pagination.
 
 Visual design: OBot-ACM src/render/pixie/render_help.py (AGPL-3.0).
 Uses easy-pixie's existing OPPOSans fonts; no old Constants/import side effects.
@@ -11,16 +11,17 @@ from typing import Any
 from framework.clients.renderer import PixieBackend, RenderedImage
 
 from .footer import CardFooter
+from .layout import MAX_PIXELS, aspect_error, max_columns
 from .palette import DECENT, paint_card
 
 WIDTH = 1108
-MAX_HEIGHT = 4096
+MAX_HEIGHT = 5120
 MARGIN = 96
 CONTENT_WIDTH = WIDTH - MARGIN * 2
 HEADER_HEIGHT = 300
 FOOTER_HEIGHT = 300
-MAX_COLUMNS = 3
 COLUMN_GAP = 96
+MAX_COLUMNS = max_columns(CONTENT_WIDTH, COLUMN_GAP, MARGIN)
 # Original help uses a near-black veil and a lightened gradient accent.
 ACCENT = (221, 244, 248)
 INK = (255, 255, 255, 228)
@@ -57,10 +58,11 @@ class HelpColumn:
 @dataclass
 class HelpPage:
     columns: list[HelpColumn]
+    column_width: int = CONTENT_WIDTH
 
     @property
     def width(self) -> int:
-        return MARGIN * 2 + len(self.columns) * CONTENT_WIDTH + (len(self.columns) - 1) * COLUMN_GAP
+        return MARGIN * 2 + len(self.columns) * self.column_width + (len(self.columns) - 1) * COLUMN_GAP
 
     @property
     def height(self) -> int:
@@ -84,31 +86,53 @@ class HelpPixieBackend:
         return StyledString(text, weight, size, font_color=color, max_width=width, line_multiplier=1.25)
 
     def layout(self, model: dict) -> list[HelpPage]:
+        if not any(group["commands"] for group in model["groups"]):
+            return []
+        candidates = []
+        # A small range of readable text widths bridges the jump between whole
+        # column counts, without shrinking fonts or adding empty canvas space.
+        for width in (832, CONTENT_WIDTH, 1024, 1120):
+            try:
+                candidates.append(self._layout(model, width))
+            except ValueError:
+                continue
+        if not candidates:
+            raise ValueError("Help entry exceeds image size limit; text help remains available")
+        return min(candidates, key=self._score)
+
+    @staticmethod
+    def _score(pages):
+        return len(pages), sum(aspect_error(p.width, p.height) for p in pages) / len(pages)
+
+    def _layout(self, model: dict, column_width: int) -> list[HelpPage]:
+        from functools import partial
+
         from ._help import UsageBlock
 
+        text = partial(self._text, width=column_width - 48)
         modules: list[HelpModule] = []
         capacity = MAX_HEIGHT - HEADER_HEIGHT - FOOTER_HEIGHT
         for group in model["groups"]:
             category = f"{group['name']} · {group['summary']}"
-            heading = self._text(category, 32, weight="H", color=ACCENT, width=CONTENT_WIDTH - 68)
+            heading = text(category, 32, weight="H", color=ACCENT, width=column_width - 68)
             cards = []
             for command in group["commands"]:
                 prefix = "" if command["mode"] == "keyword" else "/"
                 blocks = [
-                    self._text(prefix + command["name"], 46, weight="H", color=INK),
-                    self._text(command["summary"], 28),
-                    UsageBlock(command["usage"], CONTENT_WIDTH - 48, ACCENT),
+                    text(prefix + command["name"], 46, weight="H", color=INK),
+                    text(command["summary"], 28),
+                    UsageBlock(command["usage"], column_width - 48, ACCENT),
                 ]
                 if command["aliases"]:
                     blocks.append(
-                        self._text(
+                        text(
                             "别名：" + "、".join(prefix + alias for alias in command["aliases"]),
                             24,
                             color=MUTED,
                         )
                     )
                 if command["examples"]:
-                    blocks.append(self._text("示例：" + "；".join(command["examples"]), 24, color=MUTED))
+                    blocks.append(text("示例：" + "；".join(command["examples"]), 24, color=MUTED))
                 card_height = sum(block.height for block in blocks) + 12 * (len(blocks) - 1) + 32
                 if heading.height + 64 + card_height + 32 > capacity:
                     raise ValueError("Help entry exceeds a page; text help remains available")
@@ -118,28 +142,62 @@ class HelpPixieBackend:
         if not modules:
             return []
 
-        column_count = min(MAX_COLUMNS, len(modules))
+        # Measure candidate widths, including four or more columns. Balance each
+        # width at the smallest height that avoids unnecessary pages.
+        # Cards remain intact, and continuation headings count towards the budget.
+        candidates = []
+        minimum = max(m.heading.height + 64 + c.height for m in modules for c in m.cards)
+        for count in range(
+            1, min(MAX_COLUMNS, max_columns(column_width, COLUMN_GAP, MARGIN), model["count"]) + 1
+        ):
+            width = MARGIN * 2 + count * column_width + (count - 1) * COLUMN_GAP
+            limit = min(MAX_HEIGHT, MAX_PIXELS // width) - HEADER_HEIGHT - FOOTER_HEIGHT
+            if limit < minimum:
+                continue
+            best = self._pack(modules, count, limit, column_width)
+            low, high = minimum, limit
+            while low < high:
+                middle = (low + high) // 2
+                trial = self._pack(modules, count, middle, column_width)
+                if len(trial) <= len(best):
+                    high = middle
+                else:
+                    low = middle + 1
+            pages = self._pack(modules, count, high, column_width)
+            candidates.append(pages)
+        if not candidates:
+            raise ValueError("Help entry exceeds image size limit; text help remains available")
+        return min(candidates, key=self._score)
+
+    @staticmethod
+    def _pack(modules, column_count, capacity, column_width):
 
         def new_page():
-            return HelpPage([HelpColumn([]) for _ in range(column_count)])
+            return HelpPage([HelpColumn([]) for _ in range(column_count)], column_width)
 
         pages = [new_page()]
         # Longest-first packing avoids leaving a tall module until all columns
         # already contain short ones. Ties retain the catalog's module order.
         for module in sorted(modules, key=lambda module: module.height, reverse=True):
-            # Keep whole modules together; only over-height modules are split,
-            # at card boundaries, with the same measured heading on each part.
-            chunks = [HelpModule(module.category, module.heading, [])]
-            for card in module.cards:
-                if chunks[-1].height + card.height > capacity:
-                    chunks.append(HelpModule(module.category, module.heading, []))
-                chunks[-1].cards.append(card)
-            for chunk in chunks:
+            offset = 0
+            while offset < len(module.cards):
                 column = min(pages[-1].columns, key=lambda column: column.height)
-                if column.height + chunk.height > capacity:
+                chunk = HelpModule(module.category, module.heading, [])
+                if column.height + chunk.height + module.cards[offset].height > capacity:
                     pages.append(new_page())
                     column = pages[-1].columns[0]
+                # Keep a module intact if it fits; otherwise fill the available
+                # column at whole-command boundaries before starting a new page.
+                while offset < len(module.cards):
+                    card = module.cards[offset]
+                    if column.height + chunk.height + card.height > capacity:
+                        break
+                    chunk.cards.append(card)
+                    offset += 1
                 column.modules.append(chunk)
+        # Do not reserve blank columns on sparse last pages.
+        for page in pages:
+            page.columns = [column for column in page.columns if column.modules]
         return pages
 
     def _draw_page(self, model: dict, layout: HelpPage, page: int, total: int):
@@ -166,14 +224,14 @@ class HelpPixieBackend:
             203,
         )
         for index, column in enumerate(layout.columns):
-            x = MARGIN + index * (CONTENT_WIDTH + COLUMN_GAP)
+            x = MARGIN + index * (layout.column_width + COLUMN_GAP)
             y = HEADER_HEIGHT
             for module in column.modules:
-                chip_width = min(CONTENT_WIDTH, int(calculate_width(module.heading)) + 68)
+                chip_width = min(layout.column_width, int(calculate_width(module.heading)) + 68)
                 chip_height = module.heading.height + 18
                 draw_mask_rect(image, Loc(x, y, chip_width, chip_height), (*ACCENT, 30), chip_height // 2)
                 draw_text(image, module.heading, x + 34, y + 9)
-                remaining = CONTENT_WIDTH - chip_width - 20
+                remaining = layout.column_width - chip_width - 20
                 if remaining > 0:
                     draw_mask_rect(
                         image, Loc(x + chip_width + 20, y + chip_height // 2, remaining, 1), (*ACCENT, 80)
