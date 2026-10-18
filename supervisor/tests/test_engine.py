@@ -17,6 +17,20 @@ def read_value(engine):
         return db.execute("select value from test").fetchone()[0]
 
 
+async def test_prepare_preserves_optional_dependencies_without_symlink_privilege(engine, monkeypatch):
+    from dataclasses import replace
+    from unittest.mock import AsyncMock
+
+    engine.config = replace(engine.config, extras=("render", "ocr"))
+    calls = AsyncMock()
+    monkeypatch.setattr(engine, "git", calls)
+    monkeypatch.setattr(engine, "command", calls)
+    monkeypatch.setattr(Path, "symlink_to", lambda *args, **kwargs: None)
+    await engine.prepare("b" * 40, "extras-test")
+    sync = next(call.args for call in calls.await_args_list if "sync" in call.args)
+    assert sync == (engine.config.uv, "sync", "--locked", "--no-dev", "--extra", "render", "--extra", "ocr")
+
+
 async def test_failed_start_restores_database_cache_and_release(engine, monkeypatch):
     boots = []
 
@@ -124,7 +138,11 @@ def test_logs_are_bounded_redacted_and_safe_for_markdown():
     assert "```" not in tail.text()
 
 
-async def test_real_git_fetch_and_detached_release(engine, monkeypatch):
+@pytest.mark.parametrize("extras", [("render",), ("render", "ocr")])
+async def test_real_git_fetch_and_detached_release(engine, monkeypatch, extras):
+    from dataclasses import replace
+
+    engine.config = replace(engine.config, extras=extras)
     remote = Path(engine.config.repository)
     remote.mkdir()
 
@@ -144,7 +162,10 @@ async def test_real_git_fetch_and_detached_release(engine, monkeypatch):
     assert commit == git("rev-parse", "HEAD")
     original = engine.command
 
+    calls = []
+
     async def command(*args, **kwargs):
+        calls.append(args)
         if str(args[0]) == "git":
             return await original(*args, **kwargs)
 
@@ -157,6 +178,14 @@ async def test_real_git_fetch_and_detached_release(engine, monkeypatch):
         except OSError:
             pytest.skip("Windows symlink privilege unavailable")
     name = await engine.prepare(commit, "integration")
+    sync = next(args for args in calls if "sync" in args)
+    assert sync == (
+        engine.config.uv,
+        "sync",
+        "--locked",
+        "--no-dev",
+        *(argument for extra in extras for argument in ("--extra", extra)),
+    )
     assert (engine.release(name) / "README.md").read_text() == "test"
     assert (engine.release(name) / "data").resolve() == engine.config.data_dir
     assert not (engine.release(name) / ".env.dev").read_text()

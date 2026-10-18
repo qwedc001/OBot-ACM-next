@@ -68,7 +68,10 @@ uv = "/home/obot/.local/bin/uv"
 pnpm = "/usr/bin/pnpm"
 startup_timeout = 90
 stable_seconds = 5
+extras = ["render"]
 ```
+
+守护工具 0.12.0 起可用 `extras` 选择应用的可选依赖。启用 PickOne OCR 时改为 `["render", "ocr"]`，并单独升级守护工具；后续 CLI 更新和回滚重建会沿用此配置。默认仅安装 render。
 
 保留旧服务和数据库备份，执行 `obotctl bootstrap` 预先构建首个 Git 版本；然后将系统服务的启动入口改为 `obot-supervisor`。保留原来的驱动、端口、公开 URL、绝对数据库路径等环境配置。首次启动必须确认 QQ 连接成功再撤销旧服务的恢复准备；bootstrap 不代表启动已经验证。配置和状态目录应分别为 0600、0700。共享 data 中的全部文件和目录必须允许服务用户读写，特别检查历史维护命令留下的 root 私有文件；完整快照失败时更新会中止并恢复原进程。
 

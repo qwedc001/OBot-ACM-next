@@ -34,6 +34,7 @@ class Config:
     stable_seconds: float = 5
     command_timeout: float = 900
     stop_timeout: float = 30
+    extras: tuple[str, ...] = ("render",)
 
     @property
     def socket(self):
@@ -53,6 +54,11 @@ class Config:
         if not result.repository.startswith(("https://", "ssh://", "git@", "/")):
             raise ValueError("Use an explicit repository URL or absolute local test repository")
         validate_branch(result.branch)
+        if not isinstance(result.extras, (list, tuple)) or any(
+            not isinstance(extra, str) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", extra)
+            for extra in result.extras
+        ):
+            raise ValueError("Invalid dependency extras")
         result.state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(result.state_dir, 0o700)
         return result

@@ -133,7 +133,8 @@ class Engine:
                 raise ValueError("Release contains a reserved runtime path")
             mount.symlink_to(target, target_is_directory=target.is_dir())
         await self.command("git", "-C", path, "submodule", "update", "--init", "--recursive")
-        await self.command(self.config.uv, "sync", "--locked", "--no-dev", "--extra", "render", cwd=path)
+        extras = [argument for extra in self.config.extras for argument in ("--extra", extra)]
+        await self.command(self.config.uv, "sync", "--locked", "--no-dev", *extras, cwd=path)
         await self.command(
             self.config.pnpm, "--dir", path / "frontend", "install", "--frozen-lockfile", cwd=path
         )
