@@ -1,6 +1,9 @@
 """Isolated loopback fixture for browser tests. Never imports real bot configuration."""
 
 import asyncio
+import hashlib
+import io
+import json
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -106,6 +109,24 @@ def main():
             nonlocal group_actor
             async with services.session_factory() as session, session.begin():
                 session.add_all([User(id="fixture-user"), User(id="fixture-admin", superuser=True)])
+            from PIL import Image
+
+            await services.curation.start()
+            pickone = services.curation.pickone
+            pickone.config_path.write_text(
+                json.dumps({"cats": {"id": "猫猫", "key": ["猫", "猫猫"]}}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            category = pickone.lib_dir / "cats"
+            category.mkdir(exist_ok=True)
+            buffer = io.BytesIO()
+            Image.new("RGB", (160, 120), "#d19b82").save(buffer, format="GIF")
+            data = buffer.getvalue()
+            name = hashlib.md5(data).hexdigest() + ".gif"
+            (category / name).write_bytes(data)
+            (category / "parser.json").write_text(
+                json.dumps({name: {"ocr_text": "测试图片", "likes": 3}}, ensure_ascii=False), encoding="utf-8"
+            )
             services.clients.hydro.validate = AsyncMock()
             services.clients.hydro.daily = AsyncMock(side_effect=daily)
             raw = (await services.boards.issue(context("user"), "demo-oj")).split("#")[1]

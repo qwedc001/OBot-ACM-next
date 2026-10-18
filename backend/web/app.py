@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 
 from framework import __version__
+from framework.curation.errors import NotFoundError, StoreError
 from framework.paths import PROJECT_ROOT
 
 from .auth import build_auth_router
@@ -23,6 +24,14 @@ def install_web(app, services):
         return response
 
     web = WebContext(services)
+    app.state.content_web = web
+
+    @app.exception_handler(StoreError)
+    async def content_error(request, error):
+        return JSONResponse(
+            {"detail": str(error)}, status_code=404 if isinstance(error, NotFoundError) else 400
+        )
+
     plugins = discover_plugins()
     app.include_router(build_auth_router(web))
     meta = APIRouter(include_in_schema=False)

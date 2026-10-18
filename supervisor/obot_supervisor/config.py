@@ -1,7 +1,24 @@
 import os
+import re
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+
+
+def validate_branch(branch):
+    """Accept plain remote branch names, never revisions, options or refspecs."""
+    if (
+        not isinstance(branch, str)
+        or not 1 <= len(branch) <= 200
+        or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", branch)
+        or ".." in branch
+        or branch == "HEAD"
+        or any(
+            not part or part.startswith(".") or part.endswith((".", ".lock")) for part in branch.split("/")
+        )
+    ):
+        raise ValueError("Invalid branch name")
+    return branch
 
 
 @dataclass(frozen=True)
@@ -35,8 +52,7 @@ class Config:
             raise ValueError("State directory must be outside runtime data")
         if not result.repository.startswith(("https://", "ssh://", "git@", "/")):
             raise ValueError("Use an explicit repository URL or absolute local test repository")
-        if result.branch.startswith("-") or any(c.isspace() for c in result.branch):
-            raise ValueError("Invalid branch")
+        validate_branch(result.branch)
         result.state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(result.state_dir, 0o700)
         return result

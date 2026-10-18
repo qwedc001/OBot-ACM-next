@@ -22,7 +22,15 @@ def report_pages(operation):
         "recovery_failed": "恢复启动失败，需要服务器管理员介入",
     }
     title = outcomes.get(operation.get("outcome"), "操作进行中")
+    if operation.get("outcome") == "success":
+        title = {"test": "测试分支已启动", "restore": "已恢复测试前稳定版及数据"}.get(
+            operation.get("action"), title
+        )
     header = f"## {title}\n操作：{operation.get('id', '')[:12]}\n"
+    if operation.get("running_branch"):
+        header += (
+            f"当前分支：{operation['running_branch']}\n提交：{operation.get('running_commit', '')[:12]}\n"
+        )
     lines = str(operation.get("log", "")).replace("`", "'").splitlines()[-50:]
     chunks, current = [], ""
     for line in lines:
@@ -53,10 +61,12 @@ class UpdatesService(Service):
         if not context.command_allowed or not await context.command_allowed(spec):
             raise AccessDenied("Bot administrator required")
 
-    async def execute(self, context, action, target=None):
+    async def execute(self, context, action, target=None, *, branch=None):
         await self.authorize(context)
         return await self.container.clients.updater.request(
-            action, **({"target": asdict(target)} if target else {})
+            action,
+            **({"target": asdict(target)} if target else {}),
+            **({"branch": branch} if branch is not None else {}),
         )
 
     async def start(self):

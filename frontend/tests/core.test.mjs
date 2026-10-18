@@ -8,6 +8,12 @@ import {
 } from "../src/security/capability.js";
 import { defineRegistry, permitted } from "../src/plugins/registry-core.js";
 import { bindingOptions } from "../src/plugins/board/form.js";
+import { formatTime, fromNow } from "../src/utils/format.js";
+
+test("future competition times show their date instead of 'just now'", () => {
+  const future = Date.now() / 1000 + 86400 * 10;
+  assert.equal(fromNow(future), formatTime(future));
+});
 
 test("capabilities are removed from URL and read only on permitted pages", () => {
   const raw = randomBytes(32).toString("base64url");

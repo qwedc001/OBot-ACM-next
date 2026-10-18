@@ -44,7 +44,7 @@ async def main():
 
         async def updater(action, **values):
             actions.append((action, values))
-            if action in {"update", "restart"}:
+            if action in {"update", "restart", "test", "restore"}:
                 assert "准备更新" in calls[-1]["content"], "ACK must precede process stop"
                 assert values["target"]["reply_id"].startswith("event-")
                 assert values["target"]["reply_sequence"] == 2
@@ -86,7 +86,15 @@ async def main():
                 patch.object(services.clients.updater, "request", AsyncMock(side_effect=updater)),
             ):
                 for group, role in ((False, "member"), (True, "admin"), (True, "owner")):
-                    for command in ("/git", "/git pull", "/git status", "/update", "/git restart"):
+                    for command in (
+                        "/git",
+                        "/git pull",
+                        "/git status",
+                        "/update",
+                        "/git restart",
+                        "/update test codex/feature",
+                        "/update restore",
+                    ):
                         responses = await send(command, group=group, role=role, user="ordinary")
                         assert len(responses) == 1 and "权限不足" in responses[0]["content"]
                 assert not actions
@@ -99,6 +107,8 @@ async def main():
                         "/git plog",
                         "/git pull",
                         "/update",
+                        "/update test codex/feature",
+                        "/update restore",
                         "/git restart",
                     ):
                         responses = await send(command, group=group)
@@ -109,6 +119,14 @@ async def main():
                     assert await send("/git pull unexpected", group=group)
                 assert [action for action, _ in actions].count("update") == 4
                 assert [action for action, _ in actions].count("restart") == 2
+                assert [values["branch"] for action, values in actions if action == "test"] == [
+                    "codex/feature"
+                ] * 2
+                assert [action for action, _ in actions].count("restore") == 2
+                before = len(actions)
+                for command in ("/update test", "/update test a b", "/update restore extra"):
+                    assert await send(command)
+                assert len(actions) == before
                 assert services.telemetry.counts.get("failed", 0) == 0
             print(json.dumps({"ok": True}))
         finally:

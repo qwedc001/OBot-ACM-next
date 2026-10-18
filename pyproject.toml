@@ -1,6 +1,6 @@
 [project]
 name = "obot-acm-nonebot"
-version = "0.11.3"
+version = "0.13.0"
 description = "NoneBot2 bot for Competitive Programming and more"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -15,6 +15,7 @@ dependencies = [
     "nonebot-plugin-localstore>=0.7,<0.8",
     "nonebot-plugin-orm[aiosqlite]>=0.8.3,<0.9",
     "nonebot2[fastapi,httpx,websockets]>=2.5.0",
+    "pillow>=12.0.0",
     "python-dateutil>=2.9.0.post0",
     "requests>=2.34.2",
     "sqlalchemy>=2.0,<3",
@@ -24,7 +25,6 @@ dependencies = [
 render = [
     "easy-pixie>=0.0.10",
     "pixie-python>=4.3.0",
-    "pillow>=12.0.0",
 ]
 
 [tool.nonebot]

@@ -2,7 +2,7 @@
 
 from dataclasses import replace
 
-from arclet.alconna import Subcommand
+from arclet.alconna import Args, Subcommand
 from nonebot.adapters import Bot, Event
 from nonebot.plugin import PluginMetadata
 
@@ -42,11 +42,13 @@ update = template_command(
         "git.update",
         "git",
         "update",
-        "一键拉取更新并重启，失败自动回滚",
+        "更新稳定版、测试分支或恢复测试前备份",
         directory=(),
         permission=Role.SUPERUSER,
-        examples=("/update",),
+        examples=("/update", "/update test codex/feature", "/update restore"),
     ),
+    Subcommand("test", Args["branch", str]),
+    Subcommand("restore"),
     priority=5,
     block=True,
 )
@@ -63,7 +65,7 @@ async def inspect(context, services, reply, action):
 @git.assign("$main")
 async def handle_git_help(reply: Reply):
     await reply.finish(
-        "/git status 查看运行版本\n/git fetch 检查远端\n/git log 查看提交\n/git pull 或 /update 更新并重启\n/git restart 重启\n/git plog 上次更新报告"
+        "/git status 查看运行版本\n/git fetch 检查远端\n/git log 查看提交\n/git pull 或 /update 更新稳定版\n/update test <分支名> 测试分支\n/update restore 恢复测试前代码与数据\n/git restart 重启\n/git plog 上次更新报告"
     )
 
 
@@ -71,8 +73,9 @@ async def handle_git_help(reply: Reply):
 async def handle_git_status(context: CommandContext, services: BotServices, reply: Reply):
     result = await inspect(context, services, reply, "status")
     operation = result.get("operation") or {}
+    baseline = result.get("baseline") or {}
     await reply.finish(
-        f"运行：{'正常' if result['running'] else '停止'}\n版本：{str(result['commit'])[:12]}\n更新：{operation.get('phase', '无')} / {operation.get('outcome', '无')}"
+        f"运行：{'正常' if result['running'] else '停止'}\n分支：{result.get('branch', '未知')}\n版本：{str(result['commit'])[:12]}\n稳定版备份：{str(baseline.get('commit', '无'))[:12]}\n更新：{operation.get('phase', '无')} / {operation.get('outcome', '无')}"
     )
 
 
@@ -100,15 +103,19 @@ async def handle_git_plog(context: CommandContext, services: BotServices, reply:
     await reply.finish()
 
 
-async def request_update(bot, event, context, services, reply, action):
+async def request_update(bot, event, context, services, reply, action, *, branch=None):
     await services.updates.authorize(context)
     platform = get_platform(bot)
     incoming = platform.normalize(bot, event)
     target = replace(platform.send_target(bot, context.scene), reply_id=incoming.event_id, reply_sequence=2)
     # Await delivery before the daemon is allowed to stop this process.
-    await reply.send("准备更新并重启；启动失败会自动恢复。结果将发回本会话，也可使用 /git plog 查看。")
+    message = {
+        "test": "准备更新测试分支；保留测试前稳定版及完整数据，启动失败恢复该备份。",
+        "restore": "准备更新为测试前稳定版并恢复当时的数据；测试期间的数据会另外备份。",
+    }.get(action, "准备更新并重启；启动失败会自动恢复。")
+    await reply.send(message + "结果将发回本会话，也可使用 /git plog 查看。")
     try:
-        await services.updates.execute(context, action, target)
+        await services.updates.execute(context, action, target, branch=branch)
     except SupervisorUnavailable as error:
         await reply.finish(str(error))
     await reply.finish()
@@ -124,6 +131,20 @@ async def handle_git_pull(
 @update.assign("$main")
 async def handle_update(bot: Bot, event: Event, context: CommandContext, services: BotServices, reply: Reply):
     await request_update(bot, event, context, services, reply, "update")
+
+
+@update.assign("test")
+async def handle_update_test(
+    bot: Bot, event: Event, context: CommandContext, services: BotServices, reply: Reply, branch: str
+):
+    await request_update(bot, event, context, services, reply, "test", branch=branch)
+
+
+@update.assign("restore")
+async def handle_update_restore(
+    bot: Bot, event: Event, context: CommandContext, services: BotServices, reply: Reply
+):
+    await request_update(bot, event, context, services, reply, "restore")
 
 
 @git.assign("restart")

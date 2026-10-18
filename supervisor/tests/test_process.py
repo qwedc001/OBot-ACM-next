@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from obot_supervisor.ipc import serve
+from obot_supervisor.ipc import request, serve
 
 pytestmark = pytest.mark.skipif(os.name != "posix", reason="Linux process groups and Unix sockets")
 
@@ -91,5 +91,40 @@ async def test_process_boot_success_switches_known_good(engine, monkeypatch):
             assert engine.state["operation"]["outcome"] == "success"
             assert engine.state["good"] == "new"
             assert engine.child.returncode is None
+        finally:
+            await engine.close()
+
+
+async def test_branch_ipc_real_process_failure_returns_to_stable_baseline(engine, monkeypatch):
+    from test_branches import write_value
+    from test_engine import read_value
+
+    release(engine, "old")
+    release(engine, "feature")
+    release(engine, "broken", broken=True)
+    monkeypatch.setattr(engine, "fetch", AsyncMock(side_effect=["b" * 40, "c" * 40]))
+    monkeypatch.setattr(engine, "prepare", AsyncMock(side_effect=["feature", "broken"]))
+    async with await serve(engine):
+        try:
+            await engine.start()
+            await request(engine.config.socket, {"action": "test", "branch": "codex/first"})
+            await engine.task
+            status = await request(engine.config.socket, {"action": "status"})
+            assert status["branch"] == "codex/first"
+            assert status["healthy"] and status["running"]
+            assert status["baseline"]["commit"] == "a" * 40
+            write_value(engine, "test data")
+            with pytest.raises(ValueError, match="branch"):
+                await request(engine.config.socket, {"action": "test", "branch": "bad:ref"})
+            await request(engine.config.socket, {"action": "test", "branch": "codex/second"})
+            await engine.task
+            assert engine.state["operation"]["outcome"] == "rolled_back"
+            assert engine.state["branch"] == "master"
+            assert engine.state["good"] == "old"
+            assert engine.child.returncode is None
+            assert read_value(engine) == "original"
+            assert len(engine.state["baselines"]) == 1
+            engine.fetch.assert_any_await("codex/first")
+            engine.fetch.assert_any_await("codex/second")
         finally:
             await engine.close()
