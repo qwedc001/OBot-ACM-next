@@ -14,6 +14,7 @@ from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 from ..paths import PROJECT_ROOT
+from .peeper_layout import apply_default_columns, canvas_size
 
 MAX_RENDER_PIXELS = 64_000_000
 MAX_OUTPUT_PIXELS = 24_000_000
@@ -60,18 +61,7 @@ def add_information_section(generator):
 
 def render_image(generator):
     """Preflight the pinned renderer's canvas, then scale without dropping rows."""
-    from module.board import misc
-
-    sections = [generator.section_title, generator.section_content, generator.section_copyright]
-    columns = max(section.get_columns() for section in sections)
-    width = misc._CONTENT_WIDTH * columns + misc._COLUMN_PADDING * (columns - 1) + 64
-    height = (
-        sum(section.get_height() for section in sections)
-        + misc._SECTION_PADDING * (len(sections) - 1)
-        + misc._TOP_PADDING
-        + misc._BOTTOM_PADDING
-        + 64
-    )
+    width, height = canvas_size(generator)
     if width <= 0 or height <= 0 or width * height > MAX_RENDER_PIXELS:
         raise RenderTooLarge
     image = generator.render()
@@ -148,6 +138,7 @@ def main():
                 date_string=model["day"],
             )
             add_information_section(generator)
+            apply_default_columns(generator)
             image = render_image(generator)
             path = root / "output.png"
             image.write_file(str(path))
