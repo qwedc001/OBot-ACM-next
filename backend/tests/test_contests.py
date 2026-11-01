@@ -405,12 +405,11 @@ def test_native_contest_commands():
     import subprocess
     import sys
 
-    root = Path(__file__).resolve().parents[3]
-    bot_dir = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[2]
     result = subprocess.run(
         [sys.executable, "-X", "utf8", "-m", "tests.contests_probe"],
         cwd=root,
-        env={**os.environ, "PYTHONPATH": f"{root}:{bot_dir}"},
+        env={**os.environ, "PYTHONPATH": str(root / "backend")},
         capture_output=True,
         encoding="utf-8",
         timeout=45,

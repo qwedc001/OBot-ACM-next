@@ -29,14 +29,14 @@ async def main():
             original = nonebot.get_available_plugin_names
             nonebot.get_available_plugin_names = lambda: original() | {"synthetic_failed_plugin"}
             try:
-                runpy.run_module("apps.bot.bot", run_name="entrypoint_check")
+                runpy.run_module("backend.bot", run_name="entrypoint_check")
             except RuntimeError as error:
                 assert "Configured plugins failed to load: synthetic_failed_plugin" in str(error)
             else:
                 raise AssertionError("Partially loaded application must not become healthy")
             print(json.dumps({"rejected_failed_plugin": True}))
             return
-        scope = runpy.run_module("apps.bot.bot", run_name="entrypoint_check")
+        scope = runpy.run_module("backend.bot", run_name="entrypoint_check")
         services = scope["services"]
         from nonebot_plugin_orm import AlembicConfig, migrate
         from sqlalchemy import select, text

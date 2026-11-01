@@ -9,8 +9,8 @@
     "codegen": "pnpm --filter @obot/contracts codegen",
     "build:contracts": "pnpm --filter @obot/contracts build",
     "gen:contracts": "pnpm run dump:openapi && pnpm run codegen && pnpm run build:contracts",
-    "build": "pnpm --filter @obot/contracts build && pnpm --filter @obot/web build",
-    "test": "pnpm --filter @obot/web test"
+    "build": "pnpm --filter @obot/contracts build && pnpm --filter obot-ep build",
+    "test": "pnpm --filter obot-ep test"
   },
   "devDependencies": {
     "typescript": "^5.8.2"

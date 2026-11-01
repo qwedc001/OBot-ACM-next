@@ -2,13 +2,6 @@ version = 1
 revision = 3
 requires-python = ">=3.12"
 
-[manifest]
-members = [
-    "obot-acm-nonebot",
-    "obot-acm-workspace",
-    "obot-supervisor",
-]
-
 [[package]]
 name = "aiosqlite"
 version = "0.22.1"
@@ -1659,78 +1652,6 @@ wheels = [
 [[package]]
 name = "obot-acm-nonebot"
 version = "0.17.0"
-source = { editable = "apps/bot" }
-dependencies = [
-    { name = "apscheduler" },
-    { name = "cryptography" },
-    { name = "httpx" },
-    { name = "lxml" },
-    { name = "nonebot-adapter-qq" },
-    { name = "nonebot-plugin-alconna" },
-    { name = "nonebot-plugin-apscheduler" },
-    { name = "nonebot-plugin-localstore" },
-    { name = "nonebot-plugin-orm", extra = ["aiosqlite"] },
-    { name = "nonebot2", extra = ["fastapi", "httpx", "websockets"] },
-    { name = "pillow" },
-    { name = "psutil", marker = "sys_platform == 'win32'" },
-    { name = "python-dateutil" },
-    { name = "requests" },
-    { name = "sqlalchemy" },
-]
-
-[package.optional-dependencies]
-ocr = [
-    { name = "easyocr" },
-]
-render = [
-    { name = "easy-pixie" },
-    { name = "pixie-python" },
-    { name = "pypinyin" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "psutil" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "apscheduler", specifier = ">=3.11,<4" },
-    { name = "cryptography", specifier = ">=48.0.1" },
-    { name = "easy-pixie", marker = "extra == 'render'", specifier = ">=0.0.10" },
-    { name = "easyocr", marker = "extra == 'ocr'", specifier = ">=1.7.2,<2" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "lxml", specifier = ">=6.1.3" },
-    { name = "nonebot-adapter-qq", specifier = ">=1.7.3" },
-    { name = "nonebot-plugin-alconna", specifier = ">=0.62.1,<1" },
-    { name = "nonebot-plugin-apscheduler", specifier = ">=0.5,<0.6" },
-    { name = "nonebot-plugin-localstore", specifier = ">=0.7,<0.8" },
-    { name = "nonebot-plugin-orm", extras = ["aiosqlite"], specifier = ">=0.8.3,<0.9" },
-    { name = "nonebot2", extras = ["fastapi", "httpx", "websockets"], specifier = ">=2.5.0" },
-    { name = "pillow", specifier = ">=12.0.0" },
-    { name = "pixie-python", marker = "extra == 'render'", specifier = ">=4.3.0" },
-    { name = "psutil", marker = "sys_platform == 'win32'", specifier = ">=7,<8" },
-    { name = "pypinyin", marker = "extra == 'render'", specifier = ">=0.50,<1" },
-    { name = "python-dateutil", specifier = ">=2.9.0.post0" },
-    { name = "requests", specifier = ">=2.34.2" },
-    { name = "sqlalchemy", specifier = ">=2.0,<3" },
-]
-provides-extras = ["ocr", "render"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "psutil", specifier = ">=7,<8" },
-    { name = "pytest", specifier = ">=8.3" },
-    { name = "pytest-asyncio", specifier = ">=1.0" },
-    { name = "ruff", specifier = ">=0.14" },
-]
-
-[[package]]
-name = "obot-acm-workspace"
-version = "0.17.0"
 source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
@@ -1799,11 +1720,6 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=1.0" },
     { name = "ruff", specifier = ">=0.14" },
 ]
-
-[[package]]
-name = "obot-supervisor"
-version = "0.12.0"
-source = { editable = "supervisor" }
 
 [[package]]
 name = "opencv-python-headless"
