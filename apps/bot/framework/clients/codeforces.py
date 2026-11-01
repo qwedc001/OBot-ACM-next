@@ -62,6 +62,26 @@ class CodeforcesClient(ProfileClient):
                 return True
         return False
 
+    async def get_user_submissions(self, handle: str, count: int = 5) -> list[dict]:
+        """Fetch latest submissions for a user."""
+        try:
+            return await self._api("user.status", handle=handle, _from_=1, count=count)
+        except ProfileNotFound:
+            raise
+        except Exception:
+            return []
+
+    async def get_problemset(self, tag: str | None = None) -> list[dict]:
+        """Fetch problemset problems, optionally filtered by tag."""
+        params = {}
+        if tag and tag.lower() != "all":
+            params["tags"] = tag.replace("-", " ")
+        try:
+            data = await self._api("problemset.problems", **params)
+            return data.get("problems", [])
+        except Exception:
+            return []
+
     def __init__(self, *args, interval=2.1, **kwargs):
         super().__init__(*args, **kwargs)
         self.interval = interval

@@ -11,8 +11,8 @@ from framework.messages import Image
 
 __plugin_meta__ = PluginMetadata(
     name="竞赛账号",
-    description="Codeforces、AtCoder 与牛客公开资料卡及账号绑定",
-    usage="/cf user <账号标识>；/cf bind [handle]；/cf unbind；/atc user <账号标识>；/nk user <账号标识>",
+    description="Codeforces、AtCoder 与牛客公开资料卡、题目检索及账号绑定",
+    usage="/cf user <账号标识>；/cf prob [tag] [rating] [new]；/cf recent <handle> [count]；/cf tags；/cf bind [handle]；/cf unbind；/atc user <账号标识>；/nk user <账号标识>",
     type="application",
     supported_adapters=None,
 )
@@ -51,6 +51,13 @@ cf = profile_command(
     "tourist",
     Subcommand("bind", Args["handle?", str]),
     Subcommand("unbind"),
+    Subcommand(
+        "prob",
+        Args["arg1?", str]["arg2?", str]["arg3?", str],
+        alias=("pick", "problem"),
+    ),
+    Subcommand("recent", Args["handle", str]["count?", int]),
+    Subcommand("tags", alias=("tag",)),
 )
 atc = profile_command("atc", "AtCoder", ("atc", "atcoder"), "tourist")
 nk = profile_command("nk", "牛客", ("nk", "nc", "nowcoder"), "123456")
@@ -85,6 +92,51 @@ async def handle_codeforces_bind(
 @cf.assign("unbind")
 async def handle_codeforces_unbind(context: CommandContext, services: BotServices, reply: Reply):
     success, msg = await services.cf_binding.unbind(context)
+    await reply.finish(msg)
+
+
+@cf.assign("prob")
+async def handle_codeforces_prob(
+    context: CommandContext,
+    services: BotServices,
+    reply: Reply,
+    arg1: str | None = None,
+    arg2: str | None = None,
+    arg3: str | None = None,
+):
+    args = [a for a in (arg1, arg2, arg3) if a is not None]
+    tag, rating, newer = None, None, False
+    for a in args:
+        if a.lower() == "new":
+            newer = True
+        elif any(c.isdigit() for c in a):
+            rating = a
+        else:
+            tag = a
+
+    success, msg, _ = await services.cf_problem.pick_problem(tag=tag, rating_range=rating, newer_only=newer)
+    await reply.finish(msg)
+
+
+@cf.assign("recent")
+async def handle_codeforces_recent(
+    context: CommandContext,
+    services: BotServices,
+    reply: Reply,
+    handle: str,
+    count: int | None = None,
+):
+    actual_count = count if count is not None else 5
+    success, msg = await services.cf_problem.get_recent_submissions(handle, actual_count)
+    await reply.finish(msg)
+
+
+@cf.assign("tags")
+async def handle_codeforces_tags(services: BotServices, reply: Reply):
+    tags = await services.cf_problem.get_all_tags()
+    if not tags:
+        await reply.finish("暂无法获取标签列表，请稍后重试。")
+    msg = "[Codeforces] 题目标签:\n" + ", ".join(tags)
     await reply.finish(msg)
 
 
