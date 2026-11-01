@@ -1,5 +1,6 @@
 """CPCFinder API client for XCPC contestant, school, team and award queries."""
 
+import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlencode
@@ -79,6 +80,24 @@ class CPCFinderClient(Client):
 
     def __init__(self, http: HttpClient):
         self._http = http
+        self._cache: dict[str, tuple[float, Any]] = {}
+        self._cache_ttl = 300  # 5 minutes cache
+
+    def _get_cache(self, key: str) -> Any | None:
+        item = self._cache.get(key)
+        if not item:
+            return None
+        expire_at, data = item
+        if time.time() > expire_at:
+            self._cache.pop(key, None)
+            return None
+        return data
+
+    def _set_cache(self, key: str, data: Any):
+        # Keep cache bounded
+        if len(self._cache) > 200:
+            self._cache.clear()
+        self._cache[key] = (time.time() + self._cache_ttl, data)
 
     async def search_students(
         self, name: str, school: str | None = None, page_size: int = 20
@@ -88,6 +107,11 @@ class CPCFinderClient(Client):
         if school:
             params["school"] = school.strip()
         params["pageSize"] = page_size
+        cache_key = f"students:{urlencode(params)}"
+        cached = self._get_cache(cache_key)
+        if cached is not None:
+            return cached
+
         data = await self._get(f"{BASE_URL}/student?{urlencode(params)}")
         items = data.get("data") or []
         results = []
@@ -105,15 +129,21 @@ class CPCFinderClient(Client):
                     latest_event_date=item.get("latestEventDate"),
                 )
             )
+        self._set_cache(cache_key, results)
         return results
 
     async def get_student_detail(self, student_id: str) -> CPCStudentDetail | None:
         """Fetch student detail profile."""
+        cache_key = f"student_detail:{student_id}"
+        cached = self._get_cache(cache_key)
+        if cached is not None:
+            return cached
+
         data = await self._get(f"{BASE_URL}/student/{student_id}")
         item = data.get("data")
         if not item:
             return None
-        return CPCStudentDetail(
+        detail = CPCStudentDetail(
             student_id=str(item.get("studentId", "")),
             name=str(item.get("name", "")),
             school_name=str(item.get("schoolName", "")),
@@ -126,16 +156,30 @@ class CPCFinderClient(Client):
             rating=float(item.get("rating", 0.0) or 0.0),
             rank=item.get("rank"),
         )
+        self._set_cache(cache_key, detail)
+        return detail
 
     async def get_student_awards(self, student_id: str) -> list[CPCAwardItem]:
         """Fetch student awards history."""
+        cache_key = f"student_awards:{student_id}"
+        cached = self._get_cache(cache_key)
+        if cached is not None:
+            return cached
+
         data = await self._get(f"{BASE_URL}/student/{student_id}/awards")
         items = data.get("data") or []
-        return [self._parse_award(item) for item in items]
+        awards = [self._parse_award(item) for item in items]
+        self._set_cache(cache_key, awards)
+        return awards
 
     async def search_schools(self, school: str, page_size: int = 10) -> list[CPCSchoolCandidate]:
         """Search school stats by name/alias."""
         params = {"school": school.strip(), "pageSize": page_size}
+        cache_key = f"schools:{urlencode(params)}"
+        cached = self._get_cache(cache_key)
+        if cached is not None:
+            return cached
+
         data = await self._get(f"{BASE_URL}/school?{urlencode(params)}")
         items = data.get("data") or []
         results = []
@@ -154,13 +198,21 @@ class CPCFinderClient(Client):
                     rating=float(item.get("rating", 0.0) or 0.0),
                 )
             )
+        self._set_cache(cache_key, results)
         return results
 
     async def get_school_awards(self, school_id: str) -> list[CPCAwardItem]:
         """Fetch school awards history."""
+        cache_key = f"school_awards:{school_id}"
+        cached = self._get_cache(cache_key)
+        if cached is not None:
+            return cached
+
         data = await self._get(f"{BASE_URL}/school/{school_id}/awards")
         items = data.get("data") or []
-        return [self._parse_award(item) for item in items]
+        awards = [self._parse_award(item) for item in items]
+        self._set_cache(cache_key, awards)
+        return awards
 
     async def _get(self, url: str) -> dict[str, Any]:
         try:

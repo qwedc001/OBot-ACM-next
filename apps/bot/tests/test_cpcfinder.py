@@ -328,3 +328,25 @@ async def test_cpcfinder_service_upstream_error(mock_context):
 
     res = await service.reply(mock_context, "任何人", image_available=True)
     assert "CPCFinder 接口暂时无法访问" in res
+
+
+@pytest.mark.asyncio
+async def test_cpcfinder_service_school_disambiguation(mock_context):
+    client = MagicMock(spec=CPCFinderClient)
+    client.search_schools = AsyncMock(
+        return_value=[
+            CPCSchoolCandidate("s1", "北京大学", 1, 0, 0, 10, 2, 0, 1, 1000.0),
+            CPCSchoolCandidate("s2", "北京航空航天大学", 0, 1, 0, 5, 5, 1, 5, 500.0),
+        ]
+    )
+    renderer = MagicMock()
+    service = CPCFinderService(client, renderer)
+
+    target, awards, candidates = await service.query_school("北京")
+    assert target is None
+    assert len(candidates) == 2
+
+    res = await service.reply(mock_context, "北京", mode="school", image_available=False)
+    assert "找到 2 所匹配学校" in res
+    assert "北京大学" in res
+    assert "北京航空航天大学" in res

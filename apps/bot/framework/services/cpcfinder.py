@@ -76,9 +76,17 @@ class CPCFinderService(Service):
         if not schools:
             return None, [], []
         exact = [s for s in schools if s.name == school_name.strip()]
-        target = exact[0] if exact else schools[0]
+        if exact:
+            target = exact[0]
+            awards = await self.client.get_school_awards(target.school_id)
+            return target, awards, []
+        if len(schools) > 1:
+            # Ambiguous: return candidates for disambiguation
+            return None, [], schools
+
+        target = schools[0]
         awards = await self.client.get_school_awards(target.school_id)
-        return target, awards, schools
+        return target, awards, []
 
     async def reply(
         self,
@@ -94,6 +102,12 @@ class CPCFinderService(Service):
             # 1. Mode dispatch or auto
             if mode == "school" or (mode == "auto" and not school and ("大学" in query or "学院" in query)):
                 return await self._reply_school(context, query, image_available=image_available)
+
+            if mode == "team":
+                team_res = await self._search_team(context, query, image_available)
+                if team_res:
+                    return team_res
+                return f"[CPCFinder] 未找到队伍「{query}」的参赛或获奖记录。提示：由于上游 API 限制，队伍查询依赖参赛选手或高校关联，若未找到可尝试查询队伍成员姓名。"
 
             # 2. Try student query
             detail, awards, candidates = await self.query_student(query, school)
@@ -111,6 +125,8 @@ class CPCFinderService(Service):
                     return await self._render_school_profile(
                         context, school_res, school_awards, image_available
                     )
+                if all_schools:
+                    return self._render_school_candidates(all_schools)
 
             # 4. Try team query from awards if query might be a team name
             team_res = await self._search_team(context, query, image_available)
@@ -129,8 +145,16 @@ class CPCFinderService(Service):
     async def _reply_school(self, context: RequestContext, school_name: str, *, image_available: bool):
         target, awards, candidates = await self.query_school(school_name)
         if not target:
+            if candidates:
+                return self._render_school_candidates(candidates)
             return f"[CPCFinder] 未找到学校「{school_name}」的相关信息。"
         return await self._render_school_profile(context, target, awards, image_available)
+
+    def _render_school_candidates(self, candidates: list[CPCSchoolCandidate]) -> str:
+        lines = [f"[CPCFinder] 找到 {len(candidates)} 所匹配学校，请使用完整名称重试："]
+        for c in candidates[:10]:
+            lines.append(f"- {c.name} (积分: {c.rating:.1f}, 奖牌: {c.gold}金/{c.silver}银/{c.bronze}铜)")
+        return "\n".join(lines)
 
     async def _search_team(self, context: RequestContext, team_name: str, image_available: bool):
         """Search student awards or contest results matching team name."""
