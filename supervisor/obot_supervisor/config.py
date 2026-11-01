@@ -35,6 +35,7 @@ class Config:
     command_timeout: float = 900
     stop_timeout: float = 30
     extras: tuple[str, ...] = ("render",)
+    max_history_releases: int = 2
 
     @property
     def socket(self):
@@ -59,6 +60,8 @@ class Config:
             for extra in result.extras
         ):
             raise ValueError("Invalid dependency extras")
+        if not isinstance(result.max_history_releases, int) or result.max_history_releases < 0:
+            raise ValueError("Invalid max history releases")
         result.state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(result.state_dir, 0o700)
         return result

@@ -77,7 +77,7 @@ async def control(config, args):
                 raise ValueError("Already bootstrapped")
             commit = await engine.fetch()
             release = await engine.prepare(commit, uuid4().hex)
-            engine.state.update(good=release, commit=commit, branch=config.branch)
+            engine.state.update(good=release, commit=commit, branch=config.branch, history=[release])
             engine.save()
             print("Prepared initial release:", commit)
             print("First startup must be verified before removing the previous service backup.")

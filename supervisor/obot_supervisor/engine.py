@@ -133,11 +133,30 @@ class Engine:
                 raise ValueError("Release contains a reserved runtime path")
             mount.symlink_to(target, target_is_directory=target.is_dir())
         await self.command("git", "-C", path, "submodule", "update", "--init", "--recursive")
+        cache_dir = self.config.state_dir / "cache"
+        uv_cache = cache_dir / "uv"
+        pnpm_store = cache_dir / "pnpm"
+        uv_cache.mkdir(parents=True, exist_ok=True)
+        pnpm_store.mkdir(parents=True, exist_ok=True)
+        build_env = {
+            **os.environ,
+            "UV_CACHE_DIR": str(uv_cache),
+            "UV_LINK_MODE": "hardlink",
+        }
         extras = [argument for extra in self.config.extras for argument in ("--extra", extra)]
-        await self.command(self.config.uv, "sync", "--locked", "--no-dev", *extras, cwd=path)
+        await self.command(
+            self.config.uv, "sync", "--locked", "--no-dev", *extras, cwd=path, env=build_env
+        )
         if (path / "frontend").is_dir():
             await self.command(
-                self.config.pnpm, "--dir", path / "frontend", "install", "--frozen-lockfile", cwd=path
+                self.config.pnpm,
+                "--dir",
+                path / "frontend",
+                "install",
+                "--frozen-lockfile",
+                "--store-dir",
+                str(pnpm_store),
+                cwd=path,
             )
             await self.command(self.config.pnpm, "--dir", path / "frontend", "build", cwd=path)
         else:
@@ -145,6 +164,8 @@ class Engine:
                 self.config.pnpm,
                 "install",
                 "--frozen-lockfile",
+                "--store-dir",
+                str(pnpm_store),
                 cwd=path,
             )
             await self.command(
@@ -215,6 +236,10 @@ class Engine:
         snapshot.parent.mkdir(exist_ok=True)
         # All bot processes are stopped. Include DB WAL, ORM migration cache and keys together.
         shutil.copytree(self.config.data_dir, snapshot, symlinks=True)
+        snapshot_history = self.state.setdefault("snapshot_history", [])
+        if operation_id not in snapshot_history:
+            snapshot_history.append(operation_id)
+        self.save()
         return str(snapshot)
 
     def restore(self, snapshot):
@@ -236,6 +261,107 @@ class Engine:
                 item.unlink()
         shutil.copytree(staging, data, dirs_exist_ok=True, symlinks=True)
         shutil.rmtree(staging)
+
+    async def prune_releases(self):
+        """Retain at most max_history_releases historical releases plus the running release.
+        
+        Also retain at most max_history_releases historical snapshots.
+        Active baseline, rollback target, candidate, or un-recovered releases and snapshots are protected.
+        Removed release worktrees are cleaned from disk and pruned in Git.
+        """
+        releases_dir = self.config.state_dir / "releases"
+        snapshots_dir = self.config.state_dir / "snapshots"
+
+        current_good = self.state.get("good")
+        protected_releases = set()
+        protected_snapshots = set()
+        if current_good:
+            protected_releases.add(current_good)
+        baseline = self.state.get("baseline")
+        if baseline:
+            if baseline.get("good"):
+                protected_releases.add(baseline["good"])
+            if baseline.get("snapshot"):
+                protected_snapshots.add(Path(baseline["snapshot"]).name)
+        for item in self.state.get("baselines", []):
+            if item.get("good"):
+                protected_releases.add(item["good"])
+            if item.get("snapshot"):
+                protected_snapshots.add(Path(item["snapshot"]).name)
+        recovery = self.state.get("recovery")
+        if recovery:
+            if recovery.get("good"):
+                protected_releases.add(recovery["good"])
+            if recovery.get("snapshot"):
+                protected_snapshots.add(Path(recovery["snapshot"]).name)
+        operation = self.state.get("operation")
+        if operation:
+            if operation.get("candidate"):
+                protected_releases.add(operation["candidate"])
+            if operation.get("rollback"):
+                rollback = operation["rollback"]
+                if rollback.get("good"):
+                    protected_releases.add(rollback["good"])
+                if rollback.get("snapshot"):
+                    protected_snapshots.add(Path(rollback["snapshot"]).name)
+            if operation.get("snapshot"):
+                protected_snapshots.add(Path(operation["snapshot"]).name)
+
+        limit = self.config.max_history_releases
+
+        if releases_dir.is_dir():
+            history = [name for name in self.state.get("history", []) if (releases_dir / name).is_dir()]
+            for item in releases_dir.iterdir():
+                if item.is_dir() and item.name not in history:
+                    history.append(item.name)
+
+            historical = [name for name in history if name != current_good]
+            pruned_any = False
+            if len(historical) > limit:
+                excess = len(historical) - limit
+                for name in list(historical):
+                    if excess <= 0:
+                        break
+                    if name in protected_releases:
+                        continue
+                    path = self.release(name)
+                    if path.is_dir():
+                        await asyncio.to_thread(shutil.rmtree, path, ignore_errors=True)
+                    if name in history:
+                        history.remove(name)
+                    excess -= 1
+                    pruned_any = True
+                if pruned_any and (self.config.state_dir / "repository.git").exists():
+                    with contextlib.suppress(Exception):
+                        await self.git("worktree", "prune")
+
+            self.state["history"] = history
+            self.save()
+
+        if snapshots_dir.is_dir():
+            snapshot_history = [
+                name for name in self.state.get("snapshot_history", []) if (snapshots_dir / name).is_dir()
+            ]
+            for item in snapshots_dir.iterdir():
+                if item.is_dir() and item.name not in snapshot_history:
+                    snapshot_history.append(item.name)
+
+            if len(snapshot_history) > limit:
+                excess = len(snapshot_history) - limit
+                for name in list(snapshot_history):
+                    if excess <= 0:
+                        break
+                    if name in protected_snapshots:
+                        continue
+                    spath = snapshots_dir / name
+                    if spath.is_dir():
+                        await asyncio.to_thread(shutil.rmtree, spath, ignore_errors=True)
+                    if name in snapshot_history:
+                        snapshot_history.remove(name)
+                    excess -= 1
+
+            self.state["snapshot_history"] = snapshot_history
+            self.save()
 
     def finish(self, operation, outcome, error=None, log=None):
         operation.update(outcome=outcome, phase="finished", error=error, log=log or self.tail.text())
@@ -335,6 +461,11 @@ class Engine:
             self.state.update(good=candidate, commit=commit, branch=branch)
             if branch == self.config.branch:
                 self.state.pop("baseline", None)
+            history = self.state.setdefault("history", [])
+            if candidate not in history:
+                history.append(candidate)
+            self.save()
+            await self.prune_releases()
             self.finish(operation, "success")
         except Exception as error:
             self.tail.add(f"{type(error).__name__}: {error}")
@@ -351,6 +482,7 @@ class Engine:
                     self.tail.add(f"Recovery failed: {type(recovery_error).__name__}")
                     self.finish(operation, "recovery_failed", "Manual intervention required", failure_log)
                     return
+            await self.prune_releases()
             self.finish(
                 operation, "rolled_back" if stopped else "rejected", type(error).__name__, failure_log
             )
@@ -383,6 +515,7 @@ class Engine:
 
     async def start(self):
         await self.recover()
+        await self.prune_releases()
         await self.boot(self.state["good"])
 
     async def watch(self):
