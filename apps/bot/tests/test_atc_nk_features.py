@@ -78,7 +78,10 @@ def test_atc_parse_difficulty_range():
     assert AtcoderClient.parse_difficulty_range("") == (None, None)
     assert AtcoderClient.parse_difficulty_range("1200") == (1200, 1200)
     assert AtcoderClient.parse_difficulty_range("1200-1600") == (1200, 1600)
-    assert AtcoderClient.parse_difficulty_range("-800") == (None, 800)
+    assert AtcoderClient.parse_difficulty_range("-800") == (-800, -800)
+    assert AtcoderClient.parse_difficulty_range("-800-500") == (-800, 500)
+    assert AtcoderClient.parse_difficulty_range("-800--500") == (-800, -500)
+    assert AtcoderClient.parse_difficulty_range("-800-") == (-800, None)
     assert AtcoderClient.parse_difficulty_range("1000-") == (1000, None)
 
     with pytest.raises(ValueError, match="难度格式错误|难度区间格式错误"):
@@ -188,5 +191,5 @@ async def test_nk_standings_fetch_and_formatting(nk_client, mock_http):
 @pytest.mark.asyncio
 async def test_nk_standings_upstream_error(nk_client, mock_http):
     mock_http.get_json.return_value = {"msg": "FAIL", "code": 500}
-    with pytest.raises(UpstreamError, match="invalid standings API response"):
+    with pytest.raises(UpstreamError, match="Nowcoder API error: FAIL"):
         await nk_client.standings(81596)

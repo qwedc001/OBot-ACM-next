@@ -22,6 +22,13 @@ class AtcoderClient(ProfileClient):
             ttl=3600, capacity=2, timeout=20
         )
 
+    async def close(self):
+        await asyncio.gather(
+            super().close(),
+            self._kenkoooo_cache.close(),
+            return_exceptions=True,
+        )
+
     async def get_kenkoooo_data(self) -> tuple[list[dict], dict[str, dict]]:
         async def _fetch():
             problems_data, models_data = await asyncio.gather(
@@ -39,19 +46,29 @@ class AtcoderClient(ProfileClient):
         if not diff_str:
             return None, None
         s = diff_str.strip()
-        if "-" in s:
-            parts = s.split("-", 1)
-            try:
-                min_diff = int(parts[0].strip()) if parts[0].strip() else None
-                max_diff = int(parts[1].strip()) if parts[1].strip() else None
-                return min_diff, max_diff
-            except ValueError:
-                raise ValueError("难度区间格式错误，应为如 1200-1600 或 1800") from None
-        try:
+
+        # Check single value like 1200 or -500 first
+        m_single = re.match(r"^[+-]?\d+$", s)
+        if m_single:
             val = int(s)
             return val, val
-        except ValueError:
-            raise ValueError("难度格式错误，应为整数或区间如 1200-1600") from None
+
+        # Handle range cases like 1200-1600, -800-500, -800--500, 1000-, -800-
+        # Notice range delimiter is '-' between two numbers or trailing
+        # Regex: optional signed int, hyphen, optional signed int
+        m = re.match(r"^([+-]?\d+)\s*-\s*([+-]?\d+)?$", s)
+        if m:
+            p1, p2 = m.group(1), m.group(2)
+            min_diff = int(p1) if p1 else None
+            max_diff = int(p2) if p2 else None
+            return min_diff, max_diff
+
+        # Range with no lower bound e.g. "- 800" (with space) or "<= 800"
+        m_upper = re.match(r"^-\s*(\d+)$", s)
+        if m_upper:
+            return None, int(m_upper.group(1))
+
+        raise ValueError("难度格式错误，应为整数或区间如 1200-1600 或 -800-500")
 
     async def pick_problem(
         self, contest_type: str | None = None, diff_str: str | None = None

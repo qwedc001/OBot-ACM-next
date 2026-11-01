@@ -118,7 +118,9 @@ async def handle_atcoder_prob(
     # Support either order: /atc prob abc 1200 or /atc prob 1200 abc or /atc prob 1200
     ctype = contest_type
     diff_str = diff
-    if ctype and (ctype.isdigit() or ("-" in ctype and any(c.isdigit() for c in ctype))):
+    # Difficulty string can contain digits, e.g. 1200, -800, -800--500, 1200-1600
+    # Contest type is one of abc, arc, agc, all
+    if ctype and ctype.lower() not in {"abc", "arc", "agc", "all"}:
         if not diff_str:
             diff_str = ctype
             ctype = None
@@ -140,9 +142,19 @@ async def handle_atcoder_prob(
         return
 
     diff_display = f"\n难度: *{prob['difficulty']}" if prob["difficulty"] is not None else "\n难度: 未评定"
+    idx = prob["index"]
+    title = prob["title"]
+    if idx and title.lower().startswith(f"{idx.lower()}."):
+        # title already has prefix like 'A. Problem Name'
+        prob_header = title
+    elif idx:
+        prob_header = f"{idx}. {title}"
+    else:
+        prob_header = title
+
     msg = (
         f"[AtCoder] 随机选题\n\n"
-        f"{prob['index']}. {prob['title']}\n"
+        f"{prob_header}\n"
         f"比赛: {prob['contest_id'].upper()}"
         f"{diff_display}\n"
         f"链接: {prob['url']}"

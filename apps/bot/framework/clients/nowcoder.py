@@ -58,13 +58,23 @@ class NowcoderClient(ProfileClient):
             "https://ac.nowcoder.com/acm-heavy/acm/contest/real-time-rank-data",
             params=params,
         )
-        if not isinstance(data, dict) or data.get("msg") != "OK" or not isinstance(data.get("data"), dict):
+        if not isinstance(data, dict):
             raise UpstreamError("Nowcoder: invalid standings API response")
+        if data.get("msg") != "OK":
+            err_msg = data.get("msg") or "API returned error"
+            raise UpstreamError(f"Nowcoder API error: {err_msg}")
+        if not isinstance(data.get("data"), dict):
+            raise UpstreamError("Nowcoder: missing data field in standings response")
 
         cdata = data["data"]
         basic_info = cdata.get("basicInfo", {})
         rank_data = cdata.get("rankData", [])
         problem_data = cdata.get("problemData", [])
+
+        if not isinstance(rank_data, list):
+            rank_data = []
+        if not isinstance(basic_info, dict):
+            basic_info = {}
 
         return {
             "contest_id": cid,
