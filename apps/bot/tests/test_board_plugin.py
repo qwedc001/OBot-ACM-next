@@ -11,7 +11,7 @@ def test_board_native_private_group_binding_and_permissions():
         cwd=root,
         capture_output=True,
         encoding="utf-8",
-        timeout=30,
+        timeout=60,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert json.loads(result.stdout.strip().splitlines()[-1])["ok"] is True

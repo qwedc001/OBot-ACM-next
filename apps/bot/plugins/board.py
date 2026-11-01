@@ -14,6 +14,7 @@ from framework.clients.jobs import QueueClosed, QueueFull
 from framework.contracts import SceneKind
 from framework.integration.command_context import BotServices, CommandContext, Reply
 from framework.integration.commands import template_command
+from framework.integration.peeper_cli import PeeperCLIError
 from framework.integration.platforms import get_platform
 from framework.messages import Image, Message, Text
 from framework.responses import text_chunks
@@ -246,7 +247,21 @@ async def handle_board_verdict(
     await send_board(bot, context, services, reply, "now", name, verdict=verdict)
 
 
-async def send_user(context, services, reply, kind, value, name):
+async def send_user(bot, context, services, reply, kind, value, name):
+    if context.scene.kind not in {SceneKind.C2C, SceneKind.DIRECT, SceneKind.WEB}:
+        raise BoardError("用户资料仅可在私聊查询。")
+    if reply.supports(bot.adapter.get_name(), Image):
+        try:
+            await reply.send("正在获取用户资料并生成名片，请稍候。")
+            artifact = await services.boards.user_image(context, kind, value, name)
+            await reply.finish(
+                Message(
+                    Text("用户资料卡"),
+                    Image(await services.clients.artifacts.read(context.actor, artifact.id)),
+                )
+            )
+        except (BoardError, PeeperCLIError, OSError, ValueError, TimeoutError, QueueFull, QueueClosed):
+            pass
     for chunk in text_chunks(await services.boards.user(context, kind, value, name)):
         await reply.send(chunk)
     await reply.finish()
@@ -255,14 +270,19 @@ async def send_user(context, services, reply, kind, value, name):
 @board.assign("user.id")
 @board_errors
 async def handle_board_user_id(
-    context: CommandContext, services: BotServices, reply: Reply, uid: str, name: str | None = None
+    bot: Bot, context: CommandContext, services: BotServices, reply: Reply, uid: str, name: str | None = None
 ):
-    await send_user(context, services, reply, "id", uid, name)
+    await send_user(bot, context, services, reply, "id", uid, name)
 
 
 @board.assign("user.name")
 @board_errors
 async def handle_board_user_name(
-    context: CommandContext, services: BotServices, reply: Reply, username: str, name: str | None = None
+    bot: Bot,
+    context: CommandContext,
+    services: BotServices,
+    reply: Reply,
+    username: str,
+    name: str | None = None,
 ):
-    await send_user(context, services, reply, "name", username, name)
+    await send_user(bot, context, services, reply, "name", username, name)

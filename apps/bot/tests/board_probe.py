@@ -137,6 +137,10 @@ async def main():
                     messages = await request("/board today")
                     assert len(messages) == 2 and "正在" in str(messages[0])
                     assert any(part.type == "file_image" for part in messages[1])
+                with patch.object(services.boards, "user_image", AsyncMock(return_value=artifact)):
+                    messages = await request("/board user id 1 privateOJ")
+                    assert len(messages) == 2 and "正在" in str(messages[0])
+                    assert any(part.type == "file_image" for part in messages[1])
                 with patch.object(services.boards, "image", AsyncMock(return_value=artifact)) as image:
                     for invocation, mode, day, verdict in [
                         ("/board today privateOJ", "now", None, "AC"),
@@ -163,10 +167,19 @@ async def main():
                     assert len(failure) == 1 and "你可能想用：" in str(failure[0])
                     assert "/board push status" in str(failure[0])
                     assert "private-config" not in str(failure[0])
-                with patch.object(services.boards, "user", AsyncMock(return_value="profile")) as user:
-                    assert "profile" in str((await request('/board user name "Alice Smith" privateOJ'))[0])
+                from framework.board import BoardError
+
+                with (
+                    patch.object(services.boards, "user", AsyncMock(return_value="profile")) as user,
+                    patch.object(
+                        services.boards, "user_image", AsyncMock(side_effect=BoardError("no image"))
+                    ),
+                ):
+                    res = await request('/board user name "Alice Smith" privateOJ')
+                    assert any("profile" in str(msg) for msg in res)
                     assert user.await_args.args[1:] == ("name", "Alice Smith", "privateOJ")
-                    assert "profile" in str((await request("/board user id 2 privateOJ"))[0])
+                    res = await request("/board user id 2 privateOJ")
+                    assert any("profile" in str(msg) for msg in res)
                     assert user.await_args.args[1:] == ("id", "2", "privateOJ")
                 assert "已注册" in str((await request("/board push status", group=True, role="admin"))[0])
                 assert "权限不足" in str((await request("/board push status", group=True))[0])

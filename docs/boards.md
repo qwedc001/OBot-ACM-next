@@ -1,6 +1,6 @@
 # HydroOJ 训练榜单
 
-Peeper Board Generator 以 Git submodule 接入 `third-party/peeper-board-generator`，固定提交 `e5764481984ce7f4291e0c17c064815f18bbb08f`（v1.2.5）。上游源码保持原样，榜单沿用其样式。初始化仓库时执行：
+Peeper Board Generator 以 Git submodule 接入 `third-party/peeper-board-generator`，固定提交 `6a38d3678c6ceb954b6ab09519764b38003b5c34`（v1.2.5）。上游源码保持原样，榜单沿用其样式。初始化仓库时执行：
 
 ```sh
 git submodule update --init --recursive

@@ -39,9 +39,7 @@ async def test_expired_artifact_cleanup_respects_active_lease(database, tmp_path
 
 
 async def test_invalid_images_and_paths_rejected(database, tmp_path):
-    artifacts = ArtifactClient(
-        tmp_path / "images", database, max_bytes=2
-    )
+    artifacts = ArtifactClient(tmp_path / "images", database, max_bytes=2)
     with pytest.raises(ValueError):
         await artifacts.create(USER, b"too big", "image/png")
     with pytest.raises(ArtifactUnavailable):

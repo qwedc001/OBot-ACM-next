@@ -88,6 +88,71 @@ async def test_official_today_cli_logs_in_fetches_and_renders(tmp_path, verdict)
         thread.join(timeout=2)
 
 
+async def test_official_query_user_cli_renders_user_card(tmp_path):
+    calls = []
+
+    class Hydro(BaseHTTPRequestHandler):
+        def log_message(self, *_):
+            pass
+
+        def do_POST(self):
+            values = parse_qs(self.rfile.read(int(self.headers["Content-Length"])).decode())
+            calls.append((self.path, values))
+            self.send_response(200)
+            self.send_header("Set-Cookie", "sid=fixture; Path=/")
+            self.send_header("Set-Cookie", "sid.sig=fixture; Path=/")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def do_GET(self):
+            calls.append((self.path, self.headers.get("Cookie")))
+            self.send_response(200)
+            self.end_headers()
+            if "record" in self.path:
+                self.wfile.write(b'{"rdocs": [], "pdict": {}}')
+            else:
+                self.wfile.write(
+                    b'<html><body><div class="media__body profile-header__main"><h1>TestUser</h1>'
+                    b"<p>UID: 123, \xe6\xb3\xa8\xe5\x86\x8c\xe4\xba\x8e 2020-01-01</p>"
+                    b"<p>\xe8\xbf\x9b\xe5\xba\xa6\xef\xbc\x9a\xe8\xa7\xa3\xe5\x86\xb3\xe4\xba\x86 10 \xe9\x81\x93\xe9\xa2\x98\xe7\x9b\xae RP: 100 No. 1</p></div>"
+                    b'<div class="section__body richmedia"><p>Hello Bio</p></div></body></html>'
+                )
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Hydro)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        now = datetime.now(ZoneInfo("Asia/Shanghai"))
+        config = generator_config(
+            {
+                "name": "CLI 用户卡测试",
+                "host": f"http://127.0.0.1:{server.server_port}/",
+                "credentials": {"uname": "fixture-admin", "password": "test-secret"},
+                "exclude_before": "2000-01-01",
+            }
+        )
+        snapshots = [
+            {
+                "day": now.date().isoformat(),
+                "captured_at": now.timestamp(),
+                "payload": {"submissions": [], "rankings": []},
+            }
+        ]
+        prepare_workspace(SOURCE, tmp_path, config, snapshots)
+        output = tmp_path / "card.png"
+        await run_cli(
+            tmp_path,
+            ["--id", "board", "--query_uid", "123", "--output", str(output)],
+            timezone="Asia/Shanghai",
+        )
+        assert output.is_file()
+        assert struct.unpack(">II", output.read_bytes()[16:24])[0] > 500
+    finally:
+        await asyncio.to_thread(server.shutdown)
+        server.server_close()
+        thread.join(timeout=2)
+
+
 @pytest.mark.parametrize(
     "script,reason",
     [
