@@ -49,10 +49,16 @@ class UpdatesService(Service):
 
     @classmethod
     def build(cls, container):
-        return cls(container)
+        return cls(
+            updater=container.clients.updater,
+            reply=container.clients.reply,
+            ready_check=lambda: container.started and bool(container.telemetry.connected_bots),
+        )
 
-    def __init__(self, container):
-        self.container = container
+    def __init__(self, updater=None, reply=None, ready_check=None):
+        self.updater = updater
+        self.reply = reply
+        self.ready_check = ready_check if ready_check is not None else (lambda: True)
         self.task = None
         self.health_task = None
 
@@ -63,14 +69,14 @@ class UpdatesService(Service):
 
     async def execute(self, context, action, target=None, *, branch=None):
         await self.authorize(context)
-        return await self.container.clients.updater.request(
+        return await self.updater.request(
             action,
             **({"target": asdict(target)} if target else {}),
             **({"branch": branch} if branch is not None else {}),
         )
 
     async def start(self):
-        if self.container.clients.updater.socket:
+        if self.updater.socket:
             self.task = asyncio.create_task(self.report_loop())
             self.health_task = asyncio.create_task(self.health_loop())
 
@@ -82,39 +88,37 @@ class UpdatesService(Service):
                     await task
 
     async def health_loop(self):
-        updater = self.container.clients.updater
         while True:
             await asyncio.sleep(1)
-            if self.container.started and self.container.telemetry.connected_bots:
+            if self.ready_check():
                 with contextlib.suppress(SupervisorUnavailable):
-                    await updater.request("ready", boot_id=updater.boot_id)
+                    await self.updater.request("ready", boot_id=self.updater.boot_id)
 
     async def report_loop(self):
         while True:
             await asyncio.sleep(2)
-            if not self.container.started or not self.container.telemetry.connected_bots:
+            if not self.ready_check():
                 continue
-            updater = self.container.clients.updater
             try:
-                for report in await updater.request("reports"):
+                for report in await self.updater.request("reports"):
                     target = SendTarget(**report["target"])
                     for index, page in enumerate(report_pages(report)):
                         if index < report.get("page", 0):
                             continue
                         recipient = replace(target, reply_sequence=(target.reply_sequence or 2) + index)
                         try:
-                            await self.container.clients.reply.send_to(Markdown(content=page), recipient)
+                            await self.reply.send_to(Markdown(content=page), recipient)
                         except DeliveryFailed:
                             # Native Markdown can be unavailable; retry text in the same passive window.
                             try:
-                                await self.container.clients.reply.send_to(page, recipient)
+                                await self.reply.send_to(page, recipient)
                             except DeliveryFailed:
-                                await self.container.clients.reply.send_to(
+                                await self.reply.send_to(
                                     Markdown(content=page),
                                     replace(recipient, reply_id=None, reply_sequence=None),
                                 )
-                        await updater.request("progress", id=report["id"], page=index + 1)
-                    await updater.request("ack", id=report["id"])
+                        await self.updater.request("progress", id=report["id"], page=index + 1)
+                    await self.updater.request("ack", id=report["id"])
             except (SupervisorUnavailable, DeliveryFailed, ValueError):
                 # Keep the durable report; /git plog can reply to a fresh user event.
                 await asyncio.sleep(28)

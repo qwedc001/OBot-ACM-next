@@ -27,7 +27,7 @@ def test_git_native_commands_permissions_and_acknowledgement_before_restart():
 
 async def test_update_service_rejects_everyone_and_group_admin():
     client = SimpleNamespace(request=AsyncMock())
-    service = UpdatesService(SimpleNamespace(clients=SimpleNamespace(updater=client)))
+    service = UpdatesService(updater=client)
     for role in (Role.EVERYONE, Role.GROUP_ADMIN):
         context = SimpleNamespace(command_allowed=access(role))
         with pytest.raises(AccessDenied):

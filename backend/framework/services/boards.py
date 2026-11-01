@@ -44,21 +44,20 @@ class BoardService(Service):
 
     @classmethod
     def build(cls, container):
-        instance = cls(
+        return cls(
             container.session_factory,
             container.settings,
             container.clients.credentials,
             container.clients.hydro,
             container.clients.peeper,
+            container.clients.reply,
         )
-        instance.reply = container.clients.reply
-        return instance
 
-    def __init__(self, session_factory, settings, credentials, hydro, peeper):
+    def __init__(self, session_factory, settings, credentials, hydro, peeper, reply=None):
         self.sessions, self.settings = session_factory, settings
         self.credentials, self.hydro, self.peeper = credentials, hydro, peeper
         self._locks = defaultdict(asyncio.Lock)
-        self.reply = None
+        self.reply = reply
 
     def scope(self, context):
         return "actor:" + context.actor.id if context.scene.kind in PRIVATE else "scene:" + context.scene.key

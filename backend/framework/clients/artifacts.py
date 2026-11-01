@@ -5,7 +5,7 @@ import hashlib
 import os
 import time
 from collections import Counter
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -35,7 +35,7 @@ class Artifact:
 
 
 class ArtifactClient(Client):
-    dependencies = ("identities",)
+    dependencies = ()
 
     @classmethod
     def build(cls, container):
@@ -44,22 +44,19 @@ class ArtifactClient(Client):
             if container.data_dir is None
             else container.data_dir / "artifacts",
             container.session_factory,
-            container.identities.is_superuser,
-            container.settings.obot_artifact_ttl,
-            container.settings.obot_artifact_max_bytes,
+            ttl=container.settings.obot_artifact_ttl,
+            max_bytes=container.settings.obot_artifact_max_bytes,
         )
 
     def __init__(
         self,
         root: Path,
         session_factory: Callable[[], AsyncSession],
-        is_superuser: Callable[[Actor], Awaitable[bool]],
         ttl: float = 3600,
         max_bytes: int = 16 * 1024 * 1024,
     ):
         self.root = root.resolve()
         self.session_factory = session_factory
-        self.is_superuser = is_superuser
         self.ttl, self.max_bytes = ttl, max_bytes
         self._leases: Counter[str] = Counter()
         self._lock = asyncio.Lock()
@@ -115,7 +112,7 @@ class ArtifactClient(Client):
         return artifact
 
     @asynccontextmanager
-    async def lease(self, actor: Actor, artifact_id: str) -> AsyncIterator[Path]:
+    async def lease(self, actor: Actor, artifact_id: str, *, is_admin: bool = False) -> AsyncIterator[Path]:
         from framework.models import ImageArtifact
 
         path = self._path(artifact_id)
@@ -124,7 +121,7 @@ class ArtifactClient(Client):
                 artifact = await session.get(ImageArtifact, artifact_id)
                 if artifact is None or artifact.expires_at <= time.time():
                     raise ArtifactUnavailable("Artifact is missing or expired")
-                if actor.id != artifact.owner_id and not await self.is_superuser(actor):
+                if actor.id != artifact.owner_id and not is_admin:
                     raise AccessDenied("Image belongs to another user")
             if not await asyncio.to_thread(path.is_file):
                 raise ArtifactUnavailable("Artifact file is missing")
@@ -137,9 +134,9 @@ class ArtifactClient(Client):
                 if not self._leases[artifact_id]:
                     del self._leases[artifact_id]
 
-    async def read(self, actor: Actor, artifact_id: str) -> bytes:
+    async def read(self, actor: Actor, artifact_id: str, *, is_admin: bool = False) -> bytes:
         """Read an authorized image without exposing paths or blocking the event loop."""
-        async with self.lease(actor, artifact_id) as path:
+        async with self.lease(actor, artifact_id, is_admin=is_admin) as path:
             return await asyncio.to_thread(path.read_bytes)
 
     async def cleanup(self, now: float | None = None) -> int:
