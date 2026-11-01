@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import inspect
 import os
 import shutil
 import signal
@@ -14,7 +15,7 @@ from .state import Store, Tail
 
 
 class Engine:
-    def __init__(self, config, emit=None):
+    def __init__(self, config, emit=None, auto_restart=True):
         self.config = config
         self.store = Store(config.state_dir)
         self.tail = Tail()
@@ -27,6 +28,7 @@ class Engine:
         self.closing = False
         self.lock = asyncio.Lock()
         self.emit = emit
+        self.auto_restart = auto_restart
 
     def output(self, line):
         self.tail.add(line)
@@ -133,11 +135,30 @@ class Engine:
                 raise ValueError("Release contains a reserved runtime path")
             mount.symlink_to(target, target_is_directory=target.is_dir())
         await self.command("git", "-C", path, "submodule", "update", "--init", "--recursive")
+        cache_dir = self.config.state_dir / "cache"
+        uv_cache = cache_dir / "uv"
+        pnpm_store = cache_dir / "pnpm"
+        uv_cache.mkdir(parents=True, exist_ok=True)
+        pnpm_store.mkdir(parents=True, exist_ok=True)
+        build_env = {
+            **os.environ,
+            "UV_CACHE_DIR": str(uv_cache),
+            "UV_LINK_MODE": "hardlink",
+        }
         extras = [argument for extra in self.config.extras for argument in ("--extra", extra)]
-        await self.command(self.config.uv, "sync", "--locked", "--no-dev", *extras, cwd=path)
+        await self.command(
+            self.config.uv, "sync", "--locked", "--no-dev", *extras, cwd=path, env=build_env
+        )
         if (path / "frontend").is_dir():
             await self.command(
-                self.config.pnpm, "--dir", path / "frontend", "install", "--frozen-lockfile", cwd=path
+                self.config.pnpm,
+                "--dir",
+                path / "frontend",
+                "install",
+                "--frozen-lockfile",
+                "--store-dir",
+                str(pnpm_store),
+                cwd=path,
             )
             await self.command(self.config.pnpm, "--dir", path / "frontend", "build", cwd=path)
         else:
@@ -145,6 +166,8 @@ class Engine:
                 self.config.pnpm,
                 "install",
                 "--frozen-lockfile",
+                "--store-dir",
+                str(pnpm_store),
                 cwd=path,
             )
             await self.command(
@@ -178,6 +201,47 @@ class Engine:
         if (path / "backend").is_dir():
             return "backend.bot", path
         return "bot", path
+
+    def _supervisor_package_dir(self, release_path):
+        for candidate in ("packages/supervisor", "supervisor"):
+            if (release_path / candidate / "pyproject.toml").is_file():
+                return release_path / candidate
+        return None
+
+    async def check_supervisor_changed(self, old_commit, new_commit):
+        if not old_commit or not new_commit or old_commit == new_commit:
+            return False
+        for path in ("packages/supervisor", "supervisor"):
+            try:
+                diff = await self.git("diff", "--name-only", old_commit, new_commit, "--", path, capture=True)
+                if inspect.isawaitable(diff):
+                    diff = await diff
+                if diff and isinstance(diff, str) and diff.strip():
+                    return True
+            except Exception:
+                continue
+        return False
+
+    async def update_supervisor_tool(self, release_path):
+        pkg_dir = self._supervisor_package_dir(release_path)
+        if not pkg_dir:
+            return False
+        cache_dir = self.config.state_dir / "cache"
+        uv_cache = cache_dir / "uv"
+        uv_cache.mkdir(parents=True, exist_ok=True)
+        env = {
+            **os.environ,
+            "UV_CACHE_DIR": str(uv_cache),
+            "UV_LINK_MODE": "hardlink",
+        }
+        await self.command(self.config.uv, "tool", "install", "--force", str(pkg_dir), env=env)
+        return True
+
+    def restart_supervisor(self):
+        import sys
+
+        self.output("Restarting supervisor in-place...")
+        os.execv(sys.executable, [sys.executable, *sys.argv])
 
     async def boot(self, name):
         self.generation = uuid4().hex
@@ -215,6 +279,10 @@ class Engine:
         snapshot.parent.mkdir(exist_ok=True)
         # All bot processes are stopped. Include DB WAL, ORM migration cache and keys together.
         shutil.copytree(self.config.data_dir, snapshot, symlinks=True)
+        snapshot_history = self.state.setdefault("snapshot_history", [])
+        if operation_id not in snapshot_history:
+            snapshot_history.append(operation_id)
+        self.save()
         return str(snapshot)
 
     def restore(self, snapshot):
@@ -236,6 +304,107 @@ class Engine:
                 item.unlink()
         shutil.copytree(staging, data, dirs_exist_ok=True, symlinks=True)
         shutil.rmtree(staging)
+
+    async def prune_releases(self):
+        """Retain at most max_history_releases historical releases plus the running release.
+        
+        Also retain at most max_history_releases historical snapshots.
+        Active baseline, rollback target, candidate, or un-recovered releases and snapshots are protected.
+        Removed release worktrees are cleaned from disk and pruned in Git.
+        """
+        releases_dir = self.config.state_dir / "releases"
+        snapshots_dir = self.config.state_dir / "snapshots"
+
+        current_good = self.state.get("good")
+        protected_releases = set()
+        protected_snapshots = set()
+        if current_good:
+            protected_releases.add(current_good)
+        baseline = self.state.get("baseline")
+        if baseline:
+            if baseline.get("good"):
+                protected_releases.add(baseline["good"])
+            if baseline.get("snapshot"):
+                protected_snapshots.add(Path(baseline["snapshot"]).name)
+        for item in self.state.get("baselines", []):
+            if item.get("good"):
+                protected_releases.add(item["good"])
+            if item.get("snapshot"):
+                protected_snapshots.add(Path(item["snapshot"]).name)
+        recovery = self.state.get("recovery")
+        if recovery:
+            if recovery.get("good"):
+                protected_releases.add(recovery["good"])
+            if recovery.get("snapshot"):
+                protected_snapshots.add(Path(recovery["snapshot"]).name)
+        operation = self.state.get("operation")
+        if operation:
+            if operation.get("candidate"):
+                protected_releases.add(operation["candidate"])
+            if operation.get("rollback"):
+                rollback = operation["rollback"]
+                if rollback.get("good"):
+                    protected_releases.add(rollback["good"])
+                if rollback.get("snapshot"):
+                    protected_snapshots.add(Path(rollback["snapshot"]).name)
+            if operation.get("snapshot"):
+                protected_snapshots.add(Path(operation["snapshot"]).name)
+
+        limit = self.config.max_history_releases
+
+        if releases_dir.is_dir():
+            history = [name for name in self.state.get("history", []) if (releases_dir / name).is_dir()]
+            for item in releases_dir.iterdir():
+                if item.is_dir() and item.name not in history:
+                    history.append(item.name)
+
+            historical = [name for name in history if name != current_good]
+            pruned_any = False
+            if len(historical) > limit:
+                excess = len(historical) - limit
+                for name in list(historical):
+                    if excess <= 0:
+                        break
+                    if name in protected_releases:
+                        continue
+                    path = self.release(name)
+                    if path.is_dir():
+                        await asyncio.to_thread(shutil.rmtree, path, ignore_errors=True)
+                    if name in history:
+                        history.remove(name)
+                    excess -= 1
+                    pruned_any = True
+                if pruned_any and (self.config.state_dir / "repository.git").exists():
+                    with contextlib.suppress(Exception):
+                        await self.git("worktree", "prune")
+
+            self.state["history"] = history
+            self.save()
+
+        if snapshots_dir.is_dir():
+            snapshot_history = [
+                name for name in self.state.get("snapshot_history", []) if (snapshots_dir / name).is_dir()
+            ]
+            for item in snapshots_dir.iterdir():
+                if item.is_dir() and item.name not in snapshot_history:
+                    snapshot_history.append(item.name)
+
+            if len(snapshot_history) > limit:
+                excess = len(snapshot_history) - limit
+                for name in list(snapshot_history):
+                    if excess <= 0:
+                        break
+                    if name in protected_snapshots:
+                        continue
+                    spath = snapshots_dir / name
+                    if spath.is_dir():
+                        await asyncio.to_thread(shutil.rmtree, spath, ignore_errors=True)
+                    if name in snapshot_history:
+                        snapshot_history.remove(name)
+                    excess -= 1
+
+            self.state["snapshot_history"] = snapshot_history
+            self.save()
 
     def finish(self, operation, outcome, error=None, log=None):
         operation.update(outcome=outcome, phase="finished", error=error, log=log or self.tail.text())
@@ -335,7 +504,26 @@ class Engine:
             self.state.update(good=candidate, commit=commit, branch=branch)
             if branch == self.config.branch:
                 self.state.pop("baseline", None)
+            history = self.state.setdefault("history", [])
+            if candidate not in history:
+                history.append(candidate)
+            self.save()
+            await self.prune_releases()
+
+            supervisor_updated = False
+            if previous.get("commit") and previous["commit"] != commit:
+                try:
+                    if await self.check_supervisor_changed(previous["commit"], commit):
+                        self.output("Detected changes in supervisor package. Updating supervisor tool...")
+                        supervisor_updated = await self.update_supervisor_tool(path)
+                except Exception as sup_err:
+                    self.output(f"Failed to auto-update supervisor: {sup_err}")
+
             self.finish(operation, "success")
+            if supervisor_updated and self.auto_restart:
+                # In-place restart replaces this process via execv while preserving child bot
+                await asyncio.sleep(1)
+                self.restart_supervisor()
         except Exception as error:
             self.tail.add(f"{type(error).__name__}: {error}")
             failure_log = self.tail.text()
@@ -351,6 +539,7 @@ class Engine:
                     self.tail.add(f"Recovery failed: {type(recovery_error).__name__}")
                     self.finish(operation, "recovery_failed", "Manual intervention required", failure_log)
                     return
+            await self.prune_releases()
             self.finish(
                 operation, "rolled_back" if stopped else "rejected", type(error).__name__, failure_log
             )
@@ -383,6 +572,7 @@ class Engine:
 
     async def start(self):
         await self.recover()
+        await self.prune_releases()
         await self.boot(self.state["good"])
 
     async def watch(self):

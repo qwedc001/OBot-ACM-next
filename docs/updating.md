@@ -44,7 +44,7 @@ obotctl update restore --wait
 
 `state.json` 的 `baseline` 是当前测试基线，`baselines` 保留历次基线记录；每条记录包含 release、commit、branch 和 snapshot。结束测试仅解除当前基线，不删除历史代码和快照。手动恢复本身启动失败，会回到恢复动作前的测试版及其数据；恢复磁盘操作失败时保留恢复意图并拒绝新更新，修复磁盘后重启守护进程继续恢复。
 
-已有安装需要先单独升级守护工具到 0.11.0 或更新版本并重启服务，才能接受 test / restore 操作：`uv tool install --force /srv/obot/source/supervisor`（源码路径为示例）。普通机器人更新不会升级守护进程本身。
+已有安装首次升级至 0.12.0 后将具备自更新能力：若更新包含 supervisor 自身代码变更，系统会自动调用 `uv tool install --force` 升级 supervisor 工具，并通过 `os.execv` 原地平滑自重启进程无缝接管守护与机器人子进程，无需再手动进入服务器命令行执行更新。普通机器人更新且 supervisor 无变动时则保持原进程继续运行。
 
 ## 首次安装
 
@@ -69,9 +69,10 @@ pnpm = "/usr/bin/pnpm"
 startup_timeout = 90
 stable_seconds = 5
 extras = ["render"]
+max_history_releases = 2
 ```
 
-守护工具 0.12.0 起可用 `extras` 选择应用的可选依赖。启用 PickOne OCR 时改为 `["render", "ocr"]`，并单独升级守护工具；后续 CLI 更新和回滚重建会沿用此配置。默认仅安装 render。
+守护工具 0.12.0 起可用 `extras` 选择应用的可选依赖。启用 PickOne OCR 时改为 `["render", "ocr"]`，并单独升级守护工具；后续 CLI 更新和回滚重建会沿用此配置。默认仅安装 render。`max_history_releases` 控制保留的历史版本快照数量（默认 2 个，加上当前运行版本最多共计 3 个），超出上限的旧版本与快照将在更新成功或启动时自动清理释放磁盘空间；活动基线、回滚目标及待恢复数据始终受保护不被清理。此外，构建阶段通过 `state_dir/cache` 共享 uv 缓存与 pnpm 存储，启用硬链接复用依赖包，避免多版本重复占用数 GB 磁盘。
 
 保留旧服务和数据库备份，执行 `obotctl bootstrap` 预先构建首个 Git 版本；然后将系统服务的启动入口改为 `obot-supervisor`。保留原来的驱动、端口、公开 URL、绝对数据库路径等环境配置。首次启动必须确认 QQ 连接成功再撤销旧服务的恢复准备；bootstrap 不代表启动已经验证。配置和状态目录应分别为 0600、0700。共享 data 中的全部文件和目录必须允许服务用户读写，特别检查历史维护命令留下的 root 私有文件；完整快照失败时更新会中止并恢复原进程。
 

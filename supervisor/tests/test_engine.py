@@ -27,8 +27,10 @@ async def test_prepare_preserves_optional_dependencies_without_symlink_privilege
     monkeypatch.setattr(engine, "command", calls)
     monkeypatch.setattr(Path, "symlink_to", lambda *args, **kwargs: None)
     await engine.prepare("b" * 40, "extras-test")
-    sync = next(call.args for call in calls.await_args_list if "sync" in call.args)
-    assert sync == (engine.config.uv, "sync", "--locked", "--no-dev", "--extra", "render", "--extra", "ocr")
+    sync_call = next(call for call in calls.await_args_list if "sync" in call.args)
+    assert sync_call.args == (engine.config.uv, "sync", "--locked", "--no-dev", "--extra", "render", "--extra", "ocr")
+    assert sync_call.kwargs["env"]["UV_CACHE_DIR"] == str(engine.config.state_dir / "cache" / "uv")
+    assert sync_call.kwargs["env"]["UV_LINK_MODE"] == "hardlink"
 
 
 async def test_failed_start_restores_database_cache_and_release(engine, monkeypatch):
@@ -212,3 +214,199 @@ def test_state_is_valid_json_and_path_escape_rejected(engine):
     assert json.loads(engine.store.path.read_text())["good"] == "old"
     with pytest.raises(ValueError, match="Invalid release"):
         engine.release("../../outside")
+
+
+async def test_prune_releases_rotates_excess_history_and_preserves_running_and_baseline(engine):
+    releases_dir = engine.config.state_dir / "releases"
+    releases_dir.mkdir(parents=True, exist_ok=True)
+    snapshots_dir = engine.config.state_dir / "snapshots"
+    snapshots_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create 5 historical releases: rel1, rel2, rel3, rel4, rel5
+    for name in ["rel1", "rel2", "rel3", "rel4", "rel5"]:
+        (releases_dir / name).mkdir()
+        (snapshots_dir / name).mkdir()
+
+    engine.state["history"] = ["rel1", "rel2", "rel3", "rel4", "rel5"]
+    engine.state["snapshot_history"] = ["rel1", "rel2", "rel3", "rel4", "rel5"]
+    engine.state["good"] = "rel5"  # rel5 is current good
+    engine.state["baseline"] = {"good": "rel2", "snapshot": str(snapshots_dir / "rel2")}
+
+    # Default max_history_releases is 2.
+    # Total releases: rel5 (good), plus history: rel1, rel2, rel3, rel4.
+    # Historical count = 4 > 2, so 2 must be pruned.
+    # Candidates for pruning in order: rel1, rel2 (protected by baseline!), rel3, rel4.
+    # rel1 is pruned, rel2 skipped because it's protected, rel3 is pruned.
+    # Left over: rel2, rel4 in history, and rel5 as current good.
+    await engine.prune_releases()
+
+    assert (releases_dir / "rel5").is_dir()
+    assert (releases_dir / "rel2").is_dir()
+    assert (releases_dir / "rel4").is_dir()
+    assert not (releases_dir / "rel1").exists()
+    assert not (releases_dir / "rel3").exists()
+
+    # Total remaining on disk: 3 (rel5 current, rel2 and rel4 history)
+    remaining = [p.name for p in releases_dir.iterdir() if p.is_dir()]
+    assert set(remaining) == {"rel5", "rel2", "rel4"}
+    assert len(remaining) == 3
+
+    # Check snapshots: snapshots are only protected if they are in baseline/recovery/rollback/operation
+    # rel2 is protected by baseline, rel5 is the newest snapshot (limit 2). rel1, rel3, rel4 are pruned.
+    assert (snapshots_dir / "rel2").is_dir()
+    assert (snapshots_dir / "rel5").is_dir()
+    assert not (snapshots_dir / "rel1").exists()
+    assert not (snapshots_dir / "rel3").exists()
+    assert not (snapshots_dir / "rel4").exists()
+
+
+async def test_update_workflow_automatically_prunes_old_releases(engine, monkeypatch):
+    entered = 0
+
+    async def fetch(*args):
+        nonlocal entered
+        entered += 1
+        return f"{entered}" * 40
+
+    async def prepare(commit, op_id):
+        name = f"rel-{commit[:6]}"
+        path = engine.release(name)
+        path.mkdir(parents=True, exist_ok=True)
+        return name
+
+    async def noop(*args, **kwargs):
+        pass
+
+    monkeypatch.setattr(engine, "fetch", fetch)
+    monkeypatch.setattr(engine, "prepare", prepare)
+    monkeypatch.setattr(engine, "command", noop)
+    monkeypatch.setattr(engine, "boot", noop)
+
+    # Initial good is 'old'
+    (engine.config.state_dir / "releases" / "old").mkdir(parents=True, exist_ok=True)
+    engine.state["history"] = ["old"]
+
+    # 1st update -> good = rel-111111 (history: old)
+    engine.submit("update")
+    await engine.task
+    assert engine.state["good"] == "rel-111111"
+
+    # 2nd update -> good = rel-222222 (history: old, rel-111111)
+    engine.submit("update")
+    await engine.task
+    assert engine.state["good"] == "rel-222222"
+
+    # 3rd update -> good = rel-333333 (history: old, rel-111111, rel-222222)
+    # Exceeds max_history_releases (2)! "old" should be pruned.
+    engine.submit("update")
+    await engine.task
+    assert engine.state["good"] == "rel-333333"
+
+    releases = [p.name for p in (engine.config.state_dir / "releases").iterdir() if p.is_dir()]
+    assert set(releases) == {"rel-333333", "rel-222222", "rel-111111"}
+    assert not (engine.config.state_dir / "releases" / "old").exists()
+    assert len(releases) == 3
+
+
+async def test_prepare_uses_shared_cache_and_pnpm_store(engine, monkeypatch):
+    calls = []
+
+    async def fake_command(*args, cwd=None, env=None, capture=False):
+        calls.append({"args": args, "cwd": cwd, "env": env})
+        return "ok"
+
+    async def fake_git(*args, **kwargs):
+        pass
+
+    monkeypatch.setattr(engine, "command", fake_command)
+    monkeypatch.setattr(engine, "git", fake_git)
+    monkeypatch.setattr(Path, "symlink_to", lambda *a, **k: None)
+
+    release_path = engine.release("commit123456-op1234567890")
+    # Simulate presence of frontend directory
+    (release_path / "frontend").mkdir(parents=True, exist_ok=True)
+
+    await engine.prepare("commit1234567890abcdef", "op1234567890abcdef")
+
+    cache_dir = engine.config.state_dir / "cache"
+    uv_cache = cache_dir / "uv"
+    pnpm_store = cache_dir / "pnpm"
+    assert uv_cache.is_dir()
+    assert pnpm_store.is_dir()
+
+    uv_call = next(c for c in calls if "sync" in c["args"])
+    assert uv_call["env"]["UV_CACHE_DIR"] == str(uv_cache)
+    assert uv_call["env"]["UV_LINK_MODE"] == "hardlink"
+
+    pnpm_call = next(c for c in calls if "install" in c["args"])
+    assert "--store-dir" in pnpm_call["args"]
+    store_dir_idx = pnpm_call["args"].index("--store-dir")
+    assert pnpm_call["args"][store_dir_idx + 1] == str(pnpm_store)
+
+
+async def test_supervisor_change_detection_and_auto_update_and_restart(engine, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    engine.auto_restart = True
+    restarted = False
+
+    def fake_restart():
+        nonlocal restarted
+        restarted = True
+
+    monkeypatch.setattr(engine, "restart_supervisor", fake_restart)
+
+    # 1. Test check_supervisor_changed
+    async def fake_git(*args, capture=False):
+        if "diff" in args:
+            if "packages/supervisor" in args:
+                return ""
+            if "supervisor" in args:
+                return "supervisor/obot_supervisor/engine.py\n"
+        return ""
+
+    monkeypatch.setattr(engine, "git", fake_git)
+
+    changed = await engine.check_supervisor_changed("commit_old", "commit_new")
+    assert changed is True
+
+    # When no diff
+    monkeypatch.setattr(engine, "git", AsyncMock(return_value=""))
+    unchanged = await engine.check_supervisor_changed("commit_old", "commit_new")
+    assert unchanged is False
+
+    # 2. Test update_supervisor_tool
+    release_path = engine.release("new-rel")
+    (release_path / "supervisor").mkdir(parents=True, exist_ok=True)
+    (release_path / "supervisor" / "pyproject.toml").write_text("[project]\nname='obot-supervisor'\n")
+
+    cmd_calls = []
+
+    async def fake_cmd(*args, cwd=None, env=None, capture=False):
+        cmd_calls.append({"args": args, "env": env})
+        return "ok"
+
+    monkeypatch.setattr(engine, "command", fake_cmd)
+    res = await engine.update_supervisor_tool(release_path)
+    assert res is True
+    tool_call = next(c for c in cmd_calls if "tool" in c["args"] and "install" in c["args"])
+    assert tool_call["args"] == (engine.config.uv, "tool", "install", "--force", str(release_path / "supervisor"))
+    assert tool_call["env"]["UV_CACHE_DIR"] == str(engine.config.state_dir / "cache" / "uv")
+    assert tool_call["env"]["UV_LINK_MODE"] == "hardlink"
+
+    # 3. Test update workflow triggering supervisor auto-update and restart
+    monkeypatch.setattr(engine, "fetch", AsyncMock(return_value="newcommit" * 4))
+    monkeypatch.setattr(engine, "prepare", AsyncMock(return_value="new-rel"))
+    monkeypatch.setattr(engine, "boot", AsyncMock())
+    monkeypatch.setattr(engine, "check_supervisor_changed", AsyncMock(return_value=True))
+    monkeypatch.setattr(engine, "update_supervisor_tool", AsyncMock(return_value=True))
+
+    engine.submit("update")
+    await engine.task
+
+    assert engine.state["good"] == "new-rel"
+    assert engine.state["operation"]["outcome"] == "success"
+    assert restarted is True
+
+
+
