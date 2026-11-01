@@ -33,16 +33,12 @@ class PickOneService(Service):
             renderer=container.clients.renderer,
         )
 
-    def __init__(self, curation, http=None, ocr=None, jobs=None, renderer=None, clients=None):
+    def __init__(self, curation, *, http=None, ocr=None, jobs=None, renderer=None):
         self.curation = curation
-        # Support both explicit client injection and backwards-compatible namespace
-        self.http = http if http is not None else (getattr(clients, "http", None) if clients else None)
-        self.ocr = ocr if ocr is not None else (getattr(clients, "ocr", None) if clients else None)
-        self.jobs = jobs if jobs is not None else (getattr(clients, "jobs", None) if clients else None)
-        self.renderer = (
-            renderer if renderer is not None else (getattr(clients, "renderer", None) if clients else None)
-        )
-        self.clients = clients  # Kept for backward compatibility
+        self.http = http
+        self.ocr = ocr
+        self.jobs = jobs
+        self.renderer = renderer
         self._ocr_jobs = {}
         self._scheduler = None
         if self.renderer:

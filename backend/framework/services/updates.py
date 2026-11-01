@@ -56,18 +56,9 @@ class UpdatesService(Service):
         )
 
     def __init__(self, updater=None, reply=None, ready_check=None):
-        if hasattr(updater, "clients"):  # Backwards compatibility when passing container
-            container = updater
-            self.updater = container.clients.updater
-            self.reply = getattr(container.clients, "reply", None)
-            self.ready_check = lambda: (
-                getattr(container, "started", True)
-                and bool(getattr(getattr(container, "telemetry", None), "connected_bots", False))
-            )
-        else:
-            self.updater = updater
-            self.reply = reply
-            self.ready_check = ready_check if ready_check is not None else (lambda: True)
+        self.updater = updater
+        self.reply = reply
+        self.ready_check = ready_check if ready_check is not None else (lambda: True)
         self.task = None
         self.health_task = None
 

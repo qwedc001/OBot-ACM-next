@@ -41,7 +41,7 @@ async def test_shared_search_like_comment_and_scene_isolation(web):
     with pytest.raises(chat.StoreError, match="本会话"):
         await pick.like(context(group="other-room"))
     # A new service instance restores scene references from ORM, not process memory.
-    restored = PickOneService(services.curation, SimpleNamespace(renderer=Mock()))
+    restored = PickOneService(services.curation, renderer=Mock())
     assert await restored.like(ctx) == 15
     async with services.session_factory() as session, session.begin():
         row = await session.get(PickOneContext, ctx.scene.key)
