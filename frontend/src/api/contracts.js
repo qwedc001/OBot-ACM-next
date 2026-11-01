@@ -1,8 +1,15 @@
+import axios from "axios";
 import { client } from "@obot/contracts/client";
-import http from "./http";
+import { getCsrf } from "@/stores/auth-token";
 
-// Bind generated hey-api client to existing configured axios instance
-client.instance = http;
+// Generated SDK URLs already include the `/api` prefix.
+const contractsAxios = axios.create({ timeout: 15000, withCredentials: true });
+contractsAxios.interceptors.request.use((config) => {
+  if (!["get", "head"].includes(config.method) && getCsrf())
+    config.headers["X-CSRF-Token"] = getCsrf();
+  return config;
+});
+client.setConfig({ axios: contractsAxios });
 
 export * from "@obot/contracts";
 export { client };

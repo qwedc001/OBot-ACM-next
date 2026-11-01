@@ -48,19 +48,22 @@ importers:
 
   packages/contracts:
     dependencies:
+      '@hey-api/client-axios':
+        specifier: ^0.6.2
+        version: 0.6.3(axios@1.21.0)
       axios:
         specifier: ^1.20.0
         version: 1.21.0
     devDependencies:
-      '@hey-api/client-axios':
-        specifier: ^0.6.2
-        version: 0.6.3(axios@1.21.0)
       '@hey-api/openapi-ts':
         specifier: ^0.64.12
         version: 0.64.15(typescript@5.9.3)
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
+      prettier:
+        specifier: ^3.9.10
+        version: 3.9.10
       typescript:
         specifier: ^5.8.2
         version: 5.9.3

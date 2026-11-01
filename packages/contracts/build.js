@@ -6,9 +6,10 @@ execSync('pnpm exec tsc --declaration --emitDeclarationOnly --outDir dist', { st
 
 // Bundle with esbuild
 await build({
-  entryPoints: ['src/index.ts'],
-  outfile: 'dist/index.js',
+  entryPoints: ['src/index.ts', 'src/sdk.gen.ts', 'src/client.gen.ts', 'src/types.gen.ts'],
+  outdir: 'dist',
   bundle: true,
+  splitting: true,
   format: 'esm',
   packages: 'external',
   platform: 'neutral',
