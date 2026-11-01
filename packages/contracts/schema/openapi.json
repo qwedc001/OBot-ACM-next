@@ -1,0 +1,3171 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OBot API",
+    "description": "OBot-ACM Next Web API and Contracts",
+    "version": "0.17.0"
+  },
+  "paths": {
+    "/api/plugins/board/bind/inspect": {
+      "post": {
+        "summary": "Inspect",
+        "operationId": "inspect_api_plugins_board_bind_inspect_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/board/bind/submit": {
+      "post": {
+        "summary": "Submit",
+        "operationId": "submit_api_plugins_board_bind_submit_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/board/scopes": {
+      "get": {
+        "summary": "Scopes",
+        "operationId": "scopes_api_plugins_board_scopes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/board/group-check": {
+      "post": {
+        "summary": "Group Check",
+        "operationId": "group_check_api_plugins_board_group_check_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/board/configs": {
+      "get": {
+        "summary": "Configs",
+        "operationId": "configs_api_plugins_board_configs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/board/starred": {
+      "post": {
+        "summary": "Starred",
+        "operationId": "starred_api_plugins_board_starred_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/board/settings": {
+      "post": {
+        "summary": "Settings",
+        "operationId": "settings_api_plugins_board_settings_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/board/render": {
+      "post": {
+        "summary": "Render",
+        "operationId": "render_api_plugins_board_render_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/commands": {
+      "get": {
+        "summary": "Commands",
+        "operationId": "commands_api_plugins_commands_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/contestlist/meta": {
+      "get": {
+        "tags": [
+          "contestlist"
+        ],
+        "summary": "Meta",
+        "description": "前端表单要用的字段中文名与长度/时长限制。\n\n刻意**不提供平台取值列表**：平台是自由文本（见 types.MAX_PLATFORM_LENGTH\n的注释），前端用普通输入框，后端只限长度。",
+        "operationId": "meta_api_plugins_contestlist_meta_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Meta Api Plugins Contestlist Meta Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/contestlist/items": {
+      "get": {
+        "tags": [
+          "contestlist"
+        ],
+        "summary": "List Items",
+        "description": "列出比赛列表：磁盘原值 + 全部在途改动。\n\n顺序保持文件里的原样（也就是 Bot 渲染出来的顺序）。条目身份是身份哈希而不是\n下标，所以这里排序与否都不影响提交能不能落对地方 —— 不排只是为了让人\n在文件里找到某一场时更容易对上界面。",
+        "operationId": "list_items_api_plugins_contestlist_items_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response List Items Api Plugins Contestlist Items Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/contestlist/items/{hash_}": {
+      "get": {
+        "tags": [
+          "contestlist"
+        ],
+        "summary": "Get Item",
+        "operationId": "get_item_api_plugins_contestlist_items__hash___get",
+        "parameters": [
+          {
+            "name": "hash_",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Hash "
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Item Api Plugins Contestlist Items  Hash   Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/contestlist/submissions": {
+      "get": {
+        "tags": [
+          "contestlist"
+        ],
+        "summary": "List Submissions",
+        "description": "列出提交单。\n\n普通用户只能看到自己的；管理员用 `scope=all` 看全部（「我的提交」页的\n「查看全部用户」开关）。\n\n`q` 按「这条改动落在哪场比赛上」搜：匹配 `平台 · 简称`、比赛名称，或哈希前缀。\n搜索在服务端做，因为要跟着分页 —— 只在前端过滤的话，第 2 页的数据会漏。",
+        "operationId": "list_submissions_api_plugins_contestlist_submissions_get",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(mine|all)$",
+              "default": "mine",
+              "title": "Scope"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(open|pending|approved|conflict|applied|rejected|all)$",
+              "default": "open",
+              "title": "Status"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response List Submissions Api Plugins Contestlist Submissions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "contestlist"
+        ],
+        "summary": "Submit Create",
+        "description": "提交一条新增。\n\n「新增」有时候其实是修改：手工录入和 Bot 的 `/导入比赛` 都可能重复录同一场比赛。\n提交内容的身份哈希与列表里某条相同时，这里自动改发「修改」，\n免得下发后文件里出现两条重复的比赛。\n\n降级成修改时**同样按字段拆分**：用户以为自己在录一场新比赛，可能有三四个字段\n和列表里那条不一样，那就不再是一条「整条覆盖」，而是每个字段一条提交单。",
+        "operationId": "submit_create_api_plugins_contestlist_submissions_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContestCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Submit Create Api Plugins Contestlist Submissions Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/contestlist/queue": {
+      "get": {
+        "tags": [
+          "contestlist"
+        ],
+        "summary": "Review Queue",
+        "description": "审核队列（本工具自己的）。\n\n框架的 `GET /api/plugins/curation/admin/queue` 只认 `img_key` 精确匹配、也没法按比赛名搜，\n而审核台需要「按比赛找一条提交」。这里用的是同一套提交单模型和同一个\n`_row()` 形状，所以两个接口返回的东西是一致的，只是这个多了 `q`。",
+        "operationId": "review_queue_api_plugins_contestlist_queue_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(open|pending|approved|conflict|rejected|applied|all)$",
+              "default": "pending",
+              "title": "Status"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Review Queue Api Plugins Contestlist Queue Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/contestlist/submissions/update": {
+      "post": {
+        "tags": [
+          "contestlist"
+        ],
+        "summary": "Submit Update",
+        "description": "提交一次修改。\n\n**改了几个字段就拆成几条提交单**（与 PickOne 一致：改描述、改点赞是两条提交）。\n管理员因此可以只接受其中一条 —— 整条一起提交的话，他要么全接受，要么全驳回，\n而「比赛名写错了但时长是对的」这种情况很常见。\n\n每条提交单：\n  - `target`   = 字段名（框架靠 `(plugin, type, img_key, target, author_id)` 去重，\n                 所以同一场比赛的不同字段互不干扰，反复改同一个字段是覆盖）；\n  - `submitted_value` = 那个字段的新值（标量）；\n  - `base_value`      = 提交时看到的**整条快照**，冲突检测仍然按整条比。",
+        "operationId": "submit_update_api_plugins_contestlist_submissions_update_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContestUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Submit Update Api Plugins Contestlist Submissions Update Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/contestlist/admin/delete": {
+      "post": {
+        "tags": [
+          "contestlist"
+        ],
+        "summary": "Submit Delete",
+        "description": "提交一条删除。\n\n**刻意只开给管理员**（`AdminUser` 而不是 `CurrentUser`）：删掉一场比赛不可逆，\n而且通常发生在「上游已取消、Bot 还在渲染」的时候，属于维护动作而不是用户贡献。\n这里同样只排队，真正写盘仍然要经过审核台的一键下发。",
+        "operationId": "submit_delete_api_plugins_contestlist_admin_delete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContestDeleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Submit Delete Api Plugins Contestlist Admin Delete Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/contestlist/submissions/{submission_id}": {
+      "delete": {
+        "tags": [
+          "contestlist"
+        ],
+        "summary": "Withdraw",
+        "description": "撤回自己待审核的提交。",
+        "operationId": "withdraw_api_plugins_contestlist_submissions__submission_id__delete",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Submission Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Withdraw Api Plugins Contestlist Submissions  Submission Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/contestlist/admin/overview": {
+      "get": {
+        "tags": [
+          "contestlist-admin"
+        ],
+        "summary": "Overview",
+        "description": "审核台首页需要的计数与数据文件状态。\n\n刻意**不返回文件路径**：审核台只需要知道「能不能下发」，绝对路径属于服务端\n内部信息，进了响应体就会出现在页面上（也没有任何界面需要它）。",
+        "operationId": "overview_api_plugins_contestlist_admin_overview_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Overview Api Plugins Contestlist Admin Overview Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/contestlist/admin/integrity": {
+      "get": {
+        "tags": [
+          "contestlist-admin"
+        ],
+        "summary": "Integrity",
+        "description": "数据体检：格式坏掉的条目、重复的比赛（同一身份出现多次）。\n\n这是本插件唯一返回数据文件路径的接口：管理员排查「文件不在预期位置」\n时必须看得到它。前端不展示，只作为接口自省信息。",
+        "operationId": "integrity_api_plugins_contestlist_admin_integrity_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Integrity Api Plugins Contestlist Admin Integrity Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/contestlist/admin/apply/preview": {
+      "get": {
+        "tags": [
+          "contestlist-admin"
+        ],
+        "summary": "Apply Preview",
+        "description": "下发前的 dry-run：只列出将要写入的内容与被挂起的冲突，不碰磁盘。",
+        "operationId": "apply_preview_api_plugins_contestlist_admin_apply_preview_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Apply Preview Api Plugins Contestlist Admin Apply Preview Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/contestlist/admin/apply": {
+      "post": {
+        "tags": [
+          "contestlist-admin"
+        ],
+        "summary": "Apply Changes",
+        "description": "一键下发：把 approved 的提交写回比赛列表，冲突单转 conflict 状态挂起。",
+        "operationId": "apply_changes_api_plugins_contestlist_admin_apply_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Apply Changes Api Plugins Contestlist Admin Apply Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/contestlist/admin/conflicts/scan": {
+      "post": {
+        "tags": [
+          "contestlist-admin"
+        ],
+        "summary": "Scan",
+        "description": "把「已通过但已经不能直接下发」的提交单挂成冲突（不写数据文件）。\n\n审核台在刷新时调它：这样「两个人改了同一处」在过审那一刻就分出胜负（最早过审的\n留在待下发，其余进冲突待裁定），不用等到真的点一键下发才发现 —— 否则只是下发\n预览提醒一句，点「去处理冲突」过去是空的。反复调用幂等。",
+        "operationId": "scan_api_plugins_contestlist_admin_conflicts_scan_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Scan Api Plugins Contestlist Admin Conflicts Scan Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/contestlist/admin/conflicts": {
+      "get": {
+        "tags": [
+          "contestlist-admin"
+        ],
+        "summary": "List Conflicts",
+        "description": "列出本插件挂起的冲突，附三方对比信息。",
+        "operationId": "list_conflicts_api_plugins_contestlist_admin_conflicts_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response List Conflicts Api Plugins Contestlist Admin Conflicts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/contestlist/admin/conflicts/{submission_id}/resolve": {
+      "post": {
+        "tags": [
+          "contestlist-admin"
+        ],
+        "summary": "Resolve",
+        "description": "裁定冲突：keep_new=true 保留提交新值（排回待下发），false 丢弃提交。",
+        "operationId": "resolve_api_plugins_contestlist_admin_conflicts__submission_id__resolve_post",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Submission Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/framework__curation__contestlist__schemas__ConflictResolveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Resolve Api Plugins Contestlist Admin Conflicts  Submission Id  Resolve Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/curation/admin/queue": {
+      "get": {
+        "summary": "Review Queue",
+        "description": "待审核 / 待应用 / 冲突 / 已处理队列。",
+        "operationId": "review_queue_api_plugins_curation_admin_queue_get",
+        "parameters": [
+          {
+            "name": "plugin",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "只看某个工具的提交单",
+              "default": "",
+              "title": "Plugin"
+            },
+            "description": "只看某个工具的提交单"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(pending|approved|conflict|rejected|applied|all)$",
+              "default": "pending",
+              "title": "Status"
+            }
+          },
+          {
+            "name": "img_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "default": "",
+              "title": "Img Key"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Review Queue Api Plugins Curation Admin Queue Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/curation/admin/review/batch": {
+      "post": {
+        "summary": "Review Batch",
+        "description": "批量审核：批准 / 驳回一批提交单。",
+        "operationId": "review_batch_api_plugins_curation_admin_review_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Review Batch Api Plugins Curation Admin Review Batch Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/curation/admin/review/{submission_id}": {
+      "post": {
+        "summary": "Review",
+        "description": "审核（批准 / 驳回）。批准只是排队，真正落盘要再点「一键应用」。",
+        "operationId": "review_api_plugins_curation_admin_review__submission_id__post",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Submission Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Review Api Plugins Curation Admin Review  Submission Id  Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/curation/admin/unreview/{submission_id}": {
+      "post": {
+        "summary": "Unreview",
+        "description": "撤回审核：把「已通过待下发」的提交退回「待审核」。\n\n审核通过后、下发之前管理员改主意（审错了、想再等等、想和别的改动一起发），\n这里可以把它放回待审核队列重新审。",
+        "operationId": "unreview_api_plugins_curation_admin_unreview__submission_id__post",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Submission Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Unreview Api Plugins Curation Admin Unreview  Submission Id  Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/curation/admin/logs": {
+      "get": {
+        "summary": "Logs",
+        "operationId": "logs_api_plugins_curation_admin_logs_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Logs Api Plugins Curation Admin Logs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/categories": {
+      "get": {
+        "tags": [
+          "pickone-categories"
+        ],
+        "summary": "List Categories",
+        "description": "列出所有类别：图片数、缺 OCR 数、配色，以及审核中的改动。\n\n展示的是磁盘原值，别人的在途改动只放在 pending_changes 里，不替换 id / keys。",
+        "operationId": "list_categories_api_plugins_pickone_categories_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response List Categories Api Plugins Pickone Categories Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/categories/summary": {
+      "get": {
+        "tags": [
+          "pickone-categories"
+        ],
+        "summary": "Summary",
+        "description": "首页概览数据。",
+        "operationId": "summary_api_plugins_pickone_categories_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Summary Api Plugins Pickone Categories Summary Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/categories/{img_key}": {
+      "get": {
+        "tags": [
+          "pickone-categories"
+        ],
+        "summary": "Get Category",
+        "operationId": "get_category_api_plugins_pickone_categories__img_key__get",
+        "parameters": [
+          {
+            "name": "img_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Img Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Category Api Plugins Pickone Categories  Img Key  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/images/{img_key}": {
+      "get": {
+        "tags": [
+          "pickone-images"
+        ],
+        "summary": "List Images",
+        "description": "分页列出某个类别下的表情包。\n\n字段值都是磁盘原值；审核中的改动放在 pending_changes 里，只有自己的那条\n会带 mine=true（前端从它接着改，别人的只能看）。",
+        "operationId": "list_images_api_plugins_pickone_images__img_key__get",
+        "parameters": [
+          {
+            "name": "img_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Img Key"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 60,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(all|missing_ocr|has_change)$",
+              "default": "all",
+              "title": "Filter"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(hash|likes|comments|add_time|pickup_times)$",
+              "default": "hash",
+              "title": "Sort"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(asc|desc)$",
+              "default": "asc",
+              "title": "Order"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response List Images Api Plugins Pickone Images  Img Key  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/images/{img_key}/stats": {
+      "get": {
+        "tags": [
+          "pickone-images"
+        ],
+        "summary": "Image Stats",
+        "description": "类别级统计，用于页面上的进度提示。",
+        "operationId": "image_stats_api_plugins_pickone_images__img_key__stats_get",
+        "parameters": [
+          {
+            "name": "img_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Img Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Image Stats Api Plugins Pickone Images  Img Key  Stats Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/images/{img_key}/item/{name}": {
+      "get": {
+        "tags": [
+          "pickone-images"
+        ],
+        "summary": "Image Detail",
+        "operationId": "image_detail_api_plugins_pickone_images__img_key__item__name__get",
+        "parameters": [
+          {
+            "name": "img_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Img Key"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Image Detail Api Plugins Pickone Images  Img Key  Item  Name  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/images/{img_key}/raw/{name}": {
+      "get": {
+        "tags": [
+          "pickone-images"
+        ],
+        "summary": "Raw Image",
+        "description": "原图（GIF）。",
+        "operationId": "raw_image_api_plugins_pickone_images__img_key__raw__name__get",
+        "parameters": [
+          {
+            "name": "img_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Img Key"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/images/{img_key}/thumb/{name}": {
+      "get": {
+        "tags": [
+          "pickone-images"
+        ],
+        "summary": "Thumbnail",
+        "description": "缩略图（WebP，磁盘缓存）。动图只取前几帧，避免一次解码上千张。",
+        "operationId": "thumbnail_api_plugins_pickone_images__img_key__thumb__name__get",
+        "parameters": [
+          {
+            "name": "img_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Img Key"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/images/{img_key}/hash-id/{hash_id}": {
+      "get": {
+        "tags": [
+          "pickone-images"
+        ],
+        "summary": "Lookup By Hash Id",
+        "description": "按 Bot 回复里的 Base62 ID 反查图片。",
+        "operationId": "lookup_by_hash_id_api_plugins_pickone_images__img_key__hash_id__hash_id__get",
+        "parameters": [
+          {
+            "name": "img_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Img Key"
+            }
+          },
+          {
+            "name": "hash_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Hash Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Lookup By Hash Id Api Plugins Pickone Images  Img Key  Hash Id  Hash Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/submissions": {
+      "get": {
+        "tags": [
+          "pickone-submissions"
+        ],
+        "summary": "List Submissions",
+        "description": "列出提交单。普通用户只能看自己的，管理员可以看全部。",
+        "operationId": "list_submissions_api_plugins_pickone_submissions_get",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(mine|all)$",
+              "default": "mine",
+              "title": "Scope"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(open|pending|approved|conflict|applied|rejected|all)$",
+              "default": "open",
+              "title": "Status"
+            }
+          },
+          {
+            "name": "img_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "default": "",
+              "title": "Img Key"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response List Submissions Api Plugins Pickone Submissions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "pickone-submissions"
+        ],
+        "summary": "Create Submission",
+        "description": "统一入口：类别走路径参数，提交内容走 JSON body，按 `type` 分发。",
+        "operationId": "create_submission_api_plugins_pickone_submissions_post",
+        "parameters": [
+          {
+            "name": "img_key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Img Key"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(ocr_text|likes|comments|category|category_create)$",
+              "title": "Type"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Create Submission Api Plugins Pickone Submissions Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/submissions/mine": {
+      "get": {
+        "tags": [
+          "pickone-submissions"
+        ],
+        "summary": "My Submissions",
+        "description": "当前用户所有待处理的提交，前端用来在浏览页打标记。",
+        "operationId": "my_submissions_api_plugins_pickone_submissions_mine_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response My Submissions Api Plugins Pickone Submissions Mine Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/submissions/batch": {
+      "post": {
+        "tags": [
+          "pickone-submissions"
+        ],
+        "summary": "Create Submissions Batch",
+        "description": "一次提交一张图片的多个字段（编辑表单用）。\n\n各字段独立处理：某个字段校验不过或没变化，不影响其它字段。",
+        "operationId": "create_submissions_batch_api_plugins_pickone_submissions_batch_post",
+        "parameters": [
+          {
+            "name": "img_key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Img Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageBatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Create Submissions Batch Api Plugins Pickone Submissions Batch Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/submissions/{submission_id}": {
+      "delete": {
+        "tags": [
+          "pickone-submissions"
+        ],
+        "summary": "Withdraw",
+        "description": "撤回自己待审核的提交。",
+        "operationId": "withdraw_api_plugins_pickone_submissions__submission_id__delete",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Submission Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Withdraw Api Plugins Pickone Submissions  Submission Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/admin/apply/preview": {
+      "get": {
+        "tags": [
+          "pickone-admin"
+        ],
+        "summary": "Apply Preview",
+        "description": "应用前的 dry-run：列出将要写入的内容与冲突。",
+        "operationId": "apply_preview_api_plugins_pickone_admin_apply_preview_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Apply Preview Api Plugins Pickone Admin Apply Preview Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/admin/conflicts/scan": {
+      "post": {
+        "tags": [
+          "pickone-admin"
+        ],
+        "summary": "Scan",
+        "description": "把「已通过但已经不能直接下发」的提交单挂成冲突（不写数据文件）。\n\n审核台每次刷新都调它：这样「两个人改了同一个字段」在过审那一刻就会分出胜负\n（最早过审的留在待下发，其余进冲突待裁定），不用等到点一键下发才发现。\n反复调用幂等。",
+        "operationId": "scan_api_plugins_pickone_admin_conflicts_scan_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Scan Api Plugins Pickone Admin Conflicts Scan Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/admin/conflicts": {
+      "get": {
+        "tags": [
+          "pickone-admin"
+        ],
+        "summary": "List Conflicts",
+        "description": "列出本插件挂起的冲突，附三方对比信息。",
+        "operationId": "list_conflicts_api_plugins_pickone_admin_conflicts_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response List Conflicts Api Plugins Pickone Admin Conflicts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/admin/conflicts/{submission_id}/resolve": {
+      "post": {
+        "tags": [
+          "pickone-admin"
+        ],
+        "summary": "Resolve",
+        "description": "裁定冲突：keep_new=true 保留提交新值（排回待下发），false 丢弃提交。",
+        "operationId": "resolve_api_plugins_pickone_admin_conflicts__submission_id__resolve_post",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Submission Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/framework__curation__pickone__schemas__ConflictResolveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Resolve Api Plugins Pickone Admin Conflicts  Submission Id  Resolve Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/admin/apply": {
+      "post": {
+        "tags": [
+          "pickone-admin"
+        ],
+        "summary": "Apply Changes",
+        "description": "一键应用：把已审核的改动写回 OBot-ACM 的 config.json / parser.json。",
+        "operationId": "apply_changes_api_plugins_pickone_admin_apply_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Apply Changes Api Plugins Pickone Admin Apply Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/admin/integrity": {
+      "get": {
+        "tags": [
+          "pickone-admin"
+        ],
+        "summary": "Integrity",
+        "description": "数据体检：图片和 parser.json 是否对齐。",
+        "operationId": "integrity_api_plugins_pickone_admin_integrity_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Integrity Api Plugins Pickone Admin Integrity Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/admin/overview": {
+      "get": {
+        "tags": [
+          "pickone-admin"
+        ],
+        "summary": "Overview",
+        "description": "审核台首页需要的计数与数据目录状态。",
+        "operationId": "overview_api_plugins_pickone_admin_overview_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Overview Api Plugins Pickone Admin Overview Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/admin/audit": {
+      "get": {
+        "tags": [
+          "pickone-upstream-audit"
+        ],
+        "summary": "List Audit Images",
+        "operationId": "list_audit_images_api_plugins_pickone_admin_audit_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 60,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "img_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "default": "",
+              "title": "Img Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response List Audit Images Api Plugins Pickone Admin Audit Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/admin/audit/{img_key}/raw/{name}": {
+      "get": {
+        "tags": [
+          "pickone-upstream-audit"
+        ],
+        "summary": "Raw Audit Image",
+        "operationId": "raw_audit_image_api_plugins_pickone_admin_audit__img_key__raw__name__get",
+        "parameters": [
+          {
+            "name": "img_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Img Key"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/admin/audit/{img_key}/thumb/{name}": {
+      "get": {
+        "tags": [
+          "pickone-upstream-audit"
+        ],
+        "summary": "Audit Thumbnail",
+        "operationId": "audit_thumbnail_api_plugins_pickone_admin_audit__img_key__thumb__name__get",
+        "parameters": [
+          {
+            "name": "img_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Img Key"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/admin/audit/{img_key}/{name}/approve": {
+      "post": {
+        "tags": [
+          "pickone-upstream-audit"
+        ],
+        "summary": "Approve Audit Image",
+        "operationId": "approve_audit_image_api_plugins_pickone_admin_audit__img_key___name__approve_post",
+        "parameters": [
+          {
+            "name": "img_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Img Key"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Approve Audit Image Api Plugins Pickone Admin Audit  Img Key   Name  Approve Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/admin/audit/{img_key}/{name}/reject": {
+      "post": {
+        "tags": [
+          "pickone-upstream-audit"
+        ],
+        "summary": "Reject Audit Image",
+        "operationId": "reject_audit_image_api_plugins_pickone_admin_audit__img_key___name__reject_post",
+        "parameters": [
+          {
+            "name": "img_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Img Key"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Reject Audit Image Api Plugins Pickone Admin Audit  Img Key   Name  Reject Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/groups/scopes": {
+      "get": {
+        "summary": "Scopes",
+        "operationId": "scopes_api_plugins_pickone_groups_scopes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/groups/categories": {
+      "get": {
+        "summary": "Categories",
+        "operationId": "categories_api_plugins_pickone_groups_categories_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/groups/categories/{key}": {
+      "post": {
+        "summary": "Create",
+        "operationId": "create_api_plugins_pickone_groups_categories__key__post",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategorySubmitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Edit Category",
+        "operationId": "edit_category_api_plugins_pickone_groups_categories__key__put",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategorySubmitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/groups/images/{key}": {
+      "get": {
+        "summary": "Images",
+        "operationId": "images_api_plugins_pickone_groups_images__key__get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Edit Image",
+        "operationId": "edit_image_api_plugins_pickone_groups_images__key__put",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageBatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/groups/images/{key}/{name}": {
+      "delete": {
+        "summary": "Remove",
+        "operationId": "remove_api_plugins_pickone_groups_images__key___name__delete",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/groups/media/{key}/{name}": {
+      "get": {
+        "summary": "Media",
+        "operationId": "media_api_plugins_pickone_groups_media__key___name__get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "pending",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Pending"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/groups/audit": {
+      "get": {
+        "summary": "Audit",
+        "operationId": "audit_api_plugins_pickone_groups_audit_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/pickone/groups/audit/{key}/{name}": {
+      "post": {
+        "summary": "Review",
+        "operationId": "review_api_plugins_pickone_groups_audit__key___name__post",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/runtime": {
+      "get": {
+        "summary": "Overview",
+        "operationId": "overview_api_plugins_runtime_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApplyRequest": {
+        "properties": {
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "ApplyRequest"
+      },
+      "CategorySubmitRequest": {
+        "properties": {
+          "category_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Category Id"
+          },
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 64,
+            "minItems": 1,
+            "title": "Keys"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "category_id",
+          "keys"
+        ],
+        "title": "CategorySubmitRequest"
+      },
+      "ContestCreateRequest": {
+        "properties": {
+          "contest": {
+            "$ref": "#/components/schemas/ContestFields"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "contest"
+        ],
+        "title": "ContestCreateRequest"
+      },
+      "ContestDeleteRequest": {
+        "properties": {
+          "hash": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Hash"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "hash"
+        ],
+        "title": "ContestDeleteRequest",
+        "description": "删除哪一场（只有管理员能提）。"
+      },
+      "ContestFields": {
+        "properties": {
+          "platform": {
+            "type": "string",
+            "maxLength": 32,
+            "title": "Platform",
+            "default": ""
+          },
+          "abbr": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Abbr",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 128,
+            "title": "Name",
+            "default": ""
+          },
+          "start_time": {
+            "type": "integer",
+            "title": "Start Time",
+            "default": 0
+          },
+          "duration": {
+            "type": "integer",
+            "title": "Duration",
+            "default": 0
+          },
+          "supplement": {
+            "type": "string",
+            "maxLength": 128,
+            "title": "Supplement",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "ContestFields",
+        "description": "一场比赛的全部可编辑字段（与上游 ManualContest 一一对应）。\n\n`platform` 是自由文本，这里只限长度、不做枚举校验：上游没有受控词表，\n实际列表里 ICPC / CCPC / 校赛 / AtCoder 都有（见 types.MAX_PLATFORM_LENGTH）。"
+      },
+      "ContestUpdateRequest": {
+        "properties": {
+          "hash": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Hash"
+          },
+          "contest": {
+            "$ref": "#/components/schemas/ContestFields"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "hash",
+          "contest"
+        ],
+        "title": "ContestUpdateRequest",
+        "description": "修改哪一场。`hash` 是那场比赛的身份哈希（平台+开始时间+名称），不是下标。"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ImageBatchRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "ocr_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 512
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocr Text"
+          },
+          "likes_delta": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Likes Delta"
+          },
+          "comments": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comments"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ImageBatchRequest",
+        "description": "一张图片的多个字段一起提交（编辑表单）。\n\n只处理明确给出的字段；没传的字段不动，所以「清空 OCR」用空字符串表示即可。"
+      },
+      "ReviewBatchRequest": {
+        "properties": {
+          "approve": {
+            "type": "boolean",
+            "title": "Approve"
+          },
+          "comment": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Comment",
+            "default": ""
+          },
+          "ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "approve",
+          "ids"
+        ],
+        "title": "ReviewBatchRequest"
+      },
+      "ReviewRequest": {
+        "properties": {
+          "approve": {
+            "type": "boolean",
+            "title": "Approve"
+          },
+          "comment": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Comment",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "approve"
+        ],
+        "title": "ReviewRequest"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "framework__curation__contestlist__schemas__ConflictResolveRequest": {
+        "properties": {
+          "keep_new": {
+            "type": "boolean",
+            "title": "Keep New"
+          },
+          "allow_duplicate": {
+            "type": "boolean",
+            "title": "Allow Duplicate",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "keep_new"
+        ],
+        "title": "ConflictResolveRequest",
+        "description": "冲突裁定：保留提交的新值（写入），或丢弃提交（保持磁盘现状）。\n\n`allow_duplicate` 是给「文件里本来就有两条重复比赛」这种历史遗留数据留的口子：\n正常情况下写入会撞唯一性判据（平台+开始时间+名称）而被拒绝，管理员确认过\n确实要写成重复时，可以显式放行。"
+      },
+      "framework__curation__pickone__schemas__ConflictResolveRequest": {
+        "properties": {
+          "keep_new": {
+            "type": "boolean",
+            "title": "Keep New"
+          }
+        },
+        "type": "object",
+        "required": [
+          "keep_new"
+        ],
+        "title": "ConflictResolveRequest",
+        "description": "冲突裁定：保留提交的新值（写入），或丢弃提交（保持磁盘现状）。"
+      }
+    }
+  }
+}
