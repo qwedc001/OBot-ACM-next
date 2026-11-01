@@ -18,6 +18,17 @@ __plugin_meta__ = PluginMetadata(
 )
 
 
+def is_rating_range(val: str) -> bool:
+    """Check if string is a numeric rating or rating range like 1500 or 1400-1600."""
+    val = val.strip()
+    if val.isdigit():
+        return True
+    if "-" in val:
+        parts = val.split("-", 1)
+        return parts[0].isdigit() and parts[1].isdigit()
+    return False
+
+
 def profile_command(name, label, aliases, example, *subcommands):
     spec = CommandSpec(
         id=f"cp.{name}",
@@ -109,7 +120,7 @@ async def handle_codeforces_prob(
     for a in args:
         if a.lower() == "new":
             newer = True
-        elif any(c.isdigit() for c in a):
+        elif is_rating_range(a):
             rating = a
         else:
             tag = a

@@ -202,3 +202,12 @@ async def test_get_recent_submissions(cf_problem_service, mock_cf_client):
     ok, msg = await cf_problem_service.get_recent_submissions("Newbie")
     assert ok
     assert "还未提交过题目" in msg
+
+
+def test_is_rating_range():
+    from plugins.profiles import is_rating_range
+    assert is_rating_range("1500") is True
+    assert is_rating_range("1400-1600") is True
+    assert is_rating_range("2-sat") is False
+    assert is_rating_range("dp") is False
+    assert is_rating_range("greedy") is False

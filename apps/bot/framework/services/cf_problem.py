@@ -87,20 +87,19 @@ class CFProblemService(Service):
     async def get_problemset(self, tag: str | None = None, refresh: bool = False) -> list[dict]:
         """Fetch problemset with LRU cache."""
         key = (tag or "all").lower()
-        if refresh:
-            # Bypass cache and fetch directly
-            problems = await self.cf_client.get_problemset(tag)
-            if problems:
-                self._cache._cache[key] = (asyncio.get_running_loop().time() + self.cache_ttl, problems)
-                if key == "all":
-                    self._update_tags(problems)
-            return problems
 
         async def _fetch():
             problems = await self.cf_client.get_problemset(tag)
+            if not problems:
+                # Do not populate cache with empty result if network or upstream failed
+                raise UpstreamError("Empty problemset received from Codeforces")
             if key == "all":
                 self._update_tags(problems)
             return problems
+
+        if refresh:
+            # Clear existing entry to allow re-fetch via get() maintaining LRU order
+            self._cache._cache.pop(key, None)
 
         return await self._cache.get(key, _fetch)
 
