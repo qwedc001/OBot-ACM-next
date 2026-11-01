@@ -13,12 +13,12 @@ def upgrade():
     op.create_table(
         "bot_cf_bindings",
         sa.Column("user_id", sa.String(32), sa.ForeignKey("bot_users.id"), primary_key=True),
-        sa.Column("handle", sa.String(64), nullable=False, unique=True),
+        sa.Column("handle", sa.String(64), nullable=False),
         sa.Column("status", sa.String(16), nullable=False, server_default="bound"),
         sa.Column("created_at", sa.Float(), nullable=False),
         sa.Column("updated_at", sa.Float(), nullable=False),
     )
-    op.create_index("ix_bot_cf_bindings_handle", "bot_cf_bindings", ["handle"])
+    op.create_index("ix_bot_cf_bindings_handle", "bot_cf_bindings", ["handle"], unique=True)
 
     op.create_table(
         "bot_cf_pending_bindings",
