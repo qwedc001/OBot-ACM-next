@@ -1,5 +1,5 @@
 /**
- * PickOne 的对外介绍。字段与后端 `backend/web/plugins/pickone.py` 里的
+ * PickOne 的对外介绍。字段与后端 `apps/bot/web/plugins/pickone.py` 里的
  * `PluginManifest` 一一对应；`nav` / `adminNav` 只在前端使用。
  */
 export default {

@@ -15,13 +15,13 @@ def release(engine, name, *, broken=False, ready=True):
     root = engine.release(name)
     (root / ".venv/bin").mkdir(parents=True)
     (root / ".venv/bin/python").symlink_to(sys.executable)
-    (root / "backend").mkdir()
-    (root / "backend/__init__.py").touch()
+    (root / "apps/bot").mkdir(parents=True)
+    (root / "apps/bot/__init__.py").touch()
     (root / "framework").mkdir()
     (root / "framework/__init__.py").touch()
     (root / "framework/migrate.py").write_text("print('migration complete')")
     (root / "data").symlink_to(engine.config.data_dir)
-    (root / "backend/bot.py").write_text(
+    (root / "apps/bot/bot.py").write_text(
         """
 import asyncio, json, os, sqlite3
 async def main():

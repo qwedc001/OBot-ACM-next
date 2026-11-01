@@ -776,7 +776,7 @@ h3 {
 /* ---------- 深色主题 ---------- */
 
 /*
- * 只换变量，不换结构。`html.dark` 由 frontend/src/stores/theme.js 切换，
+ * 只换变量，不换结构。`html.dark` 由 apps/web/src/stores/theme.js 切换，
  * web/index.html 里那段内联脚本保证首帧就是对的（不然会先闪一下浅色）。
  *
  * 三条约定：

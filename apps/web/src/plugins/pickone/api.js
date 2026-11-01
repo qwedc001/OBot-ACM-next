@@ -1,6 +1,6 @@
 import http from "@/api/http";
 
-/** 本插件的后端前缀。后端由 `backend/web/plugins/pickone.py` 提供同样的 slug。 */
+/** 本插件的后端前缀。后端由 `apps/bot/web/plugins/pickone.py` 提供同样的 slug。 */
 const BASE = "/plugins/pickone";
 
 /** 缩略图/原图是 <img src>，不走 axios，所以这里直接拼 URL。 */

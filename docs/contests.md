@@ -50,8 +50,8 @@ framework/views/contests.py    图片排版与分页
 ## 验证
 
 ```sh
-uv run --extra render pytest backend/tests/test_contests.py
-uv run ruff check backend supervisor
+uv run --extra render pytest apps/bot/tests/test_contests.py
+uv run ruff check apps/bot supervisor
 ```
 
 测试包含公开响应夹具、时区和午夜边界、去重与歧义查询、请求合并和失败重试、Dashboard 提交至应用及删除后的可见性、渲染与文字降级，以及真实 NoneBot Matcher 的私聊/群聊指令分派。网络均使用替身，数据目录与运行环境隔离。

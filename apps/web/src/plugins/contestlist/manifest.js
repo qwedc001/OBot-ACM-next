@@ -1,5 +1,5 @@
 /**
- * 算法竞赛列表的对外介绍。字段与后端 `backend/web/plugins/contestlist.py` 里的
+ * 算法竞赛列表的对外介绍。字段与后端 `apps/bot/web/plugins/contestlist.py` 里的
  * `PluginManifest` 一一对应；`nav` / `adminNav` 只在前端使用。slug 两边必须一致。
  */
 export default {

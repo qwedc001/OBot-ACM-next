@@ -1,10 +1,10 @@
 import { defineConfig } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
-const root = fileURLToPath(new URL("../", import.meta.url));
+const root = fileURLToPath(new URL("../../", import.meta.url));
 export default defineConfig({
   testDir: "./tests/e2e",
-  outputDir: "../.codex/ep-e2e-results",
+  outputDir: "../../.codex/ep-e2e-results",
   fullyParallel: false,
   workers: 1,
   timeout: 60000,
@@ -21,7 +21,7 @@ export default defineConfig({
   },
   webServer: {
     command:
-      "uv run --extra render --no-sync python backend/tests/web_preview.py",
+      "uv run --extra render --no-sync python apps/bot/tests/web_preview.py",
     cwd: root,
     url: "http://127.0.0.1:8765/api/meta",
     reuseExistingServer: false,

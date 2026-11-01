@@ -136,9 +136,17 @@ class Engine:
         extras = [argument for extra in self.config.extras for argument in ("--extra", extra)]
         await self.command(self.config.uv, "sync", "--locked", "--no-dev", *extras, cwd=path)
         await self.command(
-            self.config.pnpm, "--dir", path / "frontend", "install", "--frozen-lockfile", cwd=path
+            self.config.pnpm,
+            "install",
+            "--frozen-lockfile",
+            cwd=path,
         )
-        await self.command(self.config.pnpm, "--dir", path / "frontend", "build", cwd=path)
+        await self.command(
+            self.config.pnpm,
+            "run",
+            "build",
+            cwd=path,
+        )
         return name
 
     def environment(self):
@@ -165,7 +173,7 @@ class Engine:
         self.child = await asyncio.create_subprocess_exec(
             str(path / ".venv/bin/python"),
             "-m",
-            "backend.bot",
+            "apps.bot.bot",
             cwd=path,
             env=self.environment(),
             stdout=asyncio.subprocess.PIPE,
@@ -305,7 +313,7 @@ class Engine:
                 "-m",
                 "framework.migrate",
                 cwd=path,
-                env={**self.environment(), "PYTHONPATH": str(path / "backend")},
+                env={**self.environment(), "PYTHONPATH": str(path / "apps/bot")},
             )
             self.tail = Tail()
             await self.boot(candidate)
