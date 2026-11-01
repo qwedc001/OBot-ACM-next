@@ -1,10 +1,12 @@
 """Read the public Algorithm profile in English; never query linked platforms."""
 
 import asyncio
+import random
 import re
 from dataclasses import replace
 
 from ..profiles import Profile, ProfileNotFound, ProfileSection, clean, number
+from ._cache import AsyncCache
 from ._contests import atcoder_contests
 from ._profiles import ProfileClient, content, document, elements, optional
 from .http import UpstreamError
@@ -13,6 +15,95 @@ from .http import UpstreamError
 class AtcoderClient(ProfileClient):
     pattern = r"[A-Za-z0-9_]{1,32}"
     hint = "AtCoder 账号应为不超过 32 位的英文字母、数字或下划线。"
+
+    def __init__(self, http, *, ttl=60, capacity=128, timeout=30):
+        super().__init__(http, ttl=ttl, capacity=capacity, timeout=timeout)
+        self._kenkoooo_cache = AsyncCache[tuple[list[dict], dict[str, dict]]](
+            ttl=3600, capacity=2, timeout=20
+        )
+
+    async def get_kenkoooo_data(self) -> tuple[list[dict], dict[str, dict]]:
+        async def _fetch():
+            problems_data, models_data = await asyncio.gather(
+                self.http.get_json("https://kenkoooo.com/atcoder/resources/problems.json"),
+                self.http.get_json("https://kenkoooo.com/atcoder/resources/problem-models.json"),
+            )
+            if not isinstance(problems_data, list) or not isinstance(models_data, dict):
+                raise UpstreamError("Kenkoooo: invalid problem data")
+            return problems_data, models_data
+
+        return await self._kenkoooo_cache.get("kenkoooo_data", _fetch)
+
+    @staticmethod
+    def parse_difficulty_range(diff_str: str | None) -> tuple[int | None, int | None]:
+        if not diff_str:
+            return None, None
+        s = diff_str.strip()
+        if "-" in s:
+            parts = s.split("-", 1)
+            try:
+                min_diff = int(parts[0].strip()) if parts[0].strip() else None
+                max_diff = int(parts[1].strip()) if parts[1].strip() else None
+                return min_diff, max_diff
+            except ValueError:
+                raise ValueError("难度区间格式错误，应为如 1200-1600 或 1800") from None
+        try:
+            val = int(s)
+            return val, val
+        except ValueError:
+            raise ValueError("难度格式错误，应为整数或区间如 1200-1600") from None
+
+    async def pick_problem(
+        self, contest_type: str | None = None, diff_str: str | None = None
+    ) -> dict | None:
+        """Pick a random AtCoder problem by contest type and difficulty."""
+        problems, models = await self.get_kenkoooo_data()
+        ctype = (contest_type or "").strip().lower()
+        if ctype and ctype not in {"abc", "arc", "agc", "all"}:
+            raise ValueError("比赛类型仅支持 abc、arc、agc 或 all")
+
+        min_diff, max_diff = self.parse_difficulty_range(diff_str)
+        if min_diff is not None and max_diff is not None and min_diff > max_diff:
+            min_diff, max_diff = max_diff, min_diff
+
+        candidates = []
+        for prob in problems:
+            cid = str(prob.get("contest_id", "")).lower()
+            if ctype and ctype != "all" and not cid.startswith(ctype):
+                continue
+
+            pid = prob.get("id")
+            model = models.get(pid, {})
+            difficulty = model.get("difficulty")
+
+            if min_diff is not None or max_diff is not None:
+                if difficulty is None:
+                    continue
+                if min_diff is not None and difficulty < min_diff:
+                    continue
+                if max_diff is not None and difficulty > max_diff:
+                    continue
+
+            candidates.append((prob, difficulty))
+
+        if not candidates:
+            return None
+
+        chosen, diff = random.choice(candidates)
+        contest_id = chosen.get("contest_id", "")
+        prob_id = chosen.get("id", "")
+        index = chosen.get("problem_index", "")
+        title = chosen.get("title") or chosen.get("name", "")
+        url = f"https://atcoder.jp/contests/{contest_id}/tasks/{prob_id}"
+
+        return {
+            "id": prob_id,
+            "contest_id": contest_id,
+            "index": index,
+            "title": title,
+            "url": url,
+            "difficulty": diff,
+        }
 
     async def contests(self):
         response = await self.http.request("GET", "https://atcoder.jp/contests/", params={"lang": "en"})
