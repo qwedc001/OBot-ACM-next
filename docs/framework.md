@@ -47,7 +47,7 @@ class ContestService(Service):
         return data
 ```
 
-HTTP Client 不知道指令与 matcher。RenderClient 只接收 Actor、view 与普通模型，返回图片产物；帮助查询、权限过滤和回复格式由 HelpService 决定。IdentityService 提供应用账号解析与超管登记查询；ArtifactClient 注入身份授权回调，读取图片时检查所有者或真超管。
+HTTP Client 不知道指令与 matcher。RenderClient 只接收 Actor、view 与普通模型，返回图片产物；帮助查询、权限过滤和回复格式由 HelpService 决定。IdentityService 提供应用账号解析与超管登记查询；ArtifactClient 提供纯粹的图片产物存储、TTL 过期与基于 owner 的文件租赁管理，需要超级管理员特权读取时由调用方/用户层显式传入。
 
 ## 异步与并发
 

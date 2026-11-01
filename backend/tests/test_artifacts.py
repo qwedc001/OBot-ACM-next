@@ -11,22 +11,24 @@ from .conftest import ROOT, USER
 
 async def test_image_is_private_to_requester_and_bot_administrator(database, tmp_path):
     identities = IdentityService(database)
-    artifacts = ArtifactClient(tmp_path / "images", database, identities.is_superuser)
+    artifacts = ArtifactClient(tmp_path / "images", database)
     image = await artifacts.create(USER, b"image", "image/png")
     async with artifacts.lease(USER, image.id) as path:
         assert path.read_bytes() == b"image"
-    async with artifacts.lease(ROOT, image.id):
+    is_root = await identities.is_superuser(ROOT)
+    async with artifacts.lease(ROOT, image.id, is_admin=is_root):
         pass
     from framework.contracts import ExternalIdentity
 
     stranger = await identities.resolve(ExternalIdentity("qq", "bot", "group_member", "admin"))
+    is_admin = await identities.is_superuser(stranger)
     with pytest.raises(AccessDenied):
-        async with artifacts.lease(stranger, image.id):
+        async with artifacts.lease(stranger, image.id, is_admin=is_admin):
             pytest.fail("A group administrator cannot retrieve another user's help image")
 
 
 async def test_expired_artifact_cleanup_respects_active_lease(database, tmp_path):
-    artifacts = ArtifactClient(tmp_path / "images", database, IdentityService(database).is_superuser, ttl=10)
+    artifacts = ArtifactClient(tmp_path / "images", database, ttl=10)
     image = await artifacts.create(USER, b"image", "image/png")
     async with artifacts.lease(USER, image.id) as path:
         assert await artifacts.cleanup(time.time() + 100) == 0 and path.exists()
@@ -38,7 +40,7 @@ async def test_expired_artifact_cleanup_respects_active_lease(database, tmp_path
 
 async def test_invalid_images_and_paths_rejected(database, tmp_path):
     artifacts = ArtifactClient(
-        tmp_path / "images", database, IdentityService(database).is_superuser, max_bytes=2
+        tmp_path / "images", database, max_bytes=2
     )
     with pytest.raises(ValueError):
         await artifacts.create(USER, b"too big", "image/png")

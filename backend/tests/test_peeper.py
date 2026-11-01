@@ -59,7 +59,7 @@ async def test_real_submodule_renderer_produces_scoped_png_without_writing_sourc
         {"day": day.isoformat(), "captured_at": now.timestamp(), "payload": payload},
         {"day": (day + timedelta(days=1)).isoformat(), "captured_at": now.timestamp(), "payload": payload},
     ]
-    artifacts = ArtifactClient(tmp_path / "artifacts", database, AsyncMock(return_value=False))
+    artifacts = ArtifactClient(tmp_path / "artifacts", database)
     jobs = JobQueue(timeout=60)
     await jobs.start()
     client = PeeperClient(jobs, artifacts)

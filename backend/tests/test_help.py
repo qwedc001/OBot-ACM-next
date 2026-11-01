@@ -142,9 +142,10 @@ async def test_native_png_help_is_private_and_filtered(tmp_path, database):
             assert image.width == artifact.width and image.height == artifact.height
             assert path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
         with pytest.raises(AccessDenied):
-            async with services.clients.artifacts.lease(Actor("other", "other"), artifact.id):
+            async with services.clients.artifacts.lease(Actor("other", "other"), artifact.id, is_admin=False):
                 pass
-        async with services.clients.artifacts.lease(ROOT, artifact.id) as path:
+        is_root = await services.identities.is_superuser(ROOT)
+        async with services.clients.artifacts.lease(ROOT, artifact.id, is_admin=is_root) as path:
             assert path.is_file()
         with pytest.raises(ArtifactUnavailable):
             async with services.clients.artifacts.lease(USER, "bad"):
