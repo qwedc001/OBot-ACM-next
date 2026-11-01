@@ -3,7 +3,7 @@
 from nonebot import get_driver, on_command, on_fullmatch
 from nonebot.adapters import Bot, Event
 from nonebot.matcher import Matcher
-from nonebot.rule import Rule
+from nonebot.rule import Rule, to_me
 
 from ..catalog import CommandSpec, MatchMode, catalog
 from ..responses import command_failure
@@ -18,7 +18,7 @@ async def supported_message(bot: Bot, event: Event) -> bool:
 def command(spec: CommandSpec, **kwargs) -> type[Matcher]:
     """Register help once and return a native matcher with unchanged options."""
     catalog.register(spec)
-    kwargs["rule"] = Rule(supported_message) & kwargs.get("rule")
+    kwargs["rule"] = Rule(supported_message) & to_me() & kwargs.get("rule")
     kwargs["state"] = {**(kwargs.get("state") or {}), _SPEC: spec}
     if spec.mode == MatchMode.KEYWORD:
         matcher = on_fullmatch(spec.invocation_names(catalog.separator), _depth=1, **kwargs)
@@ -59,7 +59,7 @@ def template_command(spec: CommandSpec, *patterns, compact_aliases=(), **kwargs)
         use_cmd_sep=False,
         skip_for_unmatch=False,
         auto_send_output=False,
-        rule=Rule(supported_message) & kwargs.pop("rule", None),
+        rule=Rule(supported_message) & to_me() & kwargs.pop("rule", None),
         default_state={**(kwargs.pop("state", None) or {}), _SPEC: spec},
         _depth=1,
         **kwargs,

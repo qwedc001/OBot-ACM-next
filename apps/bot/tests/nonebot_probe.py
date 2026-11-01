@@ -273,10 +273,11 @@ async def main():
                 assert {seq for message_id, seq in deliveries if message_id == multiple.id} == {1, 2}
                 _, finished = await request(f"/probe{separator}manage finish", user="native-config-root")
                 assert finished == "finished"
-                _, plain_group = await request(
-                    "/ping", role="member", user="native-config-root", ordinary=True
+                before_plain_group = len(replies)
+                await handle_event(
+                    bot, event("/ping", role="member", user="native-config-root", ordinary=True)
                 )
-                assert plain_group == "pong"
+                assert len(replies) == before_plain_group
                 _, alternate_start = await request("!ping", user="native-config-root")
                 assert alternate_start == "pong"
                 before = len(replies)
