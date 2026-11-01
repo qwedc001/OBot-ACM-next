@@ -176,3 +176,32 @@ class WebGroupCheck(Model):
     digest: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("bot_users.id"), index=True)
     expires_at: Mapped[float] = mapped_column(Float, index=True)
+
+
+class CFBinding(Model):
+    __tablename__ = "bot_cf_bindings"
+    user_id: Mapped[str] = mapped_column(String(32), ForeignKey("bot_users.id"), primary_key=True)
+    handle: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(16), default="bound")  # "bound"
+    created_at: Mapped[float] = mapped_column(Float)
+    updated_at: Mapped[float] = mapped_column(Float)
+
+
+class CFBindingPending(Model):
+    __tablename__ = "bot_cf_pending_bindings"
+    user_id: Mapped[str] = mapped_column(String(32), ForeignKey("bot_users.id"), primary_key=True)
+    handle: Mapped[str] = mapped_column(String(64))
+    token: Mapped[str] = mapped_column(String(32))
+    problem: Mapped[str] = mapped_column(String(32), default="1A")
+    created_at: Mapped[float] = mapped_column(Float)
+    expires_at: Mapped[float] = mapped_column(Float, index=True)
+
+
+class CFBindingLog(Model):
+    __tablename__ = "bot_cf_binding_logs"
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(32), ForeignKey("bot_users.id"), index=True)
+    handle: Mapped[str] = mapped_column(String(64))
+    action: Mapped[str] = mapped_column(String(32))  # "bind", "unbind"
+    detail: Mapped[str] = mapped_column(server_default="")
+    created_at: Mapped[float] = mapped_column(Float, index=True)

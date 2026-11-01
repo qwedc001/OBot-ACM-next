@@ -77,7 +77,8 @@ async def main():
                 assert len(list(await session.scalars(select(User)))) == 1
                 assert (
                     await session.execute(text("SELECT version_num FROM alembic_version"))
-                ).scalar_one() == "0007"
+                ).scalar_one() == "0008"
+
                 assert not list(await session.scalars(select(ContentSubmission)))
         finally:
             await driver._lifespan.shutdown()

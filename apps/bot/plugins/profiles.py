@@ -11,14 +11,14 @@ from framework.messages import Image
 
 __plugin_meta__ = PluginMetadata(
     name="竞赛账号",
-    description="Codeforces、AtCoder 与牛客公开资料卡",
-    usage="/cf user <账号标识>；/atc user <账号标识>；/nk user <账号标识>",
+    description="Codeforces、AtCoder 与牛客公开资料卡及账号绑定",
+    usage="/cf user <账号标识>；/cf bind [handle]；/cf unbind；/atc user <账号标识>；/nk user <账号标识>",
     type="application",
     supported_adapters=None,
 )
 
 
-def profile_command(name, label, aliases, example):
+def profile_command(name, label, aliases, example, *subcommands):
     spec = CommandSpec(
         id=f"cp.{name}",
         plugin_id="cp",
@@ -32,6 +32,7 @@ def profile_command(name, label, aliases, example):
     matcher = template_command(
         spec,
         Subcommand("user", Args["handle", str], alias=("identity", "id", "card", "info")),
+        *subcommands,
         priority=10,
         block=True,
     )
@@ -43,7 +44,14 @@ def profile_command(name, label, aliases, example):
     return matcher
 
 
-cf = profile_command("cf", "Codeforces", ("cf", "codeforces"), "tourist")
+cf = profile_command(
+    "cf",
+    "Codeforces",
+    ("cf", "codeforces"),
+    "tourist",
+    Subcommand("bind", Args["handle?", str]),
+    Subcommand("unbind"),
+)
 atc = profile_command("atc", "AtCoder", ("atc", "atcoder"), "tourist")
 nk = profile_command("nk", "牛客", ("nk", "nc", "nowcoder"), "123456")
 
@@ -61,6 +69,23 @@ async def handle_codeforces_user(
     bot: Bot, context: CommandContext, services: BotServices, reply: Reply, handle: str
 ):
     await send_profile(bot, context, services, reply, "codeforces", handle)
+
+
+@cf.assign("bind")
+async def handle_codeforces_bind(
+    context: CommandContext, services: BotServices, reply: Reply, handle: str | None = None
+):
+    if handle:
+        success, msg, _ = await services.cf_binding.start_binding(context, handle)
+    else:
+        success, msg = await services.cf_binding.confirm_binding(context)
+    await reply.finish(msg)
+
+
+@cf.assign("unbind")
+async def handle_codeforces_unbind(context: CommandContext, services: BotServices, reply: Reply):
+    success, msg = await services.cf_binding.unbind(context)
+    await reply.finish(msg)
 
 
 @atc.assign("user")

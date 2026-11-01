@@ -32,6 +32,36 @@ class CodeforcesClient(ProfileClient):
         rows = await self._api("contest.list", gym="false")
         return await asyncio.to_thread(codeforces_contests, rows)
 
+    async def check_user_exists(self, handle: str) -> bool:
+        try:
+            await self._api("user.info", handles=handle)
+            return True
+        except ProfileNotFound:
+            return False
+
+    async def get_contest_submissions(self, contest_id: int, handle: str, count: int = 5):
+        """Fetch latest submissions for a user in a specific contest (e.g. 1 for P1A)."""
+        return await self._api("contest.status", contestId=contest_id, handle=handle, count=count)
+
+    async def validate_submission_ce(
+        self, handle: str, contest_id: int, problem_index: str, min_time: float, max_time: float
+    ) -> bool:
+        """Validate if handle submitted a Compilation Error for the specified problem within the time window."""
+        try:
+            submissions = await self.get_contest_submissions(contest_id, handle, count=5)
+        except Exception:
+            return False
+        for sub in submissions:
+            prob = sub.get("problem", {})
+            if str(prob.get("index", "")).upper() != problem_index.upper():
+                continue
+            if sub.get("verdict") != "COMPILATION_ERROR":
+                continue
+            created = sub.get("creationTimeSeconds", 0)
+            if min_time <= created <= max_time:
+                return True
+        return False
+
     def __init__(self, *args, interval=2.1, **kwargs):
         super().__init__(*args, **kwargs)
         self.interval = interval
