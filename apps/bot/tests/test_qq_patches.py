@@ -255,11 +255,12 @@ async def test_patched_native_sdk_group_plain_markdown_and_private_payloads(monk
 
 
 def test_patched_mentions_native_dispatch_authorization_and_documented_user_schema():
-    root = Path(__file__).resolve().parents[2]
+    root = Path(__file__).resolve().parents[3]
+    bot_dir = Path(__file__).resolve().parents[1]
     result = subprocess.run(
         [sys.executable, "-X", "utf8", "-m", "tests.whoisthis_probe", ".", "--patches"],
         cwd=root,
-        env={**os.environ, "PYTHONPATH": str(root / "backend")},
+        env={**os.environ, "PYTHONPATH": f"{root}:{bot_dir}"},
         capture_output=True,
         encoding="utf-8",
         timeout=40,

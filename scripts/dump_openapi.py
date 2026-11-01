@@ -6,13 +6,13 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "backend"))
+sys.path.insert(0, str(ROOT / "apps" / "bot"))
 
 os.environ.setdefault("ENVIRONMENT", "dev")
 
-import nonebot
-from fastapi import FastAPI
-from fastapi.openapi.utils import get_openapi
+import nonebot  # noqa: E402
+from fastapi import FastAPI  # noqa: E402
+from fastapi.openapi.utils import get_openapi  # noqa: E402
 
 
 class DummyServices:

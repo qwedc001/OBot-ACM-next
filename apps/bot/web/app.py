@@ -62,7 +62,7 @@ def install_web(app, services):
     async def frontend(path: str):
         if path.split("/", 1)[0] in {"api", "internal", "qq", "docs", "redoc", "openapi.json"}:
             raise HTTPException(404, "Not found")
-        dist = (services.settings.obot_frontend_dist or PROJECT_ROOT / "frontend/dist").resolve()
+        dist = (services.settings.obot_frontend_dist or PROJECT_ROOT / "apps/web/dist").resolve()
         if not await asyncio.to_thread((dist / "index.html").is_file):
             raise HTTPException(503, "服务暂未就绪，请稍后重试。")
         if path.startswith("assets/") or path in {"theme-init.js", "favicon.svg"}:
