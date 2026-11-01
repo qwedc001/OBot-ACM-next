@@ -1,5 +1,5 @@
 {
-  "name": "obot-ep",
+  "name": "@obot/web",
   "version": "0.17.0",
   "private": true,
   "type": "module",

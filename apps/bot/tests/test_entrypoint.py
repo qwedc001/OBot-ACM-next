@@ -6,11 +6,12 @@ from pathlib import Path
 
 
 def test_module_entrypoint_upgrades_existing_database_and_starts_all_plugins():
-    root = Path(__file__).resolve().parents[2]
+    root = Path(__file__).resolve().parents[3]
+    bot_dir = Path(__file__).resolve().parents[1]
     result = subprocess.run(
         [sys.executable, "-X", "utf8", "-m", "tests.entrypoint_probe"],
         cwd=root,
-        env={**os.environ, "PYTHONPATH": str(root / "backend")},
+        env={**os.environ, "PYTHONPATH": f"{root}:{bot_dir}"},
         capture_output=True,
         encoding="utf-8",
         timeout=30,
@@ -24,11 +25,12 @@ def test_module_entrypoint_upgrades_existing_database_and_starts_all_plugins():
 
 
 def test_entrypoint_rejects_partially_loaded_application():
-    root = Path(__file__).resolve().parents[2]
+    root = Path(__file__).resolve().parents[3]
+    bot_dir = Path(__file__).resolve().parents[1]
     result = subprocess.run(
         [sys.executable, "-X", "utf8", "-m", "tests.entrypoint_probe", "--failed-plugin"],
         cwd=root,
-        env={**os.environ, "PYTHONPATH": str(root / "backend")},
+        env={**os.environ, "PYTHONPATH": f"{root}:{bot_dir}"},
         capture_output=True,
         encoding="utf-8",
         timeout=30,
