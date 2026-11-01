@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import inspect
 import os
 import shutil
 import signal
@@ -14,7 +15,7 @@ from .state import Store, Tail
 
 
 class Engine:
-    def __init__(self, config, emit=None):
+    def __init__(self, config, emit=None, auto_restart=True):
         self.config = config
         self.store = Store(config.state_dir)
         self.tail = Tail()
@@ -27,6 +28,7 @@ class Engine:
         self.closing = False
         self.lock = asyncio.Lock()
         self.emit = emit
+        self.auto_restart = auto_restart
 
     def output(self, line):
         self.tail.add(line)
@@ -199,6 +201,47 @@ class Engine:
         if (path / "backend").is_dir():
             return "backend.bot", path
         return "bot", path
+
+    def _supervisor_package_dir(self, release_path):
+        for candidate in ("packages/supervisor", "supervisor"):
+            if (release_path / candidate / "pyproject.toml").is_file():
+                return release_path / candidate
+        return None
+
+    async def check_supervisor_changed(self, old_commit, new_commit):
+        if not old_commit or not new_commit or old_commit == new_commit:
+            return False
+        for path in ("packages/supervisor", "supervisor"):
+            try:
+                diff = await self.git("diff", "--name-only", old_commit, new_commit, "--", path, capture=True)
+                if inspect.isawaitable(diff):
+                    diff = await diff
+                if diff and isinstance(diff, str) and diff.strip():
+                    return True
+            except Exception:
+                continue
+        return False
+
+    async def update_supervisor_tool(self, release_path):
+        pkg_dir = self._supervisor_package_dir(release_path)
+        if not pkg_dir:
+            return False
+        cache_dir = self.config.state_dir / "cache"
+        uv_cache = cache_dir / "uv"
+        uv_cache.mkdir(parents=True, exist_ok=True)
+        env = {
+            **os.environ,
+            "UV_CACHE_DIR": str(uv_cache),
+            "UV_LINK_MODE": "hardlink",
+        }
+        await self.command(self.config.uv, "tool", "install", "--force", str(pkg_dir), env=env)
+        return True
+
+    def restart_supervisor(self):
+        import sys
+
+        self.output("Restarting supervisor in-place...")
+        os.execv(sys.executable, [sys.executable, *sys.argv])
 
     async def boot(self, name):
         self.generation = uuid4().hex
@@ -466,7 +509,21 @@ class Engine:
                 history.append(candidate)
             self.save()
             await self.prune_releases()
+
+            supervisor_updated = False
+            if previous.get("commit") and previous["commit"] != commit:
+                try:
+                    if await self.check_supervisor_changed(previous["commit"], commit):
+                        self.output("Detected changes in supervisor package. Updating supervisor tool...")
+                        supervisor_updated = await self.update_supervisor_tool(path)
+                except Exception as sup_err:
+                    self.output(f"Failed to auto-update supervisor: {sup_err}")
+
             self.finish(operation, "success")
+            if supervisor_updated and self.auto_restart:
+                # In-place restart replaces this process via execv while preserving child bot
+                await asyncio.sleep(1)
+                self.restart_supervisor()
         except Exception as error:
             self.tail.add(f"{type(error).__name__}: {error}")
             failure_log = self.tail.text()

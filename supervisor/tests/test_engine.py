@@ -344,3 +344,69 @@ async def test_prepare_uses_shared_cache_and_pnpm_store(engine, monkeypatch):
     assert pnpm_call["args"][store_dir_idx + 1] == str(pnpm_store)
 
 
+async def test_supervisor_change_detection_and_auto_update_and_restart(engine, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    engine.auto_restart = True
+    restarted = False
+
+    def fake_restart():
+        nonlocal restarted
+        restarted = True
+
+    monkeypatch.setattr(engine, "restart_supervisor", fake_restart)
+
+    # 1. Test check_supervisor_changed
+    async def fake_git(*args, capture=False):
+        if "diff" in args:
+            if "packages/supervisor" in args:
+                return ""
+            if "supervisor" in args:
+                return "supervisor/obot_supervisor/engine.py\n"
+        return ""
+
+    monkeypatch.setattr(engine, "git", fake_git)
+
+    changed = await engine.check_supervisor_changed("commit_old", "commit_new")
+    assert changed is True
+
+    # When no diff
+    monkeypatch.setattr(engine, "git", AsyncMock(return_value=""))
+    unchanged = await engine.check_supervisor_changed("commit_old", "commit_new")
+    assert unchanged is False
+
+    # 2. Test update_supervisor_tool
+    release_path = engine.release("new-rel")
+    (release_path / "supervisor").mkdir(parents=True, exist_ok=True)
+    (release_path / "supervisor" / "pyproject.toml").write_text("[project]\nname='obot-supervisor'\n")
+
+    cmd_calls = []
+
+    async def fake_cmd(*args, cwd=None, env=None, capture=False):
+        cmd_calls.append({"args": args, "env": env})
+        return "ok"
+
+    monkeypatch.setattr(engine, "command", fake_cmd)
+    res = await engine.update_supervisor_tool(release_path)
+    assert res is True
+    tool_call = next(c for c in cmd_calls if "tool" in c["args"] and "install" in c["args"])
+    assert tool_call["args"] == (engine.config.uv, "tool", "install", "--force", str(release_path / "supervisor"))
+    assert tool_call["env"]["UV_CACHE_DIR"] == str(engine.config.state_dir / "cache" / "uv")
+    assert tool_call["env"]["UV_LINK_MODE"] == "hardlink"
+
+    # 3. Test update workflow triggering supervisor auto-update and restart
+    monkeypatch.setattr(engine, "fetch", AsyncMock(return_value="newcommit" * 4))
+    monkeypatch.setattr(engine, "prepare", AsyncMock(return_value="new-rel"))
+    monkeypatch.setattr(engine, "boot", AsyncMock())
+    monkeypatch.setattr(engine, "check_supervisor_changed", AsyncMock(return_value=True))
+    monkeypatch.setattr(engine, "update_supervisor_tool", AsyncMock(return_value=True))
+
+    engine.submit("update")
+    await engine.task
+
+    assert engine.state["good"] == "new-rel"
+    assert engine.state["operation"]["outcome"] == "success"
+    assert restarted is True
+
+
+

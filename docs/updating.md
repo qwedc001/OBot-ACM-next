@@ -44,7 +44,7 @@ obotctl update restore --wait
 
 `state.json` 的 `baseline` 是当前测试基线，`baselines` 保留历次基线记录；每条记录包含 release、commit、branch 和 snapshot。结束测试仅解除当前基线，不删除历史代码和快照。手动恢复本身启动失败，会回到恢复动作前的测试版及其数据；恢复磁盘操作失败时保留恢复意图并拒绝新更新，修复磁盘后重启守护进程继续恢复。
 
-已有安装需要先单独升级守护工具到 0.11.0 或更新版本并重启服务，才能接受 test / restore 操作：`uv tool install --force /srv/obot/source/supervisor`（源码路径为示例）。普通机器人更新不会升级守护进程本身。
+已有安装首次升级至 0.12.0 后将具备自更新能力：若更新包含 supervisor 自身代码变更，系统会自动调用 `uv tool install --force` 升级 supervisor 工具，并通过 `os.execv` 原地平滑自重启进程无缝接管守护与机器人子进程，无需再手动进入服务器命令行执行更新。普通机器人更新且 supervisor 无变动时则保持原进程继续运行。
 
 ## 首次安装
 
