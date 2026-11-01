@@ -90,15 +90,10 @@ async def handle_board_help(context: CommandContext, services: BotServices, repl
         "/board yesterday [配置名] — 生成昨日榜单",
         "/board history <日期> [配置名] — 生成往期榜单，日期格式为 YYYY-MM-DD",
         "/board verdict <评测结果> [配置名] — 生成评测榜单，如 WA",
+        "/board user id <用户ID> [配置名] — 按 ID 查询用户",
+        "/board user name <用户名> [配置名] — 按用户名查询用户",
         "/board version — 查看生成器版本",
     ]
-    if context.scene.kind in {SceneKind.C2C, SceneKind.DIRECT}:
-        lines.extend(
-            (
-                "/board user id <用户ID> [配置名] — 按 ID 查询用户",
-                "/board user name <用户名> [配置名] — 按用户名查询用户",
-            )
-        )
     if await services.boards.can_manage(context):
         lines.extend(
             (
@@ -248,8 +243,6 @@ async def handle_board_verdict(
 
 
 async def send_user(bot, context, services, reply, kind, value, name):
-    if context.scene.kind not in {SceneKind.C2C, SceneKind.DIRECT, SceneKind.WEB}:
-        raise BoardError("用户资料仅可在私聊查询。")
     if reply.supports(bot.adapter.get_name(), Image):
         try:
             await reply.send("正在获取用户资料并生成名片，请稍候。")

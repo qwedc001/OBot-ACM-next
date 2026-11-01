@@ -372,8 +372,6 @@ class BoardService(Service):
         return await self.peeper.render(actor, model)
 
     async def user_image(self, context, kind, value, name=None):
-        if context.scene.kind not in PRIVATE:
-            raise BoardError("用户资料仅可在私聊查询。")
         if kind not in {"id", "name"}:
             raise BoardError("用法：/board user id 用户ID 或 /board user name 用户名。")
         config = await self.choose(context, name)
@@ -392,8 +390,6 @@ class BoardService(Service):
         return await self.peeper.render(context.actor, model)
 
     async def user(self, context, kind, value, name=None):
-        if context.scene.kind not in PRIVATE:
-            raise BoardError("用户资料仅可在私聊查询。")
         config = await self.choose(context, name)
         if kind == "name":
             today = datetime.now(ZoneInfo(self.settings.obot_board_timezone)).date().isoformat()
