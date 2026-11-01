@@ -23,10 +23,27 @@ NK_RANKS = (
     (float("inf"), "#ff020a"),
 )
 ATC_COLORS = ("#808080", "#804000", "#008000", "#00c0c0", "#0000ff", "#c0c000", "#ff8000", "#ff0000")
+CPC_COLORS = ("#808080", "#804000", "#008000", "#00c0c0", "#0000ff", "#c0c000", "#ff8000", "#ff0000")
 
 
 def profile_accent(platform: str, rating: int | None, rank: str) -> str:
     """Exact legacy thresholds; AtCoder's badge represents the highest rank."""
+    if platform == "CPCFinder":
+        # CPC Rating: <400 灰, <800 绿, <1200 青, <1600 蓝, <2000 黄, <2400 橙, 2400+ 红
+        r = rating or 0
+        if r < 400:
+            return "#808080"
+        if r < 800:
+            return "#008000"
+        if r < 1200:
+            return "#00c0c0"
+        if r < 1600:
+            return "#0000ff"
+        if r < 2000:
+            return "#c0c000"
+        if r < 2400:
+            return "#ff8000"
+        return "#ff0000"
     if platform == "AtCoder":
         if rank == "King":
             return "#ff0000"
