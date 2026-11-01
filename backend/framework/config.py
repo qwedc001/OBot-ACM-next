@@ -12,7 +12,7 @@ class Settings(BaseModel):
     obot_qq_transport: Literal["configured", "webhook", "websocket"] = "configured"
     obot_http_timeout: float = Field(default=15, gt=0, le=120)
     obot_http_concurrency: int = Field(default=4, ge=1, le=32)
-    obot_job_workers: int = Field(default=2, ge=1, le=16)
+    obot_job_workers: int = Field(default=4, ge=1, le=16)
     obot_job_capacity: int = Field(default=32, ge=1, le=1024)
     obot_job_timeout: float = Field(default=60, gt=0, le=1800)
     obot_shutdown_timeout: float = Field(default=15, gt=0, le=120)

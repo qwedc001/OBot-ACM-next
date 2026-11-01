@@ -44,7 +44,7 @@ EP 的参考重点是工具入口、插件导航、主题变量和直接的操�
 来源为 [Floating-Ocean/OBot-ACM](https://github.com/Floating-Ocean/OBot-ACM/tree/530f1518e9764a7c3ae194c5c0ccddec76e6d393/src/render) 的整个 `src/render` 文件夹（14 个文件），沿用 AGPL-3.0；原样副本独立提交后再做适配，保留 `html/`、`svg/`、`pixie/` 结构和原文件名。尚未迁移业务对应的绘制文件只保留源码，不加载或注册功能。资源从原项目 `lib/Render-Images` 复制到 `views/assets`。迁移调整集中在以下边界：
 
 - `views/help.py`、`contests.py`、`pickone.py`、`profile.py` 与 `renderer/bindings.py`、`runtime.py` 适配当前数据模型。已接入的绘制代码不导入旧 `Constants`、业务存储或 botpy；其余原样保留的源码尚未接入。
-- RenderClient 在串行工作线程内加载原生绘图库并执行绘制；头像、缩略图由现有 Client 提供字节，绘制时不联网。
+- RenderClient 在独立子进程内加载原生绘图库并执行绘制；并发由共享 JobQueue 限制，进程之间不共享字体／图像缓存。头像、缩略图由现有 Client 提供字节，绘制时不联网；原版渲染器布局不因进程隔离而改写。
 - 帮助使用已鉴权的指令目录；权限标签来自明确元数据，参数沿用当前 `<必填>` / `[选填]`。别名与示例放入原版说明文本区。
 - 比赛使用同一查询快照的时间和北京时间格式化；ET 是已用时间比例 `(now-start)/duration`，从 0% 增长到 100%，沿用原编号下方的进度条与 `% ET` 文字，不表示剩余时间；列表按原版分状态编号，查询详情仍可使用名称或简称。原项目没有详情卡，其新增视图独立在 `contest_detail.py`。
 - 保留原版随机选色与统一 CardFooter，信息区标注实际渐变编号和名称，只替换原版依赖全局版本号的生成信息；保留原 Tips 标题、提示文字、字体、间距和位置。PickOne 图鉴保留原版彩虹类别色、巨号计数、数量条与预览底板。

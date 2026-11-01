@@ -9,10 +9,12 @@ import asyncio
 import json
 import os
 import shutil
-import sys
 import tempfile
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
+
+from .processes import process_environment as cli_environment
+from .processes import run_process
 
 
 class PeeperCLIError(Exception):
@@ -56,27 +58,6 @@ async def cli_workspace(source, config, snapshots=()):
         await asyncio.to_thread(directory.cleanup)
 
 
-def cli_environment(timezone: str):
-    allowed = (
-        "PATH",
-        "SYSTEMROOT",
-        "WINDIR",
-        "TEMP",
-        "TMP",
-        "TMPDIR",
-        "HOME",
-        "USERPROFILE",
-        "LOCALAPPDATA",
-        "APPDATA",
-        "VIRTUAL_ENV",
-    )
-    return {
-        **{key: os.environ[key] for key in allowed if key in os.environ},
-        "PYTHONIOENCODING": "utf-8",
-        "TZ": timezone,
-    }
-
-
 async def run_cli(work: Path, arguments: list[str], *, timezone: str, timeout: float = 55, proxy=None):
     """Run the official entry point; cancellation kills and reaps the child.
 
@@ -100,26 +81,3 @@ async def run_cli(work: Path, arguments: list[str], *, timezone: str, timeout: f
         raise PeeperCLIError("missing_status") from None
     if success.strip() != "ok":
         raise PeeperCLIError("cli_failed")
-
-
-async def run_process(arguments, *, cwd, environment, timeout=55):
-    process = await asyncio.create_subprocess_exec(
-        sys.executable,
-        "-X",
-        "utf8",
-        *arguments,
-        cwd=cwd,
-        env=environment,
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL,
-    )
-    try:
-        async with asyncio.timeout(timeout):
-            await process.wait()
-    except BaseException:
-        if process.returncode is None:
-            with suppress(ProcessLookupError):
-                process.kill()
-        await process.wait()
-        raise
-    return process.returncode

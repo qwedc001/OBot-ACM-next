@@ -92,7 +92,7 @@ onUnmounted(() => clearInterval(timer));
             ><strong
               >{{ data.jobs.running }} <i>/ {{ data.jobs.pending }}</i></strong
             ><small
-              >{{ data.jobs.workers }} 个工作线程 · 容量
+              >后台并发上限 {{ data.jobs.workers }} · 排队容量
               {{ data.jobs.capacity }}</small
             >
           </article>

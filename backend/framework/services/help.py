@@ -7,6 +7,7 @@ from framework.catalog import CommandCatalog, MatchMode
 from framework.contracts import RequestContext
 from framework.views.help import HelpPixieBackend
 
+from ..clients.jobs import QueueClosed, QueueFull
 from ..clients.renderer import RenderClient
 from ..messages import Image, Message, Text
 from ..responses import command_failure
@@ -58,7 +59,7 @@ class HelpService(Service):
             return text
         try:
             artifacts = await self.renderer.render_pages(context.actor, "help", model)
-        except (ImportError, OSError, ValueError) as error:
+        except (ImportError, OSError, ValueError, TimeoutError, QueueClosed, QueueFull) as error:
             logger.warning("Help rendering unavailable: %s", type(error).__name__)
             latest = await self.catalog.help_model(context.command_allowed, query)
             return self.catalog.help_model_text(latest) + "\n\n图片暂不可用，已返回文字帮助。"

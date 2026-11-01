@@ -38,7 +38,7 @@ class JobQueue(Client):
         )
 
     def __init__(
-        self, workers: int = 2, capacity: int = 32, timeout: float = 60, shutdown_timeout: float = 15
+        self, workers: int = 4, capacity: int = 32, timeout: float = 60, shutdown_timeout: float = 15
     ) -> None:
         if workers < 1 or capacity < 1 or timeout <= 0:
             raise ValueError("Job queue limits must be positive")
@@ -73,6 +73,7 @@ class JobQueue(Client):
         async with self._condition:
             if not self._accepting:
                 raise QueueClosed("Job queue is closed")
+            self._pending = deque(job for job in self._pending if not job.future.cancelled())
             if len(self._pending) >= self.capacity:
                 raise QueueFull("Job queue has reached capacity")
             future = asyncio.get_running_loop().create_future()
@@ -99,12 +100,23 @@ class JobQueue(Client):
 
     async def _worker(self) -> None:
         while (job := await self._next()) is not None:
+            cancel_task = None
             try:
+                task = asyncio.ensure_future(job.factory())
+
+                def cancel_task(future, task=task):
+                    if future.cancelled() and not task.done():
+                        task.cancel()
+
+                job.future.add_done_callback(cancel_task)
                 async with asyncio.timeout(self.timeout):
-                    result = await job.factory()
+                    result = await task
             except asyncio.CancelledError:
                 job.future.cancel()
-                raise
+                # Cancelling a caller stops its job, not this reusable worker.
+                # Shutdown cancellation still exits the worker normally.
+                if asyncio.current_task().cancelling():
+                    raise
             except Exception as error:
                 self.failed += 1
                 if not job.future.done():
@@ -114,6 +126,8 @@ class JobQueue(Client):
                 if not job.future.done():
                     job.future.set_result(result)
             finally:
+                if cancel_task is not None:
+                    job.future.remove_done_callback(cancel_task)
                 async with self._condition:
                     self.running -= 1
                     if job.key is not None:
