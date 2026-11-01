@@ -107,6 +107,17 @@ async def test_duel_lifecycle_and_settlement(cf_duel_service, mock_cf_client, da
     assert not ok_self
     assert "不能接受自己发起的对战" in msg_self
 
+    # Cross-scene accept should be rejected
+    from framework.contracts import SceneRef, SceneKind
+    ctx_other_scene = RequestContext(
+        actor=ctx_b.actor,
+        scene=SceneRef("qq", "bot", SceneKind.GROUP, "9999"),
+        event_id="ev-diff",
+    )
+    ok_scene, msg_scene = await cf_duel_service.accept(ctx_other_scene, pair_code)
+    assert not ok_scene
+    assert "无法跨群或跨场景" in msg_scene
+
     # 2. Player B accepts
     ok_acc, msg_acc = await cf_duel_service.accept(ctx_b, pair_code)
     assert ok_acc

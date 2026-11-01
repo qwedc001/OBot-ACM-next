@@ -68,7 +68,7 @@ class CodeforcesClient(ProfileClient):
         """Fetch problemset problems, optionally filtered by tag."""
         params = {}
         if tag and tag.lower() != "all":
-            params["tags"] = tag.replace("-", " ")
+            params["tags"] = tag
         try:
             data = await self._api("problemset.problems", **params)
             return data.get("problems", [])
@@ -81,10 +81,10 @@ class CodeforcesClient(ProfileClient):
         """
         Get AC status and penalty time (in minutes) for a problem submitted after min_time.
         Penalty follows ICPC rules: (AC_time - min_time) / 60 + 20 * failed_attempts.
-        Failed attempts with 0 passed tests (e.g. sample fail) or CE are ignored.
+        Failed attempts before AC (excluding CE) add 20 minutes each.
         """
         try:
-            submissions = await self.get_contest_submissions(contest_id, handle, count=50)
+            submissions = await self.get_contest_submissions(contest_id, handle, count=100)
         except Exception:
             return None
 
@@ -109,8 +109,7 @@ class CodeforcesClient(ProfileClient):
                 penalty += int((created - min_time) // 60)
                 accepted = True
                 break
-            if sub.get("passedTestCount", 0) == 0:
-                continue
+            # Standard ICPC penalty: any non-CE rejected submission counts toward penalty
             penalty += 20
 
         return accepted, penalty

@@ -190,6 +190,7 @@ class CFDuelService(Service):
         Accept an existing challenge, select problem and start the duel.
         """
         user_id = context.actor.id
+        scene_key = context.scene.key if hasattr(context.scene, "key") else str(context.scene)
         pair_code = pair_code.strip().upper()
 
         handle = await self.get_bound_handle(user_id)
@@ -202,6 +203,9 @@ class CFDuelService(Service):
             duel = (await session.scalars(stmt)).first()
             if not duel:
                 return False, "对战码无效或不存在，请检查输入。"
+
+            if duel.scene != scene_key:
+                return False, "无法跨群或跨场景接受对战，请在发起对战的对应场景中接受。"
 
             if duel.sender_id == user_id:
                 return False, "你不能接受自己发起的对战。"
@@ -258,29 +262,16 @@ class CFDuelService(Service):
                 and f"{p.get('contestId')}{p.get('index')}" not in excludes
             ]
 
-            # Fallback if too strict
-            if not candidates and duel.tag:
-                problems = await self.cf_client.get_problemset(None)
-                candidates = [
-                    p
-                    for p in problems
-                    if p.get("rating")
-                    and min_r <= p["rating"] <= max_r
-                    and f"{p.get('contestId')}{p.get('index')}" not in excludes
-                ]
-
+            # Fallback if too strict: do NOT silently discard tag or rating range!
+            # If user explicitly specified tag/range and no candidate matched, fail explicitly instead of silently giving random problem.
             if not candidates:
-                # Wide fallback
-                candidates = [
-                    p
-                    for p in problems
-                    if p.get("rating")
-                    and 800 <= p["rating"] <= 3000
-                    and f"{p.get('contestId')}{p.get('index')}" not in excludes
-                ]
-
-            if not candidates:
-                return False, "随机选题失败，未能找到符合条件的题目，请稍后重新发起对战。"
+                reason_parts = []
+                if duel.tag:
+                    reason_parts.append(f"标签 [{duel.tag}]")
+                if duel.rating_range:
+                    reason_parts.append(f"难度 [{min_r}-{max_r}]")
+                filter_desc = "及".join(reason_parts) if reason_parts else f"难度 [{min_r}-{max_r}]"
+                return False, f"未找到符合条件（{filter_desc}）且双方未做过的题目，请更换筛选条件重新发起对战。"
 
             chosen = random.choice(candidates)
 
@@ -314,58 +305,66 @@ class CFDuelService(Service):
         user_id = context.actor.id
         now = time.time()
 
-        async with self.session_factory() as session, session.begin():
-            stmt = (
-                select(CFDuel)
-                .where(
-                    or_(CFDuel.sender_id == user_id, CFDuel.receiver_id == user_id),
-                    CFDuel.status == "active",
-                )
-                .with_for_update()
+        # Step 1: Read active duel info first without holding a long transaction
+        async with self.session_factory() as session:
+            stmt = select(CFDuel).where(
+                or_(CFDuel.sender_id == user_id, CFDuel.receiver_id == user_id),
+                CFDuel.status == "active",
             )
             duel = (await session.scalars(stmt)).first()
             if not duel:
                 return False, "你当前没有进行中的对战，无法结算。"
 
+            duel_id = duel.id
+            sender_id = duel.sender_id
+            receiver_id = duel.receiver_id
+            sender_handle = duel.sender_handle
+            receiver_handle = duel.receiver_handle
             problem = duel.problem or {}
             contest_id = problem.get("contestId")
             index = problem.get("index")
             prob_rating = problem.get("rating", 1400)
+            duel_start_time = duel.started_at or duel.created_at
 
-            # Fetch both participants' submission status
-            status_sender = await self.cf_client.get_problem_status(
-                duel.sender_handle, contest_id, index, duel.started_at or duel.created_at
-            )
-            status_receiver = await self.cf_client.get_problem_status(
-                duel.receiver_handle, contest_id, index, duel.started_at or duel.created_at
-            )
+        # Step 2: Fetch both participants' submission status outside DB transaction
+        status_sender = await self.cf_client.get_problem_status(
+            sender_handle, contest_id, index, duel_start_time
+        )
+        status_receiver = await self.cf_client.get_problem_status(
+            receiver_handle, contest_id, index, duel_start_time
+        )
 
-            if status_sender is None or status_receiver is None:
-                return False, "获取提交状态失败，请稍后重试。"
+        if status_sender is None or status_receiver is None:
+            return False, "获取提交状态失败，请稍后重试。"
 
-            ac_sender, penalty_sender = status_sender
-            ac_receiver, penalty_receiver = status_receiver
+        ac_sender, penalty_sender = status_sender
+        ac_receiver, penalty_receiver = status_receiver
 
-            if not ac_sender and not ac_receiver:
-                return False, "双方均未通过题目，无法结算。若放弃对战请发送 /cf duel giveup。"
+        if not ac_sender and not ac_receiver:
+            return False, "双方均未通过题目，无法结算。若放弃对战请发送 /cf duel giveup。"
 
-            if ac_sender and not ac_receiver:
+        if ac_sender and not ac_receiver:
+            outcome = 0
+        elif ac_receiver and not ac_sender:
+            outcome = 1
+        else:
+            if penalty_sender < penalty_receiver:
                 outcome = 0
-            elif ac_receiver and not ac_sender:
+            elif penalty_sender > penalty_receiver:
                 outcome = 1
             else:
-                if penalty_sender < penalty_receiver:
-                    outcome = 0
-                elif penalty_sender > penalty_receiver:
-                    outcome = 1
-                else:
-                    outcome = 2
+                outcome = 2
 
-            # Atomic PTT settlement
-            sender_ptt_obj = await session.get(CFUserPtt, duel.sender_id, with_for_update=True)
+        # Step 3: Atomic state change and PTT settlement inside transaction
+        async with self.session_factory() as session, session.begin():
+            duel = await session.get(CFDuel, duel_id, with_for_update=True)
+            if not duel or duel.status != "active":
+                return False, "对战状态已发生变化，请勿重复结算。"
+
+            sender_ptt_obj = await session.get(CFUserPtt, sender_id, with_for_update=True)
             if not sender_ptt_obj:
                 sender_ptt_obj = CFUserPtt(
-                    user_id=duel.sender_id,
+                    user_id=sender_id,
                     ptt=0,
                     contest_history=[],
                     created_at=now,
@@ -373,10 +372,10 @@ class CFDuelService(Service):
                 )
                 session.add(sender_ptt_obj)
 
-            receiver_ptt_obj = await session.get(CFUserPtt, duel.receiver_id, with_for_update=True)
+            receiver_ptt_obj = await session.get(CFUserPtt, receiver_id, with_for_update=True)
             if not receiver_ptt_obj:
                 receiver_ptt_obj = CFUserPtt(
-                    user_id=duel.receiver_id,
+                    user_id=receiver_id,
                     ptt=0,
                     contest_history=[],
                     created_at=now,
