@@ -135,10 +135,24 @@ class Engine:
         await self.command("git", "-C", path, "submodule", "update", "--init", "--recursive")
         extras = [argument for extra in self.config.extras for argument in ("--extra", extra)]
         await self.command(self.config.uv, "sync", "--locked", "--no-dev", *extras, cwd=path)
-        await self.command(
-            self.config.pnpm, "--dir", path / "frontend", "install", "--frozen-lockfile", cwd=path
-        )
-        await self.command(self.config.pnpm, "--dir", path / "frontend", "build", cwd=path)
+        if (path / "frontend").is_dir():
+            await self.command(
+                self.config.pnpm, "--dir", path / "frontend", "install", "--frozen-lockfile", cwd=path
+            )
+            await self.command(self.config.pnpm, "--dir", path / "frontend", "build", cwd=path)
+        else:
+            await self.command(
+                self.config.pnpm,
+                "install",
+                "--frozen-lockfile",
+                cwd=path,
+            )
+            await self.command(
+                self.config.pnpm,
+                "run",
+                "build",
+                cwd=path,
+            )
         return name
 
     def environment(self):
@@ -158,15 +172,23 @@ class Engine:
         self.ready.clear()
         self.ready_at = 0
 
+    def _bot_module_and_cwd(self, path):
+        if (path / "apps/bot").is_dir():
+            return "apps.bot.bot", path
+        if (path / "backend").is_dir():
+            return "backend.bot", path
+        return "bot", path
+
     async def boot(self, name):
         self.generation = uuid4().hex
         self.ready.clear()
         path = self.release(name)
+        module, cwd = self._bot_module_and_cwd(path)
         self.child = await asyncio.create_subprocess_exec(
             str(path / ".venv/bin/python"),
             "-m",
-            "backend.bot",
-            cwd=path,
+            module,
+            cwd=cwd,
             env=self.environment(),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
@@ -300,12 +322,13 @@ class Engine:
             if action == "restore":
                 await asyncio.to_thread(self.restore, baseline["snapshot"])
             path = self.release(candidate)
+            pythonpath = str(path / "apps/bot") if (path / "apps/bot").is_dir() else str(path / "backend")
             await self.command(
                 path / ".venv/bin/python",
                 "-m",
                 "framework.migrate",
                 cwd=path,
-                env={**self.environment(), "PYTHONPATH": str(path / "backend")},
+                env={**self.environment(), "PYTHONPATH": pythonpath},
             )
             self.tail = Tail()
             await self.boot(candidate)

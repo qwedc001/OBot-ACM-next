@@ -65,4 +65,4 @@ web/content/pickone/groups.py      群管理 HTTP 边界
 
 迁移 `0007` 新增 ORM 表 `bot_pickone_contexts`（按场景保存上一张图和预览）与 `bot_pickone_libraries`（群图库登记）。OCR 模型位于 LocalStore 应用数据目录下的 `ocr/`，随数据一起备份。
 
-验证：`uv run --extra render pytest backend/tests/test_pickone.py backend/tests/test_pickone_groups.py`；网页流程见 `frontend/tests/e2e/pickone-groups.spec.js`。所有测试使用隔离数据、合成图片和空环境文件，不发送真实 QQ 消息。
+验证：`uv run --extra render pytest apps/bot/tests/test_pickone.py apps/bot/tests/test_pickone_groups.py`；网页流程见 `apps/web/tests/e2e/pickone-groups.spec.js`。所有测试使用隔离数据、合成图片和空环境文件，不发送真实 QQ 消息。

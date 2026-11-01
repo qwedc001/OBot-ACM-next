@@ -19,13 +19,13 @@
 ## 代码边界
 
 ```text
-framework/services/curation.py    共享数据目录、异步工作流与 ORM 事务
-framework/curation/repository.py  提交状态机及操作日志
-framework/curation/pickone/       数据格式、校验、冲突与应用算法
-framework/curation/contestlist/   比赛数据、校验、冲突与应用算法
-web/content/                     请求模型适配、会话依赖、资源路由
-web/plugins/                     现有 WebPlugin 注册入口
-frontend/src/plugins/            对应页面、组件、API 与导航清单
+apps/bot/framework/services/curation.py    共享数据目录、异步工作流与 ORM 事务
+apps/bot/framework/curation/repository.py  提交状态机及操作日志
+apps/bot/framework/curation/pickone/       数据格式、校验、冲突与应用算法
+apps/bot/framework/curation/contestlist/   比赛数据、校验、冲突与应用算法
+apps/bot/web/content/                     请求模型适配、会话依赖、资源路由
+apps/bot/web/plugins/                     现有 WebPlugin 注册入口
+apps/web/src/plugins/                     对应页面、组件、API 与导航清单
 ```
 
 原 EP 的文件处理算法保持同步，FastAPI 将同步资源处理放入 AnyIO 工作线程。Repository 只借用当前 ORM 事务，通过 `anyio.from_thread.run` 在原事件循环执行 SQL；不创建另一个连接池、数据库或用户表。新增机器人调用方可以 `await services.curation.run(operation, ...)`，`operation` 第一个参数为 Repository。不要从事件循环直接调用这些同步领域函数。
@@ -54,10 +54,10 @@ curation/
 ## 验证
 
 ```sh
-uv run --extra render pytest backend/tests/test_curation.py backend/tests/test_dashboard.py
-pnpm --dir frontend test
-pnpm --dir frontend build
-pnpm --dir frontend test:e2e
+uv run --extra render pytest apps/bot/tests/test_curation.py apps/bot/tests/test_dashboard.py
+pnpm test
+pnpm build
+pnpm --dir apps/web test:e2e
 ```
 
 浏览器测试使用临时目录、空环境文件和合成图片，覆盖真实 HTTP 登录、浏览、提交、审核、预览与应用，截图与运行产物写入被忽略的 `.codex/`。

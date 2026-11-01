@@ -17,5 +17,7 @@ htmlcov/
 deploy/
 node_modules/
 frontend/dist/
+apps/*/dist/
+packages/*/dist/
 .vite/
 playwright-report/

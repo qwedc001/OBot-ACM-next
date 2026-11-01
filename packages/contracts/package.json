@@ -1,0 +1,45 @@
+{
+  "name": "@obot/contracts",
+  "version": "0.17.0",
+  "private": true,
+  "description": "OBot API Contracts and Generated SDK",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./dist/types.gen.d.ts",
+      "import": "./dist/types.gen.js",
+      "default": "./dist/types.gen.js"
+    },
+    "./client": {
+      "types": "./dist/client.gen.d.ts",
+      "import": "./dist/client.gen.js",
+      "default": "./dist/client.gen.js"
+    }
+  },
+  "files": [
+    "dist",
+    "schema"
+  ],
+  "scripts": {
+    "codegen": "openapi-ts",
+    "build": "node build.js"
+  },
+  "dependencies": {
+    "@hey-api/client-axios": "^0.6.2",
+    "axios": "^1.20.0"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "^0.64.12",
+    "esbuild": "^0.28.2",
+    "prettier": "^3.9.10",
+    "typescript": "^5.8.2"
+  }
+}
