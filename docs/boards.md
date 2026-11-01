@@ -1,6 +1,6 @@
 # HydroOJ 训练榜单
 
-Peeper Board Generator 以 Git submodule 接入 `third-party/peeper-board-generator`，固定提交 `e5764481984ce7f4291e0c17c064815f18bbb08f`（v1.2.5）。上游源码保持原样，榜单沿用其样式。初始化仓库时执行：
+Peeper Board Generator 以 Git submodule 接入 `third-party/peeper-board-generator`，固定提交 `6a38d3678c6ceb954b6ab09519764b38003b5c34`（v1.2.5）。上游源码保持原样，榜单沿用其样式。初始化仓库时执行：
 
 ```sh
 git submodule update --init --recursive
@@ -29,8 +29,8 @@ uv sync --extra render
 | `/board yesterday [配置名]` | 昨日总榜 |
 | `/board history YYYY-MM-DD [配置名]` | 指定日期的历史榜单 |
 | `/board verdict WA [配置名]` | 今日指定评测类型的榜单 |
-| `/board user id 用户ID [配置名]` | 私聊查询用户资料与今日提交统计 |
-| `/board user name 用户名 [配置名]` | 私聊模糊匹配名字查询；含空格的名字使用引号 |
+| `/board user id 用户ID [配置名]` | 查询用户资料与今日提交统计 |
+| `/board user name 用户名 [配置名]` | 模糊匹配名字查询；含空格的名字使用引号 |
 | `/board version` | 上游生成器版本 |
 | `/board push on或off [配置名]` | 管理者开启或关闭本对话的每日推送 |
 | `/board push status [配置名]` | 管理者查看推送开关、任务注册及下次执行时间 |

@@ -411,3 +411,17 @@ async def test_one_failed_board_does_not_block_other_opted_in_boards(database, t
     boards.reply = SimpleNamespace(send_to=AsyncMock(side_effect=[DeliveryFailed(), {"id": "accepted"}]))
     await boards.daily_push()
     assert boards.reply.send_to.await_count == 2
+
+
+async def test_board_user_image_delegates_to_peeper_render(database, tmp_path):
+    boards = service(database, tmp_path)
+    await bind(boards)
+    boards.peeper.render.return_value = SimpleNamespace(id="user_card_artifact")
+    artifact = await boards.user_image(context(), "id", "123")
+    assert artifact.id == "user_card_artifact"
+    model = boards.peeper.render.await_args.args[1]
+    assert model["mode"] == "user"
+    assert model["kind"] == "id"
+    assert model["value"] == "123"
+    assert len(model["snapshots"]) == 1
+    assert model["credentials"]["uname"] == "test-admin"

@@ -121,7 +121,6 @@ async def main():
                 assert "已关闭" in str((await request("/board starred off", group=True, role="admin"))[0])
                 assert "已开启" in str((await request("/board starred", group=True, role="admin"))[0])
                 assert "用法" in str((await request("/board starred on extra extra"))[0])
-                assert "私聊" in str((await request("/board user id 2", group=True))[0])
                 assert "v1.2.5" in str((await request("/board version"))[0])
                 assert "已开启" in str((await request("/board push on", group=True, role="admin"))[0])
                 assert "权限不足" in str((await request("/board push off", group=True))[0])
@@ -130,13 +129,26 @@ async def main():
                 from framework.contracts import ExternalIdentity
 
                 actor = await services.identities.resolve(ExternalIdentity("qq", "app", "c2c_user", "user"))
+                group_actor = await services.identities.resolve(ExternalIdentity("qq", "app", "group_member", "user"))
                 artifact = await services.clients.artifacts.create(
                     actor, b"\x89PNG\r\n\x1a\nsynthetic", "image/png"
+                )
+                group_artifact = await services.clients.artifacts.create(
+                    group_actor, b"\x89PNG\r\n\x1a\nsynthetic", "image/png"
                 )
                 with patch.object(services.boards, "image", AsyncMock(return_value=artifact)):
                     messages = await request("/board today")
                     assert len(messages) == 2 and "正在" in str(messages[0])
                     assert any(part.type == "file_image" for part in messages[1])
+                with patch.object(
+                    services.boards, "user_image", AsyncMock(side_effect=[artifact, group_artifact])
+                ):
+                    messages = await request("/board user id 1 privateOJ")
+                    assert len(messages) == 2 and "正在" in str(messages[0])
+                    assert any(part.type == "file_image" for part in messages[1])
+                    group_messages = await request("/board user id 1 groupOJ", group=True)
+                    assert len(group_messages) == 2 and "正在" in str(group_messages[0])
+                    assert any(part.type == "file_image" for part in group_messages[1])
                 with patch.object(services.boards, "image", AsyncMock(return_value=artifact)) as image:
                     for invocation, mode, day, verdict in [
                         ("/board today privateOJ", "now", None, "AC"),
@@ -163,10 +175,19 @@ async def main():
                     assert len(failure) == 1 and "你可能想用：" in str(failure[0])
                     assert "/board push status" in str(failure[0])
                     assert "private-config" not in str(failure[0])
-                with patch.object(services.boards, "user", AsyncMock(return_value="profile")) as user:
-                    assert "profile" in str((await request('/board user name "Alice Smith" privateOJ'))[0])
+                from framework.board import BoardError
+
+                with (
+                    patch.object(services.boards, "user", AsyncMock(return_value="profile")) as user,
+                    patch.object(
+                        services.boards, "user_image", AsyncMock(side_effect=BoardError("no image"))
+                    ),
+                ):
+                    res = await request('/board user name "Alice Smith" privateOJ')
+                    assert any("profile" in str(msg) for msg in res)
                     assert user.await_args.args[1:] == ("name", "Alice Smith", "privateOJ")
-                    assert "profile" in str((await request("/board user id 2 privateOJ"))[0])
+                    res = await request("/board user id 2 privateOJ")
+                    assert any("profile" in str(msg) for msg in res)
                     assert user.await_args.args[1:] == ("id", "2", "privateOJ")
                 assert "已注册" in str((await request("/board push status", group=True, role="admin"))[0])
                 assert "权限不足" in str((await request("/board push status", group=True))[0])

@@ -56,19 +56,35 @@ class PeeperClient(Client):
             try:
                 async with cli_workspace(SOURCE, generator_config(model), model["snapshots"]) as work:
                     output, final = work / "board.png", work / "output.png"
-                    arguments = ["--id", "board", "--separate_cols", "--output", str(output)]
-                    if model["mode"] == "now":
+                    arguments = ["--id", "board", "--output", str(output)]
+                    if model["mode"] == "user":
+                        query_flag = "--query_uid" if model["kind"] == "id" else "--query_name"
+                        arguments.extend([query_flag, str(model["value"])])
                         host = urlsplit(hydro_host(model["host"])).hostname
                         addresses = await public_addresses(host)
                         async with pinned_https_proxy(host, addresses) as proxy:
                             await run_cli(
                                 work,
-                                [*arguments, "--now", "--verdict", model["verdict"]],
+                                arguments,
+                                timezone=model["timezone"],
+                                proxy=proxy,
+                            )
+                    elif model["mode"] == "now":
+                        host = urlsplit(hydro_host(model["host"])).hostname
+                        addresses = await public_addresses(host)
+                        async with pinned_https_proxy(host, addresses) as proxy:
+                            await run_cli(
+                                work,
+                                [*arguments, "--separate_cols", "--now", "--verdict", model["verdict"]],
                                 timezone=model["timezone"],
                                 proxy=proxy,
                             )
                     else:
-                        await run_cli(work, [*arguments, "--full", model["day"]], timezone=model["timezone"])
+                        await run_cli(
+                            work,
+                            [*arguments, "--separate_cols", "--full", model["day"]],
+                            timezone=model["timezone"],
+                        )
                     if not output.is_file():
                         raise PeeperCLIError("missing_image")
                     code = await run_process(

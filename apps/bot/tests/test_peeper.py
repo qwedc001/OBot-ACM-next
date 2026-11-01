@@ -36,7 +36,7 @@ async def test_parallel_boards_use_private_cli_workspaces_and_artifacts(database
         Image.new("RGB", (31 if config["board_name"] == "one" else 47, 20)).save(work / "board.png")
 
     monkeypatch.setattr(peeper, "run_cli", cli)
-    artifacts = ArtifactClient(tmp_path / "artifacts", database, AsyncMock(return_value=False))
+    artifacts = ArtifactClient(tmp_path / "artifacts", database)
     jobs = JobQueue(workers=2)
     await jobs.start()
     client = PeeperClient(jobs, artifacts)
@@ -123,10 +123,48 @@ async def test_real_submodule_renderer_produces_scoped_png_without_writing_sourc
             },
         )
         data = await artifacts.read(USER, artifact.id)
-        assert data.startswith(b"\x89PNG\r\n\x1a\n") and artifact.width > 1000 and artifact.height > 1000
+        assert data.startswith(b"\x89PNG\r\n\x1a\n") and artifact.width > 300 and artifact.height > 1000
         assert artifact.width * artifact.height <= MAX_OUTPUT_PIXELS
         assert max(artifact.width, artifact.height) <= MAX_OUTPUT_EDGE
         assert await client.version() == "v1.2.5"
         (tmp_path / "sample.png").write_bytes(data)
+    finally:
+        await jobs.close()
+
+
+async def test_peeper_client_render_user_card(database, tmp_path, monkeypatch):
+    from PIL import Image
+
+    from framework.clients import peeper
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "main.py").write_text("pass")
+    monkeypatch.setattr(peeper, "SOURCE", source)
+
+    async def cli(work, arguments, **kwargs):
+        assert "--query_uid" in arguments or "--query_name" in arguments
+        Image.new("RGB", (400, 600)).save(work / "board.png")
+
+    monkeypatch.setattr(peeper, "run_cli", cli)
+    monkeypatch.setattr(peeper, "public_addresses", AsyncMock(return_value=["8.8.8.8"]))
+    artifacts = ArtifactClient(tmp_path / "artifacts", database)
+    jobs = JobQueue(workers=1)
+    await jobs.start()
+    client = PeeperClient(jobs, artifacts)
+    try:
+        model = {
+            "mode": "user",
+            "name": "测试 OJ",
+            "kind": "id",
+            "value": "1",
+            "host": "https://oj.example.com",
+            "credentials": {"uname": "admin", "password": "pw"},
+            "snapshots": [],
+            "timezone": "Asia/Shanghai",
+        }
+        artifact = await client.render(USER, model)
+        assert (artifact.width, artifact.height) == (400, 600)
+        assert await artifacts.read(USER, artifact.id)
     finally:
         await jobs.close()
