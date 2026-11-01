@@ -43,6 +43,38 @@ asyncio.run(main())
     )
 
 
+def release_legacy(engine, name, *, broken=False, ready=True):
+    root = engine.release(name)
+    (root / ".venv/bin").mkdir(parents=True)
+    (root / ".venv/bin/python").symlink_to(sys.executable)
+    (root / "backend").mkdir(parents=True)
+    (root / "backend/__init__.py").touch()
+    (root / "framework").mkdir()
+    (root / "framework/__init__.py").touch()
+    (root / "framework/migrate.py").write_text("print('migration complete')")
+    (root / "data").symlink_to(engine.config.data_dir)
+    (root / "backend/bot.py").write_text(
+        """
+import asyncio, json, os, sqlite3
+async def main():
+    if BROKEN:
+        with sqlite3.connect('data/bot.sqlite3') as db:
+            db.execute("update test set value='broken'")
+        print('synthetic startup failure', flush=True)
+        raise SystemExit(3)
+    if READY:
+        r,w = await asyncio.open_unix_connection(os.environ['OBOT_SUPERVISOR_SOCKET'])
+        w.write((json.dumps({'action':'ready','boot_id':os.environ['OBOT_SUPERVISOR_BOOT_ID']})+'\\n').encode())
+        await w.drain()
+        await r.readline()
+        w.close()
+        await w.wait_closed()
+    await asyncio.sleep(600)
+asyncio.run(main())
+""".replace("BROKEN", repr(broken)).replace("READY", repr(ready))
+    )
+
+
 async def test_actual_failed_process_restores_and_restarts_old_process(engine, monkeypatch):
     from test_engine import read_value
 
@@ -93,6 +125,23 @@ async def test_process_boot_success_switches_known_good(engine, monkeypatch):
             assert engine.child.returncode is None
         finally:
             await engine.close()
+
+
+async def test_legacy_backend_boot_and_upgrade_to_monorepo(engine, monkeypatch):
+    release_legacy(engine, "old")
+    release(engine, "monorepo")
+    monkeypatch.setattr(engine, "fetch", AsyncMock(return_value="b" * 40))
+    monkeypatch.setattr(engine, "prepare", AsyncMock(return_value="monorepo"))
+    async with await serve(engine):
+        await engine.start()
+        assert engine.child.returncode is None
+        old_pid = engine.child.pid
+        engine.submit("update", {"adapter": "test", "kind": "private", "id": "synthetic"})
+        await engine.task
+        assert engine.child.pid != old_pid
+        assert engine.child.returncode is None
+        assert engine.state["good"] == "monorepo"
+        await engine.close()
 
 
 async def test_branch_ipc_real_process_failure_returns_to_stable_baseline(engine, monkeypatch):
