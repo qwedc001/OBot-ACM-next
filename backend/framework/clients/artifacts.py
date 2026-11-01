@@ -35,25 +35,31 @@ class Artifact:
 
 
 class ArtifactClient(Client):
-    dependencies = ("identities",)
+    dependencies = ()
 
     @classmethod
     def build(cls, container):
+        async def is_superuser(actor: Actor) -> bool:
+            identities = getattr(container, "identities", None)
+            if identities is not None and hasattr(identities, "is_superuser"):
+                return await identities.is_superuser(actor)
+            return False
+
         return cls(
             container.settings.obot_data_dir / "artifacts"
             if container.data_dir is None
             else container.data_dir / "artifacts",
             container.session_factory,
-            container.identities.is_superuser,
-            container.settings.obot_artifact_ttl,
-            container.settings.obot_artifact_max_bytes,
+            is_superuser=is_superuser,
+            ttl=container.settings.obot_artifact_ttl,
+            max_bytes=container.settings.obot_artifact_max_bytes,
         )
 
     def __init__(
         self,
         root: Path,
         session_factory: Callable[[], AsyncSession],
-        is_superuser: Callable[[Actor], Awaitable[bool]],
+        is_superuser: Callable[[Actor], Awaitable[bool]] | None = None,
         ttl: float = 3600,
         max_bytes: int = 16 * 1024 * 1024,
     ):
@@ -124,8 +130,9 @@ class ArtifactClient(Client):
                 artifact = await session.get(ImageArtifact, artifact_id)
                 if artifact is None or artifact.expires_at <= time.time():
                     raise ArtifactUnavailable("Artifact is missing or expired")
-                if actor.id != artifact.owner_id and not await self.is_superuser(actor):
-                    raise AccessDenied("Image belongs to another user")
+                if actor.id != artifact.owner_id:
+                    if self.is_superuser is None or not await self.is_superuser(actor):
+                        raise AccessDenied("Image belongs to another user")
             if not await asyncio.to_thread(path.is_file):
                 raise ArtifactUnavailable("Artifact file is missing")
             self._leases[artifact_id] += 1

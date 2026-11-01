@@ -25,13 +25,28 @@ class PickOneService(Service):
 
     @classmethod
     def build(cls, container):
-        return cls(container.curation, container.clients)
+        return cls(
+            curation=container.curation,
+            http=container.clients.http,
+            ocr=container.clients.ocr,
+            jobs=container.clients.jobs,
+            renderer=container.clients.renderer,
+        )
 
-    def __init__(self, curation, clients):
-        self.curation, self.clients = curation, clients
+    def __init__(self, curation, http=None, ocr=None, jobs=None, renderer=None, clients=None):
+        self.curation = curation
+        # Support both explicit client injection and backwards-compatible namespace
+        self.http = http if http is not None else (getattr(clients, "http", None) if clients else None)
+        self.ocr = ocr if ocr is not None else (getattr(clients, "ocr", None) if clients else None)
+        self.jobs = jobs if jobs is not None else (getattr(clients, "jobs", None) if clients else None)
+        self.renderer = (
+            renderer if renderer is not None else (getattr(clients, "renderer", None) if clients else None)
+        )
+        self.clients = clients  # Kept for backward compatibility
         self._ocr_jobs = {}
         self._scheduler = None
-        clients.renderer.register("pickone", PickOneBackend())
+        if self.renderer:
+            self.renderer.register("pickone", PickOneBackend())
 
     async def call(self, operation, *args):
         return await self.curation.run(operation, self.curation.pickone, *args)
@@ -153,7 +168,7 @@ class PickOneService(Service):
 
         for url in urls:
             try:
-                data = await self.clients.http.download(url, limit=chat.MAX_IMAGE_BYTES)
+                data = await self.http.download(url, limit=chat.MAX_IMAGE_BYTES)
                 status, _, _ = await self.in_scene(
                     context, chat.upload, cat.img_key, data, context.actor.id, admin
                 )
@@ -184,7 +199,7 @@ class PickOneService(Service):
     async def _recognize(self, scope, key, name):
         store = self.curation.group_pickone(scope) if scope else self.curation.pickone
         data = await self.curation.run(lambda repo: chat.read_image(store, key, name))
-        text = await self.clients.ocr.read(data)
+        text = await self.ocr.read(data)
         await self.curation.run(chat.apply_ocr, store, key, name, text)
 
     def _ocr_finished(self, target, future):
@@ -193,7 +208,7 @@ class PickOneService(Service):
             logger.warning("PickOne OCR failed: %s", type(future.exception()).__name__)
 
     async def enqueue_ocr(self):
-        if not self.clients.ocr.enabled:
+        if not (self.ocr and self.ocr.enabled):
             return
         async with self.curation.sessions() as session:
             scopes = [None, *(await session.scalars(select(PickOneLibrary.scope))).all()]
@@ -205,7 +220,7 @@ class PickOneService(Service):
             if target in self._ocr_jobs:
                 continue
             try:
-                future = await self.clients.jobs.submit(
+                future = await self.jobs.submit(
                     "pickone:ocr", lambda target=target: self._recognize(*target), key="ocr"
                 )
             except (QueueClosed, QueueFull):
@@ -214,7 +229,7 @@ class PickOneService(Service):
             future.add_done_callback(lambda result, target=target: self._ocr_finished(target, result))
 
     async def start(self):
-        if self.clients.ocr.enabled:
+        if self.ocr and self.ocr.enabled:
             from nonebot_plugin_apscheduler import scheduler
 
             self._scheduler = scheduler
