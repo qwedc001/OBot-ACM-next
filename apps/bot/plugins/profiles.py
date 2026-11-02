@@ -144,7 +144,10 @@ async def handle_codeforces_recent(
 
 @cf.assign("tags")
 async def handle_codeforces_tags(services: BotServices, reply: Reply):
-    tags = await services.cf_problem.get_all_tags()
+    try:
+        tags = await services.cf_problem.get_all_tags()
+    except Exception:
+        await reply.finish("暂无法获取标签列表，请稍后重试。")
     if not tags:
         await reply.finish("暂无法获取标签列表，请稍后重试。")
     msg = "[Codeforces] 题目标签:\n" + ", ".join(tags)

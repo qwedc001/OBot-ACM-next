@@ -7,6 +7,7 @@ import random
 
 from ..clients._cache import AsyncCache
 from ..clients.codeforces import CodeforcesClient
+from ..clients.http import UpstreamError
 from ..profiles import ProfileNotFound
 from .base import Service
 
@@ -58,6 +59,7 @@ class CFProblemService(Service):
         self._cache = AsyncCache[list[dict]](ttl=cache_ttl, capacity=128, timeout=30)
         self._sync_task: asyncio.Task | None = None
         self._cached_tags: list[str] = []
+        self._tag_alias_map: dict[str, str] = {}  # alias (hyphenated) -> original CF tag
 
     async def start(self):
         # Start periodic background synchronization
@@ -105,10 +107,15 @@ class CFProblemService(Service):
 
     def _update_tags(self, problems: list[dict]):
         tags = set()
+        tag_map = {}
         for p in problems:
             for t in p.get("tags", []):
-                tags.add(t.replace(" ", "-").lower())
+                alias = t.replace(" ", "-").lower()
+                tags.add(alias)
+                if alias not in tag_map:
+                    tag_map[alias] = t
         self._cached_tags = sorted(tags)
+        self._tag_alias_map = tag_map
 
     async def get_all_tags(self) -> list[str]:
         """Get all known problem tags."""
@@ -145,13 +152,17 @@ class CFProblemService(Service):
         fetch_tag = tag
 
         if tag and tag.lower() != "all":
-            all_tags = await self.get_all_tags()
+            try:
+                all_tags = await self.get_all_tags()
+            except Exception:
+                return False, "获取 Codeforces 题目标签列表失败，请稍后重试。", None
             matched = self.match_tag(tag, all_tags)
             if not matched:
                 return False, f"未找到匹配的题目标签 [{tag}]。请使用有效标签如 dp, greedy, math 等。", None
             if matched != tag.lower():
                 tag_matched_msg = f"（已将标签匹配为 {matched}）\n"
-            fetch_tag = matched
+            # Use original tag for API query if known
+            fetch_tag = self._tag_alias_map.get(matched, matched)
 
         min_rating, max_rating = None, None
         if rating_range:
@@ -168,7 +179,7 @@ class CFProblemService(Service):
         for p in problems:
             # If a tag filter was requested, ensure the problem has this tag
             if fetch_tag and fetch_tag.lower() != "all":
-                p_tags = [t.replace(" ", "-").lower() for t in p.get("tags", [])]
+                p_tags = [t.lower() for t in p.get("tags", [])] + [t.replace(" ", "-").lower() for t in p.get("tags", [])]
                 if fetch_tag.lower() not in p_tags:
                     continue
             r = p.get("rating")
