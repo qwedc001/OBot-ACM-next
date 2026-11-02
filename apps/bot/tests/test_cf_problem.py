@@ -1,6 +1,6 @@
 """Unit tests for Codeforces problem retrieval, tag filtering and recent submissions (T03)."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -26,6 +26,7 @@ def sample_problemset():
         {"contestId": 1800, "index": "C", "name": "Setting up Camp", "rating": 1200, "tags": ["math", "greedy"]},
         {"contestId": 1800, "index": "D", "name": "Remove Two Letters", "rating": 1500, "tags": ["strings", "hashing"]},
         {"contestId": 900, "index": "A", "name": "Find Extra One", "rating": 900, "tags": ["geometry"]},
+        {"contestId": 1700, "index": "E", "name": "Sereja and Brackets", "rating": 1600, "tags": ["binary search", "data structures"]},
     ]
 
 
@@ -94,7 +95,7 @@ def test_decode_range():
 
 
 @pytest.mark.asyncio
-async def test_pick_problem_all_conditions(cf_problem_service, sample_problemset):
+async def test_pick_problem_all_conditions(cf_problem_service, mock_cf_client, sample_problemset):
     # 1. Random pick without filters
     ok, msg, prob = await cf_problem_service.pick_problem()
     assert ok
@@ -137,6 +138,20 @@ async def test_pick_problem_all_conditions(cf_problem_service, sample_problemset
     assert not ok
     assert "未找到满足条件的题目" in msg
 
+    # 9. Multi-word tag with space / hyphen
+    ok, msg, prob = await cf_problem_service.pick_problem(tag="binary-search")
+    assert ok
+    assert prob is not None
+    assert "binary search" in prob["tags"]
+    # Check that API was queried with original tag "binary search"
+    mock_cf_client.get_problemset.assert_called_with("binary search")
+
+    # 10. Tag discovery network failure handled gracefully
+    with patch.object(cf_problem_service, "get_all_tags", side_effect=Exception("CF API down")):
+        ok, msg, prob = await cf_problem_service.pick_problem(tag="math")
+        assert not ok
+        assert "失败" in msg
+
 
 @pytest.mark.asyncio
 async def test_cf_problem_command_matcher(mock_cf_client, sample_problemset, sample_submissions):
@@ -164,7 +179,7 @@ async def test_problemset_lru_cache_and_background_sync(mock_cf_client):
     try:
         # First call fetches from client
         res1 = await service.get_problemset()
-        assert len(res1) == 5
+        assert len(res1) == 6
         assert mock_cf_client.get_problemset.call_count == 1
 
         # Second call hits LRU cache
