@@ -73,6 +73,8 @@ class NowcoderClient(ProfileClient):
 
         if not isinstance(rank_data, list):
             rank_data = []
+        elif any(not isinstance(entry, dict) for entry in rank_data):
+            raise UpstreamError("Nowcoder: invalid rankData entries")
         if not isinstance(basic_info, dict):
             basic_info = {}
 

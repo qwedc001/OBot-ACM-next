@@ -18,7 +18,17 @@ __plugin_meta__ = PluginMetadata(
 )
 
 
-def profile_command(name, label, aliases, example, *subcommands):
+def profile_command(
+    name,
+    label,
+    aliases,
+    example,
+    *subcommands,
+    extra_usage: tuple[str, ...] = (),
+    extra_examples: tuple[str, ...] = (),
+):
+    usage_lines = [f"/{name} user <账号标识>", *extra_usage]
+    example_lines = [f"/{name} user {example}", *extra_examples]
     spec = CommandSpec(
         id=f"cp.{name}",
         plugin_id="cp",
@@ -26,8 +36,8 @@ def profile_command(name, label, aliases, example, *subcommands):
         aliases=aliases,
         example_alias=aliases[0],
         summary=f"查询公开账号资料卡（{label}）",
-        usage=f"/{name} user <账号标识>",
-        examples=(f"/{name} user {example}",),
+        usage="\n".join(usage_lines),
+        examples=tuple(example_lines),
     )
     matcher = template_command(
         spec,
@@ -58,6 +68,8 @@ atc = profile_command(
     ("atc", "atcoder"),
     "tourist",
     Subcommand("prob", Args["contest_type?", str]["diff?", str], alias=("problem", "pick")),
+    extra_usage=("/atc prob [比赛类型] [难度/范围]",),
+    extra_examples=("/atc prob abc 800-1200",),
 )
 nk = profile_command(
     "nk",
@@ -65,6 +77,8 @@ nk = profile_command(
     ("nk", "nc", "nowcoder"),
     "123456",
     Subcommand("standing", Args["contest_id", str]["handle?", str], alias=("standings", "stand", "status")),
+    extra_usage=("/nk standing <比赛ID> [用户标识]",),
+    extra_examples=("/nk standing 98765", "/nk standing 98765 tourist"),
 )
 
 

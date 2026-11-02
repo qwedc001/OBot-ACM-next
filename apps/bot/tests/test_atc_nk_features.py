@@ -193,3 +193,15 @@ async def test_nk_standings_upstream_error(nk_client, mock_http):
     mock_http.get_json.return_value = {"msg": "FAIL", "code": 500}
     with pytest.raises(UpstreamError, match="Nowcoder API error: FAIL"):
         await nk_client.standings(81596)
+
+    # Invalid rankData entries
+    mock_http.get_json.return_value = {
+        "msg": "OK",
+        "code": 0,
+        "data": {
+            "basicInfo": {},
+            "rankData": ["not-a-dict"],
+        },
+    }
+    with pytest.raises(UpstreamError, match="invalid rankData entries"):
+        await nk_client.standings(81596)
