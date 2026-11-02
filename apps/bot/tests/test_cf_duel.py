@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import select
+
 from framework.contracts import Actor, RequestContext, SceneKind, SceneRef
 from framework.models import CFBinding, CFDuel, CFUserPtt, User
 from framework.services.cf_duel import CFDuelService, PttSystem
@@ -87,6 +88,14 @@ async def test_duel_lifecycle_and_settlement(cf_duel_service, mock_cf_client, da
     ctx_b = make_context(USER_B_ID)
 
     # 1. Player A challenges
+    ok_inv, msg_inv = await cf_duel_service.challenge(ctx_a, rating_range="abc")
+    assert not ok_inv
+    assert "有效数字" in msg_inv
+
+    ok_rev, msg_rev = await cf_duel_service.challenge(ctx_a, rating_range="1600-1400")
+    assert not ok_rev
+    assert "不能大于上限" in msg_rev
+
     ok, msg = await cf_duel_service.challenge(ctx_a, rating_range="1400-1600")
     assert ok
     assert "已发起 Codeforces 1v1 对战请求" in msg
@@ -108,7 +117,7 @@ async def test_duel_lifecycle_and_settlement(cf_duel_service, mock_cf_client, da
     assert "不能接受自己发起的对战" in msg_self
 
     # Cross-scene accept should be rejected
-    from framework.contracts import SceneRef, SceneKind
+    from framework.contracts import SceneKind, SceneRef
     ctx_other_scene = RequestContext(
         actor=ctx_b.actor,
         scene=SceneRef("qq", "bot", SceneKind.GROUP, "9999"),
@@ -204,3 +213,45 @@ async def test_duel_giveup_flow(cf_duel_service, mock_cf_client, database):
         fin_duel = await session.get(CFDuel, duel.id)
         assert fin_duel.status == "finished"
         assert fin_duel.outcome == 0  # Sender (A) wins
+
+
+@pytest.mark.asyncio
+async def test_duel_concurrent_settlement(cf_duel_service, mock_cf_client, database):
+    ctx_a = make_context(USER_A_ID)
+    ctx_b = make_context(USER_B_ID)
+
+    # 1. Challenge & Accept
+    ok, _ = await cf_duel_service.challenge(ctx_a)
+    assert ok
+    async with database() as session:
+        duel = (await session.scalars(select(CFDuel).where(CFDuel.status == "pending"))).first()
+        pair_code = duel.pair_code
+
+    ok_acc, _ = await cf_duel_service.accept(ctx_b, pair_code)
+    assert ok_acc
+
+    # 2. Both AC
+    mock_cf_client.get_problem_status.return_value = (True, 20)
+
+    # Call finish concurrently
+    res1, res2 = await asyncio.gather(
+        cf_duel_service.finish(ctx_a),
+        cf_duel_service.finish(ctx_b),
+        return_exceptions=False,
+    )
+
+    # One must succeed, one must fail with status changed / already settled
+    results = [res1, res2]
+    succeeded = [r for r in results if r[0] is True]
+    failed = [r for r in results if r[0] is False]
+    assert len(succeeded) == 1
+    assert len(failed) == 1
+    assert "请勿重复结算" in failed[0][1]
+
+    # Check PTT history has only 1 entry per user
+    async with database() as session:
+        ptt_a = await session.get(CFUserPtt, USER_A_ID)
+        ptt_b = await session.get(CFUserPtt, USER_B_ID)
+        assert len(ptt_a.contest_history) == 1
+        assert len(ptt_b.contest_history) == 1
+

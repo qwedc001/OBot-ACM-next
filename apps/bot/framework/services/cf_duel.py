@@ -6,7 +6,7 @@ import secrets
 import time
 from collections.abc import Callable
 
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..clients.codeforces import CodeforcesClient
@@ -152,6 +152,25 @@ class CFDuelService(Service):
         if not handle:
             return False, "你当前未绑定 Codeforces 账号，请先使用 /cf bind [handle] 进行绑定。"
 
+        # Validate rating range if provided
+        if rating_range:
+            rating_range = rating_range.strip()
+            try:
+                if "-" in rating_range:
+                    parts = rating_range.split("-")
+                    if len(parts) != 2:
+                        return False, "难度范围格式错误，应为单个数字或范围（例如 1400 或 1200-1500）。"
+                    r_low, r_high = int(parts[0]), int(parts[1])
+                else:
+                    r_low = r_high = int(rating_range)
+            except ValueError:
+                return False, "难度范围必须为有效数字（例如 1400 或 1200-1500）。"
+
+            if r_low < 800 or r_high > 3500:
+                return False, "难度范围超出限制，单题难度需在 800-3500 之间。"
+            if r_low > r_high:
+                return False, f"难度范围下限（{r_low}）不能大于上限（{r_high}）。"
+
         now = time.time()
         async with self.session_factory() as session, session.begin():
             # 2. Check if user already in an active or pending duel
@@ -275,12 +294,21 @@ class CFDuelService(Service):
 
             chosen = random.choice(candidates)
 
-            # Update duel state
-            duel.receiver_id = user_id
-            duel.receiver_handle = receiver_handle
-            duel.status = "active"
-            duel.problem = chosen
-            duel.started_at = now
+            # Atomic claim duel before activating
+            claim_stmt = (
+                update(CFDuel)
+                .where(CFDuel.id == duel.id, CFDuel.status == "pending")
+                .values(
+                    receiver_id=user_id,
+                    receiver_handle=receiver_handle,
+                    status="active",
+                    problem=chosen,
+                    started_at=now,
+                )
+            )
+            claimed = await session.execute(claim_stmt)
+            if claimed.rowcount != 1:
+                return False, "该对战请求状态已变更或已被其他人接受。"
 
         contest_id = chosen.get("contestId")
         index = chosen.get("index")
@@ -357,9 +385,18 @@ class CFDuelService(Service):
 
         # Step 3: Atomic state change and PTT settlement inside transaction
         async with self.session_factory() as session, session.begin():
-            duel = await session.get(CFDuel, duel_id, with_for_update=True)
-            if not duel or duel.status != "active":
-                return False, "对战状态已发生变化，请勿重复结算。"
+            claim_stmt = (
+                update(CFDuel)
+                .where(CFDuel.id == duel_id, CFDuel.status == "active")
+                .values(status="finished", finished_at=now)
+            )
+            claimed = await session.execute(claim_stmt)
+            if claimed.rowcount != 1:
+                return False, "对战状态已发生变化或已被结算，请勿重复结算。"
+
+            duel = await session.get(CFDuel, duel_id)
+            if not duel:
+                return False, "对战记录不存在。"
 
             sender_ptt_obj = await session.get(CFUserPtt, sender_id, with_for_update=True)
             if not sender_ptt_obj:
@@ -453,10 +490,26 @@ class CFDuelService(Service):
                 return False, "你当前没有进行中或等待中的对战。"
 
             if duel.status == "pending":
-                duel.status = "canceled"
+                claim_stmt = (
+                    update(CFDuel)
+                    .where(CFDuel.id == duel.id, CFDuel.status == "pending")
+                    .values(status="canceled")
+                )
+                claimed = await session.execute(claim_stmt)
+                if claimed.rowcount != 1:
+                    return False, "对战状态已发生变化。"
                 return True, "已取消对战请求。"
 
             # Active duel: giving up counts as defeat
+            claim_stmt = (
+                update(CFDuel)
+                .where(CFDuel.id == duel.id, CFDuel.status == "active")
+                .values(status="finished", finished_at=now)
+            )
+            claimed = await session.execute(claim_stmt)
+            if claimed.rowcount != 1:
+                return False, "对战状态已发生变化或已被结算。"
+
             problem = duel.problem or {}
             prob_rating = problem.get("rating", 1400)
 
