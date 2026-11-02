@@ -47,6 +47,72 @@ class NowcoderClient(ProfileClient):
                 sections.append(ProfileSection(title, tuple(lines)))
         return replace(profile, metrics=tuple(metrics), sections=tuple(sections), warnings=tuple(warnings))
 
+    async def standings(self, contest_id: int | str, search_user_name: str = "") -> dict:
+        """Fetch real-time standings for a contest, optionally filtered by user handle."""
+        cid = str(contest_id).strip()
+        params = {"id": cid, "limit": 0}
+        if search_user_name:
+            params["searchUserName"] = search_user_name.strip()
+
+        data = await self.http.get_json(
+            "https://ac.nowcoder.com/acm-heavy/acm/contest/real-time-rank-data",
+            params=params,
+        )
+        if not isinstance(data, dict):
+            raise UpstreamError("Nowcoder: invalid standings API response")
+        if data.get("msg") != "OK":
+            err_msg = data.get("msg") or "API returned error"
+            raise UpstreamError(f"Nowcoder API error: {err_msg}")
+        if not isinstance(data.get("data"), dict):
+            raise UpstreamError("Nowcoder: missing data field in standings response")
+
+        cdata = data["data"]
+        basic_info = cdata.get("basicInfo", {})
+        rank_data = cdata.get("rankData", [])
+        problem_data = cdata.get("problemData", [])
+
+        if not isinstance(rank_data, list):
+            rank_data = []
+        elif any(not isinstance(entry, dict) for entry in rank_data):
+            raise UpstreamError("Nowcoder: invalid rankData entries")
+        if not isinstance(basic_info, dict):
+            basic_info = {}
+
+        return {
+            "contest_id": cid,
+            "basic_info": basic_info,
+            "rank_type": basic_info.get("rankType", "ICPC"),
+            "rank_data": rank_data,
+            "problem_data": problem_data,
+        }
+
+    @staticmethod
+    def format_standing_entry(standing: dict, rank_type: str = "ICPC") -> str:
+        """Format a single standing record into readable text."""
+        ranking = standing.get("ranking", "?")
+        user_name = standing.get("userName", "未知")
+        school = standing.get("school", "")
+        school_str = f" @{school}" if school else ""
+        is_team = bool(standing.get("team"))
+        participate_type = "团队" if is_team else "个人"
+        ac_count = standing.get("acceptedCount", 0)
+
+        if rank_type == "ICPC":
+            penalty_ms = standing.get("penaltyTime", 0)
+            try:
+                penalty_min = int(penalty_ms or 0) // 60000
+            except (ValueError, TypeError):
+                penalty_min = 0
+            score_info = f"罚时 {penalty_min}"
+        else:
+            total_score = standing.get("totalScore", 0)
+            score_info = f"总分 {total_score}"
+
+        return (
+            f"#{ranking} {user_name}{school_str}\n"
+            f"{participate_type}，通过 {ac_count} 题，{score_info}"
+        )
+
     async def _basic(self, handle):
         response = await self.http.request(
             "GET",
