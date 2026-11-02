@@ -119,10 +119,16 @@ async def handle_codeforces_prob(
     tag, rating, newer = None, None, False
     for a in args:
         if a.lower() == "new":
+            if newer:
+                await reply.finish("重复的参数: new")
             newer = True
         elif is_rating_range(a):
+            if rating is not None:
+                await reply.finish(f"冲突的难度参数: {rating} 与 {a}")
             rating = a
         else:
+            if tag is not None:
+                await reply.finish(f"冲突的标签参数: {tag} 与 {a}")
             tag = a
 
     success, msg, _ = await services.cf_problem.pick_problem(tag=tag, rating_range=rating, newer_only=newer)

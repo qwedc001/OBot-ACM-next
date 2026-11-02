@@ -100,8 +100,11 @@ class CFProblemService(Service):
             return problems
 
         if refresh:
-            # Clear existing entry to allow re-fetch via get() maintaining LRU order
-            self._cache._cache.pop(key, None)
+            if key == "all":
+                # Refreshing "all" invalidates all tag-specific caches to maintain consistency
+                self._cache.invalidate()
+            else:
+                self._cache.invalidate(key)
 
         return await self._cache.get(key, _fetch)
 
@@ -177,19 +180,25 @@ class CFProblemService(Service):
 
         candidates = []
         for p in problems:
+            if not isinstance(p, dict):
+                continue
             # If a tag filter was requested, ensure the problem has this tag
             if fetch_tag and fetch_tag.lower() != "all":
-                p_tags = [t.lower() for t in p.get("tags", [])] + [t.replace(" ", "-").lower() for t in p.get("tags", [])]
+                raw_tags = p.get("tags")
+                if not isinstance(raw_tags, list):
+                    continue
+                p_tags = [str(t).lower() for t in raw_tags] + [str(t).replace(" ", "-").lower() for t in raw_tags]
                 if fetch_tag.lower() not in p_tags:
                     continue
             r = p.get("rating")
             if min_rating is not None:
-                if r is None or r < min_rating or r > max_rating:
+                if not isinstance(r, (int, float)) or r < min_rating or r > max_rating:
                     continue
-            if newer_only:
-                contest_id = p.get("contestId")
-                if contest_id is None or contest_id < 1000:
-                    continue
+            contest_id = p.get("contestId")
+            if not isinstance(contest_id, int):
+                continue
+            if newer_only and contest_id < 1000:
+                continue
             candidates.append(p)
 
         if not candidates:
