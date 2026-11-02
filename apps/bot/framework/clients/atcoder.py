@@ -85,13 +85,25 @@ class AtcoderClient(ProfileClient):
 
         candidates = []
         for prob in problems:
+            if not isinstance(prob, dict):
+                continue
             cid = str(prob.get("contest_id", "")).lower()
             if ctype and ctype != "all" and not cid.startswith(ctype):
                 continue
 
             pid = prob.get("id")
+            if not pid:
+                continue
             model = models.get(pid, {})
-            difficulty = model.get("difficulty")
+            if not isinstance(model, dict):
+                model = {}
+            raw_diff = model.get("difficulty")
+            difficulty = None
+            if raw_diff is not None:
+                try:
+                    difficulty = int(raw_diff)
+                except (ValueError, TypeError):
+                    difficulty = None
 
             if min_diff is not None or max_diff is not None:
                 if difficulty is None:

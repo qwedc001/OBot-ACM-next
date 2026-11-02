@@ -99,7 +99,10 @@ class NowcoderClient(ProfileClient):
 
         if rank_type == "ICPC":
             penalty_ms = standing.get("penaltyTime", 0)
-            penalty_min = int(penalty_ms) // 60000
+            try:
+                penalty_min = int(penalty_ms or 0) // 60000
+            except (ValueError, TypeError):
+                penalty_min = 0
             score_info = f"罚时 {penalty_min}"
         else:
             total_score = standing.get("totalScore", 0)
