@@ -143,14 +143,6 @@ class CodeforcesClient(ProfileClient):
         """Fetch latest submissions for a user."""
         return await self._api("user.status", handle=handle, _from_=1, count=count)
 
-    async def get_problemset(self, tag: str | None = None) -> list[dict]:
-        """Fetch problemset problems, optionally filtered by tag."""
-        params = {}
-        if tag and tag.lower() != "all":
-            params["tags"] = tag
-        data = await self._api("problemset.problems", **params)
-        return data.get("problems", [])
-
     def __init__(self, *args, interval=2.1, **kwargs):
         super().__init__(*args, **kwargs)
         self.interval = interval

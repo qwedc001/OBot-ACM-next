@@ -49,11 +49,18 @@ class AsyncCache[T]:
             self._pending.pop(key, None)
 
     def invalidate(self, key: str | None = None) -> None:
-        """Invalidate a specific key or clear entire cache."""
+        """Invalidate a specific key or clear entire cache, including pending tasks."""
         if key is not None:
             self._cache.pop(key, None)
+            task = self._pending.pop(key, None)
+            if task and not task.done():
+                task.cancel()
         else:
             self._cache.clear()
+            for task in list(self._pending.values()):
+                if not task.done():
+                    task.cancel()
+            self._pending.clear()
 
     async def close(self):
         self._closed = True
