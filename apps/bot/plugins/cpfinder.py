@@ -1,6 +1,6 @@
 """CPCFinder plugin: query XCPC contestants, schools, awards and team records."""
 
-from arclet.alconna import Args, Subcommand
+from arclet.alconna import Args, StrMulti, Subcommand
 from nonebot.adapters import Bot
 from nonebot.plugin import PluginMetadata
 
@@ -35,9 +35,9 @@ cpc_spec = CommandSpec(
 
 cpc_cmd = template_command(
     cpc_spec,
-    Subcommand("school", Args["school_name", str], alias=("sch", "univ")),
-    Subcommand("team", Args["team_name", str], alias=("tm",)),
-    Args["query?", str]["school?", str],
+    Subcommand("school", Args["school_name", StrMulti], alias=("sch", "univ")),
+    Subcommand("team", Args["team_name", StrMulti], alias=("tm",)),
+    Args["query?", str]["school?", StrMulti],
     priority=10,
     block=True,
 )
