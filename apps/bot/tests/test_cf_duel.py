@@ -5,7 +5,7 @@ import time
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from framework.contracts import Actor, RequestContext, SceneKind, SceneRef
 from framework.models import CFBinding, CFDuel, CFUserPtt, User
@@ -95,6 +95,18 @@ async def test_duel_lifecycle_and_settlement(cf_duel_service, mock_cf_client, da
     ok_rev, msg_rev = await cf_duel_service.challenge(ctx_a, rating_range="1600-1400")
     assert not ok_rev
     assert "不能大于上限" in msg_rev
+
+    for rejected_range in ["700-1000", "1400-3600", "3600", "1200-1400-1600"]:
+        ok_rej, _ = await cf_duel_service.challenge(ctx_a, rating_range=rejected_range)
+        assert not ok_rej
+
+    # Valid boundary cases
+    for accepted_range in ["800", "3500", "800-3500"]:
+        ok_bound, _ = await cf_duel_service.challenge(ctx_a, rating_range=accepted_range)
+        assert ok_bound
+        # Clean up pending duel for next iteration
+        async with database() as session, session.begin():
+            await session.execute(delete(CFDuel).where(CFDuel.sender_id == USER_A_ID))
 
     ok, msg = await cf_duel_service.challenge(ctx_a, rating_range="1400-1600")
     assert ok
@@ -231,7 +243,13 @@ async def test_duel_concurrent_settlement(cf_duel_service, mock_cf_client, datab
     assert ok_acc
 
     # 2. Both AC
-    mock_cf_client.get_problem_status.return_value = (True, 20)
+    barrier = asyncio.Barrier(2)
+
+    async def status(*args, **kwargs):
+        await barrier.wait()
+        return (True, 20)
+
+    mock_cf_client.get_problem_status.side_effect = status
 
     # Call finish concurrently
     res1, res2 = await asyncio.gather(

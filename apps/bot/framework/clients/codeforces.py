@@ -49,8 +49,10 @@ class CodeforcesClient(ProfileClient):
             return None
         return None
 
-    async def get_user_submitted_problems(self, handle: str) -> set[str]:
-        """Fetch all problems submitted by user formatted as f'{contestId}{index}'."""
+    async def get_user_submitted_problems(self, handle: str) -> set[str] | None:
+        """Fetch all problems submitted by user formatted as f'{contestId}{index}'.
+        Returns None if API request failed.
+        """
         try:
             status = await self._api("user.status", handle=handle)
             prob_ids = set()
@@ -62,7 +64,7 @@ class CodeforcesClient(ProfileClient):
                     prob_ids.add(f"{contest_id}{index}")
             return prob_ids
         except Exception:
-            return set()
+            return None
 
     async def get_problemset(self, tag: str | None = None) -> list[dict]:
         """Fetch problemset problems, optionally filtered by tag."""

@@ -217,8 +217,9 @@ class CFDuelService(Service):
             return False, "你当前未绑定 Codeforces 账号，请先使用 /cf bind [handle] 进行绑定。"
 
         now = time.time()
+        # Step 1: Read and validate the duel in a short session without holding DB lock during API calls
         async with self.session_factory() as session, session.begin():
-            stmt = select(CFDuel).where(CFDuel.pair_code == pair_code).with_for_update()
+            stmt = select(CFDuel).where(CFDuel.pair_code == pair_code)
             duel = (await session.scalars(stmt)).first()
             if not duel:
                 return False, "对战码无效或不存在，请检查输入。"
@@ -230,7 +231,8 @@ class CFDuelService(Service):
                 return False, "你不能接受自己发起的对战。"
 
             if duel.status != "pending" or duel.expires_at < now:
-                duel.status = "expired" if duel.status == "pending" else duel.status
+                if duel.status == "pending":
+                    duel.status = "expired"
                 return False, "该对战请求已失效或已被接受。"
 
             # Check user's own status
@@ -244,71 +246,86 @@ class CFDuelService(Service):
                 duel.status = "canceled"
                 return False, "发起者账号状态异常，无法开始对战。"
 
+            duel_id = duel.id
+            duel_tag = duel.tag
+            duel_rating_range = duel.rating_range
             sender_handle = duel.sender_handle
             receiver_handle = handle
 
-            # Problem selection:
-            # 1. Fetch ratings
-            r_a = await self.cf_client.get_user_rating(sender_handle)
-            r_b = await self.cf_client.get_user_rating(receiver_handle)
-            r_avg = ((r_a or 1400) + (r_b or 1400)) // 2
+        # Step 2: Codeforces API calls (outside of database transaction)
+        # 1. Fetch ratings
+        r_a = await self.cf_client.get_user_rating(sender_handle)
+        r_b = await self.cf_client.get_user_rating(receiver_handle)
+        r_avg = ((r_a or 1400) + (r_b or 1400)) // 2
 
-            # Parse rating range
-            min_r, max_r = max(800, r_avg - 250), min(3000, r_avg + 250)
-            if duel.rating_range:
-                try:
-                    if "-" in duel.rating_range:
-                        parts = duel.rating_range.split("-")
-                        min_r, max_r = int(parts[0]), int(parts[1])
-                    else:
-                        val = int(duel.rating_range)
-                        min_r, max_r = val, val
-                except Exception:
-                    pass
+        # Parse rating range
+        min_r, max_r = max(800, r_avg - 250), min(3000, r_avg + 250)
+        if duel_rating_range:
+            try:
+                if "-" in duel_rating_range:
+                    parts = duel_rating_range.split("-")
+                    min_r, max_r = int(parts[0]), int(parts[1])
+                else:
+                    val = int(duel_rating_range)
+                    min_r, max_r = val, val
+            except Exception:
+                pass
 
-            # 2. Exclude submitted problems
-            excludes = set()
-            excludes.update(await self.cf_client.get_user_submitted_problems(sender_handle))
-            excludes.update(await self.cf_client.get_user_submitted_problems(receiver_handle))
+        # 2. Exclude submitted problems (fail if API returns None)
+        sender_excludes = await self.cf_client.get_user_submitted_problems(sender_handle)
+        receiver_excludes = await self.cf_client.get_user_submitted_problems(receiver_handle)
+        if sender_excludes is None or receiver_excludes is None:
+            return False, "无法获取双方的历史提交记录，请稍后重试。"
+        excludes = sender_excludes | receiver_excludes
 
-            # 3. Fetch candidate problems
-            problems = await self.cf_client.get_problemset(duel.tag)
-            candidates = [
-                p
-                for p in problems
-                if p.get("rating")
-                and min_r <= p["rating"] <= max_r
-                and f"{p.get('contestId')}{p.get('index')}" not in excludes
-            ]
+        # 3. Fetch candidate problems
+        problems = await self.cf_client.get_problemset(duel_tag)
+        candidates = [
+            p
+            for p in problems
+            if p.get("rating")
+            and min_r <= p["rating"] <= max_r
+            and f"{p.get('contestId')}{p.get('index')}" not in excludes
+        ]
 
-            # Fallback if too strict: do NOT silently discard tag or rating range!
-            # If user explicitly specified tag/range and no candidate matched, fail explicitly instead of silently giving random problem.
-            if not candidates:
-                reason_parts = []
-                if duel.tag:
-                    reason_parts.append(f"标签 [{duel.tag}]")
-                if duel.rating_range:
-                    reason_parts.append(f"难度 [{min_r}-{max_r}]")
-                filter_desc = "及".join(reason_parts) if reason_parts else f"难度 [{min_r}-{max_r}]"
-                return False, f"未找到符合条件（{filter_desc}）且双方未做过的题目，请更换筛选条件重新发起对战。"
+        # Fallback if too strict: do NOT silently discard tag or rating range!
+        if not candidates:
+            reason_parts = []
+            if duel_tag:
+                reason_parts.append(f"标签 [{duel_tag}]")
+            if duel_rating_range:
+                reason_parts.append(f"难度 [{min_r}-{max_r}]")
+            filter_desc = "及".join(reason_parts) if reason_parts else f"难度 [{min_r}-{max_r}]"
+            return False, f"未找到符合条件（{filter_desc}）且双方未做过的题目，请更换筛选条件重新发起对战。"
 
-            chosen = random.choice(candidates)
+        chosen = random.choice(candidates)
 
-            # Atomic claim duel before activating
+        # Step 3: Claim duel in a new transaction with unexpired and pending check
+        claim_now = time.time()
+        async with self.session_factory() as session, session.begin():
+            # Recheck receiver's active/pending duel inside claim transaction
+            existing = await self.get_active_duel_for_user(session, user_id)
+            if existing:
+                return False, f"你当前已有进行中或等待中的对战（对战码：{existing.pair_code}），无法接受新对战。"
+
             claim_stmt = (
                 update(CFDuel)
-                .where(CFDuel.id == duel.id, CFDuel.status == "pending")
+                .where(
+                    CFDuel.id == duel_id,
+                    CFDuel.status == "pending",
+                    CFDuel.expires_at >= claim_now,
+                )
                 .values(
                     receiver_id=user_id,
                     receiver_handle=receiver_handle,
                     status="active",
                     problem=chosen,
-                    started_at=now,
+                    started_at=claim_now,
                 )
             )
             claimed = await session.execute(claim_stmt)
             if claimed.rowcount != 1:
-                return False, "该对战请求状态已变更或已被其他人接受。"
+                return False, "该对战请求状态已变更、已超时或已被其他人接受。"
 
         contest_id = chosen.get("contestId")
         index = chosen.get("index")
