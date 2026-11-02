@@ -69,6 +69,13 @@ cf = profile_command(
     ),
     Subcommand("recent", Args["handle", str]["count?", int]),
     Subcommand("tags", alias=("tag",)),
+    Subcommand(
+        "duel",
+        Subcommand("challenge", Args["rating_range?", str]["tag?", str], alias=("start",)),
+        Subcommand("accept", Args["pair_code", str]),
+        Subcommand("finish"),
+        Subcommand("giveup", alias=("cancel",)),
+    ),
 )
 atc = profile_command("atc", "AtCoder", ("atc", "atcoder"), "tourist")
 nk = profile_command("nk", "牛客", ("nk", "nc", "nowcoder"), "123456")
@@ -157,6 +164,38 @@ async def handle_codeforces_tags(services: BotServices, reply: Reply):
     if not tags:
         await reply.finish("暂无法获取标签列表，请稍后重试。")
     msg = "[Codeforces] 题目标签:\n" + ", ".join(tags)
+    await reply.finish(msg)
+
+
+@cf.assign("duel.challenge")
+async def handle_codeforces_duel_challenge(
+    context: CommandContext,
+    services: BotServices,
+    reply: Reply,
+    rating_range: str | None = None,
+    tag: str | None = None,
+):
+    success, msg = await services.cf_duel.challenge(context, rating_range, tag)
+    await reply.finish(msg)
+
+
+@cf.assign("duel.accept")
+async def handle_codeforces_duel_accept(
+    context: CommandContext, services: BotServices, reply: Reply, pair_code: str
+):
+    success, msg = await services.cf_duel.accept(context, pair_code)
+    await reply.finish(msg)
+
+
+@cf.assign("duel.finish")
+async def handle_codeforces_duel_finish(context: CommandContext, services: BotServices, reply: Reply):
+    success, msg = await services.cf_duel.finish(context)
+    await reply.finish(msg)
+
+
+@cf.assign("duel.giveup")
+async def handle_codeforces_duel_giveup(context: CommandContext, services: BotServices, reply: Reply):
+    success, msg = await services.cf_duel.giveup(context)
     await reply.finish(msg)
 
 
