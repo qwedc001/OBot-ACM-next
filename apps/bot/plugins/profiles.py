@@ -51,6 +51,13 @@ cf = profile_command(
     "tourist",
     Subcommand("bind", Args["handle?", str]),
     Subcommand("unbind"),
+    Subcommand(
+        "duel",
+        Subcommand("challenge", Args["rating_range?", str]["tag?", str], alias=("start",)),
+        Subcommand("accept", Args["pair_code", str]),
+        Subcommand("finish"),
+        Subcommand("giveup", alias=("cancel",)),
+    ),
 )
 atc = profile_command("atc", "AtCoder", ("atc", "atcoder"), "tourist")
 nk = profile_command("nk", "牛客", ("nk", "nc", "nowcoder"), "123456")
@@ -85,6 +92,38 @@ async def handle_codeforces_bind(
 @cf.assign("unbind")
 async def handle_codeforces_unbind(context: CommandContext, services: BotServices, reply: Reply):
     success, msg = await services.cf_binding.unbind(context)
+    await reply.finish(msg)
+
+
+@cf.assign("duel.challenge")
+async def handle_codeforces_duel_challenge(
+    context: CommandContext,
+    services: BotServices,
+    reply: Reply,
+    rating_range: str | None = None,
+    tag: str | None = None,
+):
+    success, msg = await services.cf_duel.challenge(context, rating_range, tag)
+    await reply.finish(msg)
+
+
+@cf.assign("duel.accept")
+async def handle_codeforces_duel_accept(
+    context: CommandContext, services: BotServices, reply: Reply, pair_code: str
+):
+    success, msg = await services.cf_duel.accept(context, pair_code)
+    await reply.finish(msg)
+
+
+@cf.assign("duel.finish")
+async def handle_codeforces_duel_finish(context: CommandContext, services: BotServices, reply: Reply):
+    success, msg = await services.cf_duel.finish(context)
+    await reply.finish(msg)
+
+
+@cf.assign("duel.giveup")
+async def handle_codeforces_duel_giveup(context: CommandContext, services: BotServices, reply: Reply):
+    success, msg = await services.cf_duel.giveup(context)
     await reply.finish(msg)
 
 

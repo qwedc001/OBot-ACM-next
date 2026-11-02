@@ -205,3 +205,40 @@ class CFBindingLog(Model):
     action: Mapped[str] = mapped_column(String(32))  # "bind", "unbind"
     detail: Mapped[str] = mapped_column(server_default="")
     created_at: Mapped[float] = mapped_column(Float, index=True)
+
+
+class CFUserPtt(Model):
+    __tablename__ = "bot_cf_user_ptt"
+    user_id: Mapped[str] = mapped_column(String(32), ForeignKey("bot_users.id"), primary_key=True)
+    ptt: Mapped[int] = mapped_column(default=0)
+    contest_history: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[float] = mapped_column(Float)
+    updated_at: Mapped[float] = mapped_column(Float)
+
+
+class CFDuel(Model):
+    __tablename__ = "bot_cf_duels"
+    __table_args__ = (
+        Index("ix_cf_duels_scene_status", "scene", "status"),
+        Index("ix_cf_duels_sender", "sender_id", "status"),
+        Index("ix_cf_duels_receiver", "receiver_id", "status"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=lambda: uuid4().hex)
+    scene: Mapped[str] = mapped_column(String(64), index=True)
+    pair_code: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    sender_id: Mapped[str] = mapped_column(String(32), ForeignKey("bot_users.id"))
+    sender_handle: Mapped[str] = mapped_column(String(64))
+    receiver_id: Mapped[str | None] = mapped_column(String(32), ForeignKey("bot_users.id"))
+    receiver_handle: Mapped[str | None] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending, active, finished, canceled
+    rating_range: Mapped[str | None] = mapped_column(String(32))
+    tag: Mapped[str | None] = mapped_column(String(64))
+    problem: Mapped[dict | None] = mapped_column(JSON)
+    outcome: Mapped[int | None] = mapped_column(default=None)  # 0: sender win, 1: receiver win, 2: tie
+    sender_ptt_delta: Mapped[int | None] = mapped_column(default=None)
+    receiver_ptt_delta: Mapped[int | None] = mapped_column(default=None)
+    created_at: Mapped[float] = mapped_column(Float)
+    started_at: Mapped[float | None] = mapped_column(Float, default=None)
+    finished_at: Mapped[float | None] = mapped_column(Float, default=None)
+    expires_at: Mapped[float] = mapped_column(Float, index=True)
+
