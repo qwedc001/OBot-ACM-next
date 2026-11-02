@@ -11,11 +11,22 @@ from framework.messages import Image
 
 __plugin_meta__ = PluginMetadata(
     name="竞赛账号",
-    description="Codeforces、AtCoder 与牛客公开资料卡及账号绑定",
-    usage="/cf user <账号标识>；/cf bind [handle]；/cf unbind；/atc user <账号标识>；/nk user <账号标识>",
+    description="Codeforces、AtCoder 与牛客公开资料卡、题目检索及账号绑定",
+    usage="/cf user <账号标识>；/cf prob [tag] [rating] [new]；/cf recent <handle> [count]；/cf tags；/cf bind [handle]；/cf unbind；/atc user <账号标识>；/nk user <账号标识>",
     type="application",
     supported_adapters=None,
 )
+
+
+def is_rating_range(val: str) -> bool:
+    """Check if string is a numeric rating or rating range like 1500 or 1400-1600."""
+    val = val.strip()
+    if val.isdigit():
+        return True
+    if "-" in val:
+        parts = val.split("-", 1)
+        return parts[0].isdigit() and parts[1].isdigit()
+    return False
 
 
 def profile_command(name, label, aliases, example, *subcommands):
@@ -51,6 +62,13 @@ cf = profile_command(
     "tourist",
     Subcommand("bind", Args["handle?", str]),
     Subcommand("unbind"),
+    Subcommand(
+        "prob",
+        Args["arg1?", str]["arg2?", str]["arg3?", str],
+        alias=("pick", "problem"),
+    ),
+    Subcommand("recent", Args["handle", str]["count?", int]),
+    Subcommand("tags", alias=("tag",)),
     Subcommand(
         "duel",
         Subcommand("challenge", Args["rating_range?", str]["tag?", str], alias=("start",)),
@@ -92,6 +110,60 @@ async def handle_codeforces_bind(
 @cf.assign("unbind")
 async def handle_codeforces_unbind(context: CommandContext, services: BotServices, reply: Reply):
     success, msg = await services.cf_binding.unbind(context)
+    await reply.finish(msg)
+
+
+@cf.assign("prob")
+async def handle_codeforces_prob(
+    context: CommandContext,
+    services: BotServices,
+    reply: Reply,
+    arg1: str | None = None,
+    arg2: str | None = None,
+    arg3: str | None = None,
+):
+    args = [a for a in (arg1, arg2, arg3) if a is not None]
+    tag, rating, newer = None, None, False
+    for a in args:
+        if a.lower() == "new":
+            if newer:
+                await reply.finish("重复的参数: new")
+            newer = True
+        elif is_rating_range(a):
+            if rating is not None:
+                await reply.finish(f"冲突的难度参数: {rating} 与 {a}")
+            rating = a
+        else:
+            if tag is not None:
+                await reply.finish(f"冲突的标签参数: {tag} 与 {a}")
+            tag = a
+
+    success, msg, _ = await services.cf_problem.pick_problem(tag=tag, rating_range=rating, newer_only=newer)
+    await reply.finish(msg)
+
+
+@cf.assign("recent")
+async def handle_codeforces_recent(
+    context: CommandContext,
+    services: BotServices,
+    reply: Reply,
+    handle: str,
+    count: int | None = None,
+):
+    actual_count = count if count is not None else 5
+    success, msg = await services.cf_problem.get_recent_submissions(handle, actual_count)
+    await reply.finish(msg)
+
+
+@cf.assign("tags")
+async def handle_codeforces_tags(services: BotServices, reply: Reply):
+    try:
+        tags = await services.cf_problem.get_all_tags()
+    except Exception:
+        await reply.finish("暂无法获取标签列表，请稍后重试。")
+    if not tags:
+        await reply.finish("暂无法获取标签列表，请稍后重试。")
+    msg = "[Codeforces] 题目标签:\n" + ", ".join(tags)
     await reply.finish(msg)
 
 

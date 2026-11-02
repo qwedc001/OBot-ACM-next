@@ -139,6 +139,10 @@ class CodeforcesClient(ProfileClient):
                 return True
         return False
 
+    async def get_user_submissions(self, handle: str, count: int = 5) -> list[dict]:
+        """Fetch latest submissions for a user."""
+        return await self._api("user.status", handle=handle, _from_=1, count=count)
+
     def __init__(self, *args, interval=2.1, **kwargs):
         super().__init__(*args, **kwargs)
         self.interval = interval
