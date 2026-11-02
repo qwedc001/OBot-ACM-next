@@ -24,10 +24,11 @@ cpc_spec = CommandSpec(
     aliases=("cpc", "cpcfinder", "xcpc", "xcpcfinder"),
     example_alias="cpc",
     summary="查询 XCPC 选手档案、奖牌与高校战绩",
-    usage="/cpc <姓名> [学校] 或 /cpc school <学校名> /cpc team <队伍名>",
+    usage='/cpc <姓名> [学校]（多词姓名请加双引号：/cpc "First Middle Last" [学校]）或 /cpc school <学校名> /cpc team <队伍名>',
     examples=(
         "/cpc 李欣鹏",
         "/cpc 蒋凌宇 北京大学",
+        '/cpc "John Doe" "MIT"',
         "/cpc school 北京大学",
         "/cpc team 茉莉雨",
     ),

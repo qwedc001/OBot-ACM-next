@@ -189,7 +189,7 @@ class CPCFinderService(Service):
                 f"   Rating: {stu.rating:.1f} {rank_str}| 金: {stu.gold} 银: {stu.silver} 铜: {stu.bronze}"
             )
         lines.append("")
-        lines.append("提示：可通过输入「/cpc 姓名 学校」精确查询。")
+        lines.append('提示：可通过输入「/cpc 姓名 学校」精确查询（含空格的姓名请用引号包裹，如 /cpc "First Last" 学校）。')
         return "\n".join(lines)
 
     async def _render_student_profile(
