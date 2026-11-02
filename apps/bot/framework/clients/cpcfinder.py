@@ -113,22 +113,33 @@ class CPCFinderClient(Client):
             return cached
 
         data = await self._get(f"{BASE_URL}/student?{urlencode(params)}")
-        items = data.get("data") or []
+        raw_items = data.get("data")
+        if not raw_items:
+            items = []
+        elif isinstance(raw_items, list):
+            if any(not isinstance(it, dict) for it in raw_items):
+                raise UpstreamError("CPCFinder student list contains malformed items")
+            items = raw_items
+        else:
+            raise UpstreamError("CPCFinder student list malformed response")
         results = []
         for item in items:
-            results.append(
-                CPCStudentCandidate(
-                    student_id=str(item.get("studentId", "")),
-                    name=str(item.get("name", "")),
-                    school_name=str(item.get("schoolName", "")),
-                    gold=int(item.get("goldCount", 0) or 0),
-                    silver=int(item.get("silverCount", 0) or 0),
-                    bronze=int(item.get("bronzeCount", 0) or 0),
-                    rating=float(item.get("rating", 0.0) or 0.0),
-                    rank=item.get("rank"),
-                    latest_event_date=item.get("latestEventDate"),
+            try:
+                results.append(
+                    CPCStudentCandidate(
+                        student_id=str(item.get("studentId", "")),
+                        name=str(item.get("name", "")),
+                        school_name=str(item.get("schoolName", "")),
+                        gold=int(item.get("goldCount", 0) or 0),
+                        silver=int(item.get("silverCount", 0) or 0),
+                        bronze=int(item.get("bronzeCount", 0) or 0),
+                        rating=float(item.get("rating", 0.0) or 0.0),
+                        rank=item.get("rank"),
+                        latest_event_date=item.get("latestEventDate"),
+                    )
                 )
-            )
+            except Exception as e:
+                raise UpstreamError(f"CPCFinder failed to parse student item: {e}") from e
         self._set_cache(cache_key, results)
         return results
 
@@ -143,19 +154,24 @@ class CPCFinderClient(Client):
         item = data.get("data")
         if not item:
             return None
-        detail = CPCStudentDetail(
-            student_id=str(item.get("studentId", "")),
-            name=str(item.get("name", "")),
-            school_name=str(item.get("schoolName", "")),
-            champion=int(item.get("championCount", 0) or 0),
-            second=int(item.get("secCount", 0) or 0),
-            third=int(item.get("thiCount", 0) or 0),
-            gold=int(item.get("goldCount", 0) or 0),
-            silver=int(item.get("silverCount", 0) or 0),
-            bronze=int(item.get("bronzeCount", 0) or 0),
-            rating=float(item.get("rating", 0.0) or 0.0),
-            rank=item.get("rank"),
-        )
+        if not isinstance(item, dict):
+            raise UpstreamError("CPCFinder student detail malformed response")
+        try:
+            detail = CPCStudentDetail(
+                student_id=str(item.get("studentId", "")),
+                name=str(item.get("name", "")),
+                school_name=str(item.get("schoolName", "")),
+                champion=int(item.get("championCount", 0) or 0),
+                second=int(item.get("secCount", 0) or 0),
+                third=int(item.get("thiCount", 0) or 0),
+                gold=int(item.get("goldCount", 0) or 0),
+                silver=int(item.get("silverCount", 0) or 0),
+                bronze=int(item.get("bronzeCount", 0) or 0),
+                rating=float(item.get("rating", 0.0) or 0.0),
+                rank=item.get("rank"),
+            )
+        except Exception as e:
+            raise UpstreamError(f"CPCFinder failed to parse student detail: {e}") from e
         self._set_cache(cache_key, detail)
         return detail
 
@@ -167,7 +183,13 @@ class CPCFinderClient(Client):
             return cached
 
         data = await self._get(f"{BASE_URL}/student/{student_id}/awards")
-        items = data.get("data") or []
+        raw_items = data.get("data")
+        if not raw_items:
+            items = []
+        elif isinstance(raw_items, list):
+            items = raw_items
+        else:
+            raise UpstreamError("CPCFinder student awards malformed response")
         awards = [self._parse_award(item) for item in items]
         self._set_cache(cache_key, awards)
         return awards
@@ -181,23 +203,34 @@ class CPCFinderClient(Client):
             return cached
 
         data = await self._get(f"{BASE_URL}/school?{urlencode(params)}")
-        items = data.get("data") or []
+        raw_items = data.get("data")
+        if not raw_items:
+            items = []
+        elif isinstance(raw_items, list):
+            if any(not isinstance(it, dict) for it in raw_items):
+                raise UpstreamError("CPCFinder school list contains malformed items")
+            items = raw_items
+        else:
+            raise UpstreamError("CPCFinder school list malformed response")
         results = []
         for item in items:
-            results.append(
-                CPCSchoolCandidate(
-                    school_id=str(item.get("schoolId", "")),
-                    name=str(item.get("name", "")),
-                    champion=int(item.get("championCount", 0) or 0),
-                    second=int(item.get("secCount", 0) or 0),
-                    third=int(item.get("thiCount", 0) or 0),
-                    gold=int(item.get("goldCount", 0) or 0),
-                    silver=int(item.get("silverCount", 0) or 0),
-                    bronze=int(item.get("bronzeCount", 0) or 0),
-                    max_rank=item.get("maxRank"),
-                    rating=float(item.get("rating", 0.0) or 0.0),
+            try:
+                results.append(
+                    CPCSchoolCandidate(
+                        school_id=str(item.get("schoolId", "")),
+                        name=str(item.get("name", "")),
+                        champion=int(item.get("championCount", 0) or 0),
+                        second=int(item.get("secCount", 0) or 0),
+                        third=int(item.get("thiCount", 0) or 0),
+                        gold=int(item.get("goldCount", 0) or 0),
+                        silver=int(item.get("silverCount", 0) or 0),
+                        bronze=int(item.get("bronzeCount", 0) or 0),
+                        max_rank=item.get("maxRank"),
+                        rating=float(item.get("rating", 0.0) or 0.0),
+                    )
                 )
-            )
+            except Exception as e:
+                raise UpstreamError(f"CPCFinder failed to parse school item: {e}") from e
         self._set_cache(cache_key, results)
         return results
 
@@ -209,7 +242,13 @@ class CPCFinderClient(Client):
             return cached
 
         data = await self._get(f"{BASE_URL}/school/{school_id}/awards")
-        items = data.get("data") or []
+        raw_items = data.get("data")
+        if not raw_items:
+            items = []
+        elif isinstance(raw_items, list):
+            items = raw_items
+        else:
+            raise UpstreamError("CPCFinder school awards malformed response")
         awards = [self._parse_award(item) for item in items]
         self._set_cache(cache_key, awards)
         return awards
@@ -219,7 +258,10 @@ class CPCFinderClient(Client):
             resp = await self._http.request("GET", url)
             if resp.status_code != 200:
                 raise UpstreamError(f"CPCFinder HTTP {resp.status_code}")
-            return resp.json()
+            data = resp.json()
+            if not isinstance(data, dict):
+                raise UpstreamError("CPCFinder malformed response")
+            return data
         except Exception as e:
             if isinstance(e, UpstreamError):
                 raise
@@ -227,25 +269,30 @@ class CPCFinderClient(Client):
 
     @staticmethod
     def _parse_award(item: dict[str, Any]) -> CPCAwardItem:
-        official = bool(item.get("official", False))
-        medal_type = str(item.get("medalType", "") or "NONE").upper()
-        medal = str(item.get("medal", "") or "")
-        if not medal:
-            medal_map = {"GOLD": "金牌", "SILVER": "银牌", "BRONZE": "铜牌", "NONE": "铁牌"}
-            medal = medal_map.get(medal_type, "铁牌") if official else "打星"
-        return CPCAwardItem(
-            award_id=int(item.get("awardId", 0) or 0),
-            contest_id=int(item.get("contestId", 0) or 0),
-            contest_name=str(item.get("contestName", "") or ""),
-            team_id=int(item.get("teamId", 0)) if item.get("teamId") else None,
-            team_name=str(item.get("teamName", "") or ""),
-            medal=medal,
-            medal_type=medal_type,
-            date=str(item.get("date", "") or ""),
-            place=str(item.get("place", "") or ""),
-            rank=int(item.get("rank", 0) or 0),
-            official=official,
-            official_rank=int(item.get("officialRank", -1) or -1),
-            school_rank=int(item.get("schoolRank", 0)) if item.get("schoolRank") is not None else None,
-            total_teams=int(item.get("totalTeams", 0)) if item.get("totalTeams") is not None else None,
-        )
+        if not isinstance(item, dict):
+            raise UpstreamError("CPCFinder malformed award item")
+        try:
+            official = bool(item.get("official", False))
+            medal_type = str(item.get("medalType", "") or "NONE").upper()
+            medal = str(item.get("medal", "") or "")
+            if not medal:
+                medal_map = {"GOLD": "金牌", "SILVER": "银牌", "BRONZE": "铜牌", "NONE": "铁牌"}
+                medal = medal_map.get(medal_type, "铁牌") if official else "打星"
+            return CPCAwardItem(
+                award_id=int(item.get("awardId", 0) or 0),
+                contest_id=int(item.get("contestId", 0) or 0),
+                contest_name=str(item.get("contestName", "") or ""),
+                team_id=int(item.get("teamId", 0)) if item.get("teamId") else None,
+                team_name=str(item.get("teamName", "") or ""),
+                medal=medal,
+                medal_type=medal_type,
+                date=str(item.get("date", "") or ""),
+                place=str(item.get("place", "") or ""),
+                rank=int(item.get("rank", 0) or 0),
+                official=official,
+                official_rank=int(item.get("officialRank", -1) or -1),
+                school_rank=int(item.get("schoolRank", 0)) if item.get("schoolRank") is not None else None,
+                total_teams=int(item.get("totalTeams", 0)) if item.get("totalTeams") is not None else None,
+            )
+        except Exception as e:
+            raise UpstreamError(f"CPCFinder award parse error: {e}") from e
