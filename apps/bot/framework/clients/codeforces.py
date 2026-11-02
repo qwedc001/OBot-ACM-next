@@ -39,6 +39,83 @@ class CodeforcesClient(ProfileClient):
         except ProfileNotFound:
             return False
 
+    async def get_user_rating(self, handle: str) -> int | None:
+        """Fetch user's current rating."""
+        try:
+            info = await self._api("user.info", handles=handle)
+            if info and len(info) > 0:
+                return info[0].get("rating")
+        except Exception:
+            return None
+        return None
+
+    async def get_user_submitted_problems(self, handle: str) -> set[str] | None:
+        """Fetch all problems submitted by user formatted as f'{contestId}{index}'.
+        Returns None if API request failed.
+        """
+        try:
+            status = await self._api("user.status", handle=handle)
+            prob_ids = set()
+            for submission in status:
+                prob = submission.get("problem", {})
+                contest_id = prob.get("contestId")
+                index = prob.get("index")
+                if contest_id and index:
+                    prob_ids.add(f"{contest_id}{index}")
+            return prob_ids
+        except Exception:
+            return None
+
+    async def get_problemset(self, tag: str | None = None) -> list[dict]:
+        """Fetch problemset problems, optionally filtered by tag."""
+        params = {}
+        if tag and tag.lower() != "all":
+            params["tags"] = tag
+        try:
+            data = await self._api("problemset.problems", **params)
+            return data.get("problems", [])
+        except Exception:
+            return []
+
+    async def get_problem_status(
+        self, handle: str, contest_id: int, problem_index: str, min_time: float
+    ) -> tuple[bool, int] | None:
+        """
+        Get AC status and penalty time (in minutes) for a problem submitted after min_time.
+        Penalty follows ICPC rules: (AC_time - min_time) / 60 + 20 * failed_attempts.
+        Failed attempts before AC (excluding CE) add 20 minutes each.
+        """
+        try:
+            submissions = await self.get_contest_submissions(contest_id, handle, count=100)
+        except Exception:
+            return None
+
+        accepted = False
+        penalty = 0
+        skip_verdicts = {"COMPILATION_ERROR", "SKIPPED", "TESTING", "SUBMITTED"}
+
+        # Submissions from API are newest first; reverse to chronological order
+        submissions = list(reversed(submissions))
+
+        for sub in submissions:
+            prob = sub.get("problem", {})
+            if str(prob.get("index", "")).upper() != problem_index.upper():
+                continue
+            verdict = sub.get("verdict")
+            if not verdict or verdict in skip_verdicts:
+                continue
+            created = sub.get("creationTimeSeconds", 0)
+            if created < min_time:
+                continue
+            if verdict == "OK":
+                penalty += int((created - min_time) // 60)
+                accepted = True
+                break
+            # Standard ICPC penalty: any non-CE rejected submission counts toward penalty
+            penalty += 20
+
+        return accepted, penalty
+
     async def get_contest_submissions(self, contest_id: int, handle: str, count: int = 5):
         """Fetch latest submissions for a user in a specific contest (e.g. 1 for P1A)."""
         return await self._api("contest.status", contestId=contest_id, handle=handle, count=count)
@@ -61,6 +138,10 @@ class CodeforcesClient(ProfileClient):
             if min_time <= created <= max_time:
                 return True
         return False
+
+    async def get_user_submissions(self, handle: str, count: int = 5) -> list[dict]:
+        """Fetch latest submissions for a user."""
+        return await self._api("user.status", handle=handle, _from_=1, count=count)
 
     def __init__(self, *args, interval=2.1, **kwargs):
         super().__init__(*args, **kwargs)
