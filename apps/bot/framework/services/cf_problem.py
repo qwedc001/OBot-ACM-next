@@ -62,7 +62,7 @@ class CFProblemService(Service):
         self._tag_alias_map: dict[str, str] = {}  # alias (hyphenated) -> original CF tag
 
     async def start(self):
-        # Start periodic background synchronization
+        # Start periodic background synchronization task
         if self._sync_task is None or self._sync_task.done():
             self._sync_task = asyncio.create_task(self._periodic_sync())
 
@@ -76,15 +76,16 @@ class CFProblemService(Service):
         await self._cache.close()
 
     async def _periodic_sync(self):
-        """Periodically sync problemset to refresh cache."""
+        """Periodically sync problemset to refresh cache (delayed on startup)."""
         while True:
             try:
+                # Wait for initial interval before eager sync to not block startup rate gates
+                await asyncio.sleep(self.sync_interval)
                 await self.get_problemset(refresh=True)
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.warning("Periodic problemset sync failed: %s", e)
-            await asyncio.sleep(self.sync_interval)
 
     async def get_problemset(self, tag: str | None = None, refresh: bool = False) -> list[dict]:
         """Fetch problemset with LRU cache."""
@@ -121,10 +122,9 @@ class CFProblemService(Service):
         self._tag_alias_map = tag_map
 
     async def get_all_tags(self) -> list[str]:
-        """Get all known problem tags."""
-        if not self._cached_tags:
-            problems = await self.get_problemset()
-            self._update_tags(problems)
+        """Get all known problem tags, refreshed from problemset cache."""
+        problems = await self.get_problemset()
+        self._update_tags(problems)
         return self._cached_tags
 
     def match_tag(self, tag: str, all_tags: list[str]) -> str | None:
