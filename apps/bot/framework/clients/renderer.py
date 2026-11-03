@@ -145,7 +145,7 @@ class RenderClient(Client):
         if not view:
             raise ValueError("Render view is empty")
         if view in self._views:
-            if type(self._views[view]) is type(backend):
+            if self._views[view] == backend:
                 return
             raise ValueError(f"Conflicting render backend already registered for view: {view}")
         # A worker imports the backend anew; closures/local classes/native
