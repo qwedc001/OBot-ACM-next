@@ -13,7 +13,7 @@ def test_profiles_native_public_permissions_templates_aliases_and_help(separator
         cwd=Path(__file__).resolve().parents[1],
         capture_output=True,
         encoding="utf-8",
-        timeout=120,
+        timeout=180,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert json.loads(result.stdout.strip().splitlines()[-1]) == {

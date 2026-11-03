@@ -86,6 +86,25 @@ cf = profile_command(
         Subcommand("finish"),
         Subcommand("giveup", alias=("cancel",)),
     ),
+    extra_usage=(
+        "/cf bind [handle]",
+        "/cf unbind",
+        "/cf prob [tag] [rating] [new]",
+        "/cf recent <handle> [count]",
+        "/cf tags",
+        "/cf duel challenge [rating] [tag]",
+        "/cf duel accept <pair_code>",
+        "/cf duel finish",
+        "/cf duel giveup",
+    ),
+    extra_examples=(
+        "/cf bind tourist",
+        "/cf prob dp 1800",
+        "/cf recent tourist 5",
+        "/cf tags",
+        "/cf duel challenge 1600-1800 math",
+        "/cf duel accept 1234",
+    ),
 )
 atc = profile_command(
     "atc",
