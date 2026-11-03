@@ -15,7 +15,6 @@ from ..clients.jobs import QueueClosed, QueueFull
 from ..contracts import RequestContext
 from ..messages import Image, Message, Text
 from ..profiles import Profile, ProfileSection
-from ..views.profile import ProfilePixieBackend
 from .base import Service
 
 logger = logging.getLogger(__name__)
@@ -28,7 +27,7 @@ def format_cpc_rank(award: CPCAwardItem) -> str:
 
 
 class CPCFinderService(Service):
-    dependencies = ("clients.cpcfinder", "clients.renderer")
+    dependencies = ("clients.cpcfinder", "clients.renderer", "profiles")
 
     @classmethod
     def build(cls, container):
@@ -37,7 +36,6 @@ class CPCFinderService(Service):
     def __init__(self, client: CPCFinderClient, renderer):
         self.client = client
         self.renderer = renderer
-        self.renderer.register("profile", ProfilePixieBackend())
 
     async def query_student(
         self, name: str, school: str | None = None
