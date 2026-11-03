@@ -145,7 +145,9 @@ class RenderClient(Client):
         if not view:
             raise ValueError("Render view is empty")
         if view in self._views:
-            return
+            if type(self._views[view]) is type(backend):
+                return
+            raise ValueError(f"Conflicting render backend already registered for view: {view}")
         # A worker imports the backend anew; closures/local classes/native
         # drawing objects cannot be transferred to a clean interpreter.
         try:
