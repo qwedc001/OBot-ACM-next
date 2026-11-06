@@ -24,6 +24,8 @@ MAX_PAGES = 200
 MAX_PAGE_POINTS = 4096
 MAX_INSPECT_PIXELS = 100_000_000
 MAX_CROP_PIXELS = 16_000_000
+MAX_PAGE_TEXT_BYTES = 512 * 1024
+MAX_TOTAL_TEXT_BYTES = 4 * 1024 * 1024
 INSPECT_SCALE = 2
 CROP_SCALE = 4
 
@@ -99,15 +101,25 @@ def inspect_pdf(input_pdf: str | os.PathLike[str], output_dir: str | os.PathLike
             raise PDFError(f"Inspection exceeds {MAX_INSPECT_PIXELS} total render pixels")
         output.mkdir(exist_ok=False)
         pages = []
+        total_text_bytes = 0
         for page, (width, height) in zip(document, sizes):
             number = page.number + 1
             image = output / f"page-{number:04d}.png"
             text_file = output / f"page-{number:04d}.json"
+            # Bound retained/serialized text. Native extraction itself still needs
+            # OS memory/time containment for hostile PDFs (documented in README).
+            text = page.get_text("text")
+            if len(text) > MAX_PAGE_TEXT_BYTES:
+                raise PDFError("Page text exceeds extraction budget")
+            text_bytes = len(text.encode("utf-8"))
+            if text_bytes > MAX_PAGE_TEXT_BYTES or total_text_bytes + text_bytes > MAX_TOTAL_TEXT_BYTES:
+                raise PDFError("Extracted text exceeds per-page or total byte budget")
+            total_text_bytes += text_bytes
             entry = {
                 "page": number,
                 "width": page.rect.width,
                 "height": page.rect.height,
-                "text": page.get_text("text"),
+                "text": text,
                 "text_file": str(text_file),
                 "image": str(image),
                 "scale": INSPECT_SCALE,

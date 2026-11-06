@@ -52,6 +52,27 @@ class PDFTests(unittest.TestCase):
             self.assertEqual((pixmap.width, pixmap.height), (400, 600))
             self.assertEqual((entry["render_width"], entry["render_height"]), (400, 600))
 
+    def test_per_page_text_budget(self):
+        output = self.root / "text-cap"
+        with patch.object(pdf, "MAX_PAGE_TEXT_BYTES", 5):
+            with self.assertRaisesRegex(pdf.PDFError, "text.*budget"):
+                pdf.inspect_pdf(self.source, output)
+        self.assertFalse((output / "index.json").exists())
+        self.assertEqual(list(output.iterdir()), [])
+
+    def test_cumulative_text_budget(self):
+        output = self.root / "total-cap"
+        with patch.object(pdf, "MAX_TOTAL_TEXT_BYTES", 20):
+            with self.assertRaisesRegex(pdf.PDFError, "text.*budget"):
+                pdf.inspect_pdf(self.source, output)
+        self.assertFalse((output / "index.json").exists())
+        self.assertFalse((output / "page-0002.json").exists())
+
+    def test_exact_text_budget_allowed(self):
+        size = len("Generated page 1\n".encode("utf-8"))
+        with patch.object(pdf, "MAX_PAGE_TEXT_BYTES", size), patch.object(pdf, "MAX_TOTAL_TEXT_BYTES", 2 * size):
+            self.assertEqual(pdf.inspect_pdf(self.source, self.root / "exact-cap")["page_count"], 2)
+
     def test_inspect_exclusive_directory_even_if_empty(self):
         output = self.root / "existing"
         output.mkdir()
