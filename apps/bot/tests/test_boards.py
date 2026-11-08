@@ -425,6 +425,8 @@ async def test_board_user_image_delegates_to_peeper_render(database, tmp_path):
     assert model["value"] == "123"
     assert len(model["snapshots"]) == 1
     assert model["credentials"]["uname"] == "test-admin"
+    yesterday = datetime.now(ZoneInfo(boards.settings.obot_board_timezone)).date() - timedelta(days=1)
+    assert model["snapshots"][0]["day"] == yesterday.isoformat()
 
 
 @pytest.mark.parametrize("limit", [4, 101, 0, -1, True, "20", 5.5])

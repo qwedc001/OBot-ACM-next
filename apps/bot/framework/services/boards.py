@@ -396,8 +396,9 @@ class BoardService(Service):
         if kind not in {"id", "name"}:
             raise BoardError("用法：/board user id 用户ID 或 /board user name 用户名。")
         config = await self.choose(context, name)
-        today = datetime.now(ZoneInfo(self.settings.obot_board_timezone)).date().isoformat()
-        snapshots = [await self.snapshot(config, today)]
+        # The updated official user CLI refreshes today itself, like --now/rank.
+        yesterday = (datetime.now(ZoneInfo(self.settings.obot_board_timezone)).date() - timedelta(days=1)).isoformat()
+        snapshots = [await self.snapshot(config, yesterday)]
         model = {
             "name": config.name,
             "mode": "user",
