@@ -142,8 +142,12 @@ class RenderClient(Client):
         return await self._submit(actor, view, model, True)
 
     def register(self, view: str, backend: RenderBackend) -> None:
-        if not view or view in self._views:
-            raise ValueError("Render view is empty or already registered")
+        if not view:
+            raise ValueError("Render view is empty")
+        if view in self._views:
+            if self._views[view] == backend:
+                return
+            raise ValueError(f"Conflicting render backend already registered for view: {view}")
         # A worker imports the backend anew; closures/local classes/native
         # drawing objects cannot be transferred to a clean interpreter.
         try:
