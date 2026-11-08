@@ -371,6 +371,27 @@ class BoardService(Service):
             )
         return await self.peeper.render(actor, model)
 
+    async def rank_image(self, context, limit=20, name=None):
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 5 <= limit <= 100:
+            raise BoardError("参数错误，请输入 [5, 100] 内的整数。")
+        config = await self.choose(context, name)
+        yesterday = (datetime.now(ZoneInfo(self.settings.obot_board_timezone)).date() - timedelta(days=1)).isoformat()
+        snapshots = [await self.snapshot(config, yesterday)]
+        model = {
+            "name": config.name, "mode": "rank", "limit": limit, "snapshots": snapshots,
+            "timezone": self.settings.obot_board_timezone,
+            "host": config.host,
+            "credentials": await self.credentials.decrypt(config.credentials),
+            "show_unrated": config.options.get("show_unrated", True),
+            "exclude_uid": config.options.get("exclude_uid", []),
+            "exclude_before": config.options.get("exclude_before", "1970-01-01"),
+        }
+        artifact = await self.peeper.render(context.actor, model)
+        latest = await self.choose(context, name)
+        if latest.id != config.id or latest.revision != config.revision or latest.options != config.options:
+            raise BoardError("配置已改变，请重新查询榜单。")
+        return artifact
+
     async def user_image(self, context, kind, value, name=None):
         if kind not in {"id", "name"}:
             raise BoardError("用法：/board user id 用户ID 或 /board user name 用户名。")

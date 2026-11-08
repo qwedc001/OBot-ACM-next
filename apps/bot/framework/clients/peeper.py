@@ -69,13 +69,20 @@ class PeeperClient(Client):
                                 timezone=model["timezone"],
                                 proxy=proxy,
                             )
-                    elif model["mode"] == "now":
+                    elif model["mode"] in {"now", "rank"}:
+                        if model["mode"] == "rank":
+                            limit = model["limit"]
+                            if isinstance(limit, bool) or not isinstance(limit, int) or not 5 <= limit <= 100:
+                                raise BoardError("参数错误，请输入 [5, 100] 内的整数。")
+                            arguments.extend(["--rank", str(limit)])
+                        else:
+                            arguments.extend(["--separate_cols", "--now", "--verdict", model["verdict"]])
                         host = urlsplit(hydro_host(model["host"])).hostname
                         addresses = await public_addresses(host)
                         async with pinned_https_proxy(host, addresses) as proxy:
                             await run_cli(
                                 work,
-                                [*arguments, "--separate_cols", "--now", "--verdict", model["verdict"]],
+                                arguments,
                                 timezone=model["timezone"],
                                 proxy=proxy,
                             )

@@ -168,3 +168,95 @@ async def test_peeper_client_render_user_card(database, tmp_path, monkeypatch):
         assert await artifacts.read(USER, artifact.id)
     finally:
         await jobs.close()
+
+
+@pytest.mark.parametrize("limit", [5, 20, 100])
+async def test_rank_forwards_official_cli_with_isolated_pinned_proxy(database, tmp_path, monkeypatch, limit):
+    from contextlib import asynccontextmanager
+
+    from PIL import Image
+
+    from framework.clients import peeper
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "main.py").write_text("pass")
+    monkeypatch.setattr(peeper, "SOURCE", source)
+    calls = []
+    @asynccontextmanager
+    async def proxy(host, addresses):
+        assert host == "oj.example.com" and addresses == ["93.184.216.34"]
+        yield "http://pinned.invalid:1234"
+    async def cli(work, arguments, **kwargs):
+        config = json.loads((work / "config.json").read_text())[0]
+        assert config["exclude_uid"] == [3] and config["show_unrated"] is False
+        assert arguments[-2:] == ["--rank", str(limit)]
+        assert kwargs == {"timezone": "UTC", "proxy": "http://pinned.invalid:1234"}
+        calls.append(work)
+        Image.new("RGB", (30, 40)).save(work / "board.png")
+    monkeypatch.setattr(peeper, "pinned_https_proxy", proxy)
+    monkeypatch.setattr(peeper, "public_addresses", AsyncMock(return_value=["93.184.216.34"]))
+    monkeypatch.setattr(peeper, "run_cli", cli)
+    artifacts = ArtifactClient(tmp_path / "artifacts", database)
+    jobs = JobQueue()
+    await jobs.start()
+    try:
+        artifact = await PeeperClient(jobs, artifacts).render(USER, {
+            "name": "synthetic", "mode": "rank", "limit": limit, "snapshots": [], "timezone": "UTC",
+            "host": "https://oj.example.com/", "exclude_uid": [3], "show_unrated": False,
+        })
+        assert await artifacts.read(USER, artifact.id)
+        assert all(not work.exists() for work in calls)
+        assert not (source / "config.json").exists()
+    finally:
+        await jobs.close()
+
+
+async def test_official_rank_cli_refresh_and_render_offline(tmp_path):
+    """No internal Peeper imports/patches: public CLI + cache + loopback fake Hydro."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    from PIL import Image
+
+    from framework.clients.peeper import SOURCE, generator_config
+    from framework.integration.peeper_cli import cli_workspace, run_cli
+    requests = []
+    class Hydro(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+        def do_POST(self):
+            requests.append(self.path)
+            assert self.path == "/login"
+            self.send_response(200)
+            self.send_header("Set-Cookie", "sid=synthetic; Path=/")
+            self.send_header("Set-Cookie", "sid.sig=synthetic; Path=/")
+            self.end_headers()
+            self.wfile.write(b"{}")
+        def do_GET(self):
+            requests.append(self.path)
+            assert self.path == "/record?all=1&page=1", self.path
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'{"rdocs": [], "udict": {}, "pdict": {}}')
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Hydro)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yesterday = datetime.now(ZoneInfo("UTC")).date() - timedelta(days=1)
+    model = {"name": "Synthetic Rank", "host": f"http://127.0.0.1:{server.server_port}/",
+             "credentials": {"uname": "synthetic", "password": "synthetic"}}
+    snapshot = {"day": yesterday.isoformat(), "captured_at": datetime.now().timestamp(),
+                "payload": {"submissions": [], "rankings": [
+                    {"user": {"name": f"User {i}", "uid": str(i), "register_at": 0},
+                     "accepted": str(100 - i), "rank": str(i), "unrated": False} for i in range(1, 7)]}}
+    try:
+        async with cli_workspace(SOURCE, generator_config(model), [snapshot]) as work:
+            output = work / "rank.png"
+            await run_cli(work, ["--id", "board", "--rank", "5", "--output", str(output)], timezone="UTC")
+            with Image.open(output) as image:
+                assert image.width > 300 and image.height > 500
+            (tmp_path / "rank-sample.png").write_bytes(output.read_bytes())
+        assert requests == ["/login", "/record?all=1&page=1"]
+    finally:
+        await asyncio.to_thread(server.shutdown)
+        server.server_close()
+        thread.join(timeout=5)
