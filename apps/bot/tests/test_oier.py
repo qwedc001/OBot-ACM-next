@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import replace
 from unittest.mock import AsyncMock
 
@@ -202,3 +203,29 @@ async def test_empty_profile_and_incomplete_not_found():
     assert "暂无获奖记录" in await svc.reply(["测试选手"])
     svc.client.search.return_value = ([], False)
     assert "结果可能不完整" in await svc.reply(["未命中"])
+
+
+@pytest.mark.parametrize("partial", [False, True])
+async def test_overall_deadline_cancels_io_keeps_partial_results_and_stops_batch(monkeypatch, partial):
+    monkeypatch.setattr("framework.services.oier.QUERY_TIMEOUT", 0.01)
+    svc = service()
+    cancelled = asyncio.Event()
+
+    async def search(name):
+        if name == "已完成":
+            return [], True
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.set()
+
+    svc.client.search.side_effect = search
+    names = ["已完成", "等待", "未查询"] if partial else ["等待", "未查询"]
+    text = await asyncio.wait_for(svc.reply(names), timeout=1)
+    assert "查询超时" in text
+    assert cancelled.is_set()
+    assert svc.client.search.await_count == (2 if partial else 1)
+    if partial:
+        assert "已完成：未找到选手" in text
+    svc.client.detail.assert_not_awaited()
+    svc.client.awards.assert_not_awaited()

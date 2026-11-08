@@ -1,9 +1,12 @@
 """OI profiles adapted from the original OBot's CPCFinder-backed OIerDB."""
 
+import asyncio
 from collections import defaultdict
 
 from ..clients.http import UpstreamError
 from .base import Service
+
+QUERY_TIMEOUT = 25.0
 
 TYPE_ORDER = (
     "NOI",
@@ -98,11 +101,15 @@ class OIerService(Service):
         if not 1 <= len(names) <= 3 or any(not name.strip() or len(name) > 80 for name in names):
             return "单次查询支持 1–3 个选手姓名，每个姓名不超过 80 字。用法：/oier 张三 [李四 王五]"
         blocks = []
-        for name in names:
-            try:
-                blocks.append(await self._query(name.strip(), summary=len(names) > 1))
-            except UpstreamError:
-                blocks.append(f"{name}：OI 选手数据源暂时不可用，请稍后重试。")
+        try:
+            async with asyncio.timeout(QUERY_TIMEOUT):
+                for name in names:
+                    try:
+                        blocks.append(await self._query(name.strip(), summary=len(names) > 1))
+                    except UpstreamError:
+                        blocks.append(f"{name}：OI 选手数据源暂时不可用，请稍后重试。")
+        except TimeoutError:
+            blocks.append("查询超时，已中止未完成的选手请求，请稍后重试。")
         return (
             "[OIerDb] "
             + ("选手查询" if len(names) == 1 else f"选手批量查询 ({len(names)}人)")

@@ -93,7 +93,7 @@ async def handle_board_help(context: CommandContext, services: BotServices, repl
         "/board user id <用户ID> [配置名] — 按 ID 查询用户",
         "/board user name <用户名> [配置名] — 按用户名查询用户",
         "/board version — 查看生成器版本",
-        "/board rank [人数] [配置名] — 过题数排名，默认 20 人，范围 5–100",
+        "/board rank [人数 [配置名]] — 过题数排名，默认 20 人，范围 5–100",
     ]
     if await services.boards.can_manage(context):
         lines.extend(
@@ -313,7 +313,7 @@ async def handle_board_rank(
 rank_command = template_command(
     CommandSpec(
         id="cp.rank", plugin_id="cp", name="rank", aliases=("题数排名",), example_alias="题数排名",
-        summary="查询训练榜单过题数排名（同 /board rank）", usage="/题数排名 [人数] [配置名]",
+        summary="查询训练榜单过题数排名（同 /board rank）", usage="/题数排名 [人数 [配置名]]",
         examples=("/题数排名", "/题数排名 20"),
     ),
     Args["limit", str, "20"]["name", str, None], priority=10, block=True,
