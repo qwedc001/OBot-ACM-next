@@ -109,7 +109,7 @@ async def test_official_query_user_cli_renders_user_card(tmp_path):
             self.send_response(200)
             self.end_headers()
             if "record" in self.path:
-                self.wfile.write(b'{"rdocs": [], "pdict": {}}')
+                self.wfile.write(b'{"rdocs": [], "pdict": {}, "udict": {}}')
             else:
                 self.wfile.write(
                     b'<html><body><div class="media__body profile-header__main"><h1>TestUser</h1>'
@@ -133,7 +133,7 @@ async def test_official_query_user_cli_renders_user_card(tmp_path):
         )
         snapshots = [
             {
-                "day": now.date().isoformat(),
+                "day": (now.date() - timedelta(days=1)).isoformat(),
                 "captured_at": now.timestamp(),
                 "payload": {"submissions": [], "rankings": []},
             }
@@ -147,6 +147,9 @@ async def test_official_query_user_cli_renders_user_card(tmp_path):
         )
         assert output.is_file()
         assert struct.unpack(">II", output.read_bytes()[16:24])[0] > 500
+        # Refresh records using yesterday's seed; never trigger an admin export.
+        assert any(path.startswith("/record?") for path, _ in calls)
+        assert {path for path, values in calls if isinstance(values, dict)} == {"/login"}
     finally:
         await asyncio.to_thread(server.shutdown)
         server.server_close()

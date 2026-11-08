@@ -425,3 +425,32 @@ async def test_board_user_image_delegates_to_peeper_render(database, tmp_path):
     assert model["value"] == "123"
     assert len(model["snapshots"]) == 1
     assert model["credentials"]["uname"] == "test-admin"
+    yesterday = datetime.now(ZoneInfo(boards.settings.obot_board_timezone)).date() - timedelta(days=1)
+    assert model["snapshots"][0]["day"] == yesterday.isoformat()
+
+
+@pytest.mark.parametrize("limit", [4, 101, 0, -1, True, "20", 5.5])
+async def test_rank_rejects_invalid_limit_before_config_lookup(database, tmp_path, limit):
+    boards = service(database, tmp_path)
+    with pytest.raises(BoardError, match="5, 100"):
+        await boards.rank_image(context(), limit)
+    boards.peeper.render.assert_not_awaited()
+
+
+async def test_rank_scoped_options_and_stale_config_guard(database, tmp_path):
+    boards = service(database, tmp_path)
+    value = await token(boards)
+    await boards.submit(value, "https://oj.example.com/d/team", "admin", "synthetic",
+                        {"show_unrated": False, "exclude_uid": [3]})
+    await boards.rank_image(context())
+    model = boards.peeper.render.await_args.args[1]
+    assert model["mode"] == "rank" and model["limit"] == 20 and len(model["snapshots"]) == 1
+    assert model["show_unrated"] is False and model["exclude_uid"] == [3]
+    assert model["host"] == "https://oj.example.com/d/team/"
+    with pytest.raises(BoardError):
+        await boards.rank_image(context(group="other"))
+    async def reconfigure(*args):
+        await boards.starred(context(), True)
+    boards.peeper.render.side_effect = reconfigure
+    with pytest.raises(BoardError, match="配置已改变"):
+        await boards.rank_image(context(), 100)

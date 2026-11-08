@@ -11,7 +11,6 @@ from nonebot.plugin import PluginMetadata
 from framework.board import BoardError
 from framework.catalog import CommandDirectory, CommandSpec, catalog
 from framework.clients.jobs import QueueClosed, QueueFull
-from framework.contracts import SceneKind
 from framework.integration.command_context import BotServices, CommandContext, Reply
 from framework.integration.commands import template_command
 from framework.integration.peeper_cli import PeeperCLIError
@@ -44,6 +43,7 @@ board = template_command(
     Subcommand("unbind", Args["name", str]),
     Subcommand("list"),
     Subcommand("version"),
+    Subcommand("rank", Args["limit", str, "20"]["name", str, None]),
     Subcommand(
         "push", *(Subcommand(action, Args["name", str, None]) for action in ("on", "off", "status", "test"))
     ),
@@ -93,6 +93,7 @@ async def handle_board_help(context: CommandContext, services: BotServices, repl
         "/board user id <用户ID> [配置名] — 按 ID 查询用户",
         "/board user name <用户名> [配置名] — 按用户名查询用户",
         "/board version — 查看生成器版本",
+        "/board rank [人数 [配置名]] — 过题数排名，默认 20 人，范围 5–100",
     ]
     if await services.boards.can_manage(context):
         lines.extend(
@@ -279,3 +280,50 @@ async def handle_board_user_name(
     name: str | None = None,
 ):
     await send_user(bot, context, services, reply, "name", username, name)
+
+
+async def send_rank(bot, context, services, reply, limit="20", name=None):
+    # Consume the first token as text: Alconna may skip a defaulted int and
+    # misinterpret a malformed limit as the optional configuration name.
+    try:
+        limit = int(limit)
+    except (ValueError, TypeError):
+        raise BoardError("参数错误，请输入 [5, 100] 内的整数。") from None
+    if not 5 <= limit <= 100:
+        raise BoardError("参数错误，请输入 [5, 100] 内的整数。")
+    if not reply.supports(bot.adapter.get_name(), Image):
+        raise BoardError("当前平台不支持图片榜单。")
+    await reply.send("正在获取过题数排名并生成图片，请稍候。")
+    artifact = await services.boards.rank_image(context, limit, name)
+    await reply.finish(Message(
+        Text(f"题数排名前 {limit} 名"),
+        Image(await services.clients.artifacts.read(context.actor, artifact.id)),
+    ))
+
+
+@board.assign("rank")
+@board_errors
+async def handle_board_rank(
+    bot: Bot, context: CommandContext, services: BotServices, reply: Reply,
+    limit: str = "20", name: str | None = None,
+):
+    await send_rank(bot, context, services, reply, limit, name)
+
+
+rank_command = template_command(
+    CommandSpec(
+        id="cp.rank", plugin_id="cp", name="rank", aliases=("题数排名",), example_alias="题数排名",
+        summary="查询训练榜单过题数排名（同 /board rank）", usage="/题数排名 [人数 [配置名]]",
+        examples=("/题数排名", "/题数排名 20"),
+    ),
+    Args["limit", str, "20"]["name", str, None], priority=10, block=True,
+)
+
+
+@rank_command.assign("$main")
+@board_errors
+async def handle_rank(
+    bot: Bot, context: CommandContext, services: BotServices, reply: Reply,
+    limit: str = "20", name: str | None = None,
+):
+    await send_rank(bot, context, services, reply, limit, name)
