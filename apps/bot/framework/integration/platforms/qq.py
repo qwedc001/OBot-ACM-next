@@ -35,6 +35,9 @@ class QQPlatform(Platform):
             if not (item.content_type or "").startswith("image/"):
                 logger.info("QQ upload attachment: index={} result=non_image", index)
                 continue
+            if not item.url:
+                logger.info("QQ upload attachment: index={} result=missing_url", index)
+                continue
             url = "https:" + item.url if item.url.startswith("//") else item.url
             try:
                 parts = urlsplit(url)
