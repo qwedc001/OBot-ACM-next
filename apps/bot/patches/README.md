@@ -85,3 +85,13 @@
 将 expires_at 设置为当前 Unix 秒数加 1800（最多一小时），随后重启应用。只有指定群中包含指定指令的事件会被记录。过期立即停止采集；收集完成后移除 request.json 并重启解除诊断挂钩。保留最多 40 个 JSON 文件（接收、处理两个阶段），单文件上限 256 KiB。磁盘写入在线程中完成，写入失败不影响机器人。Windows 测试环境不检查 Unix 文件权限，生产环境必须匹配服务用户且不可组/他人读取。
 
 诊断保留真实用户身份和消息内容以便比对，属于私有数据，不能进入 Git、公开日志或前端；auth_token、密码、cookie 和 URL 等会被过滤。公开测试夹具必须重新匿名化，而不是直接复制采集文件。只有字段结构日志不足以判断身份在哪一步丢失时，才临时启用此诊断。
+
+## 私聊与群聊附件契约核查（任务 #161）
+
+核查基于 `nonebot-adapter-qq==1.7.3`。官方[单聊事件](https://bot.q.qq.com/wiki/develop/api-v2/autogen/event/c2c_message_create.html)与[群 @ 事件](https://bot.q.qq.com/wiki/develop/api-v2/autogen/event/group_at_message_create.html)均定义顶层 `attachments` 和引用元素 `msg_elements[].attachments`；不是 `message_element.attachment`。C2C、群 @、全量群事件共用 `QQMessage` 模型和 `Message.from_qq_message`，顶层附件会转换为当前消息的图片/文件/音视频段。一层引用附件也会保留在 `event.msg_elements`；有匹配的 `message_scene.ext` 中 `ref_msg_idx` 时，SDK 通过 `event.reply` / `get_reply_message()` 暴露引用内容，不会把它们混入当前消息。
+
+`QQPlatform.image_attachments()` 仅接受当前事件的原生图片，并校验 HTTPS 和可信 CDN；文件、音视频、文本 URL 及引用消息图片不当作本次上传。不要为了“补回附件”递归展平引用内容，否则会将旧消息图片误作本次上传。
+
+合成事件验证覆盖三种事件类型、四种附件类型、缺省/空列表、当前与引用附件隔离，以及引用元素未下发附件的情况。另复现了非私聊专属的边界缺陷：SDK 允许附件 `url=None`，原提取器却直接调用 `startswith`，导致整次提取失败。现跳过无 URL 的图片并记录不含私有内容的 `missing_url`，继续返回其他有效图片；不扩大域名白名单。
+
+没有取得本次报告对应的私聊原始推送，因此不能认定平台未下发、引用层字段缺失或原报告已修复。后续应在用户授权的单次事件中对照 SDK 验证前后的顶层及引用层字段是否存在（不公开正文、身份或签名 URL）；当前 `qq_trace` 仅支持指定群，不能用群诊断配置代替私聊证据。此处不新增私聊采集、不修改上游、不合并部署。
